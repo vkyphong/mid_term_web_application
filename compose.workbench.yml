@@ -1,0 +1,5 @@
+# Optional: docker compose -f compose.yml -f compose.workbench.yml up -d
+services:
+  mysql:
+    ports:
+      - "127.0.0.1:${MYSQL_PORT:-3307}:3306"

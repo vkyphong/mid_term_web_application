@@ -13,7 +13,12 @@ export default defineConfig(({ mode }) => {
       // Proxy /api sang BE để refresh-token cookie là same-origin khi dev.
       proxy: {
         '/api': {
-          target: env.VITE_API_PROXY_TARGET || 'http://localhost:3000',
+          target: env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+          changeOrigin: true,
+        },
+        '/ws': {
+          target: env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
+          ws: true,
           changeOrigin: true,
         },
       },

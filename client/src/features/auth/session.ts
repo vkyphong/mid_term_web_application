@@ -5,6 +5,8 @@ import { authApi } from './authApi'
 import type { AuthResponse, Session } from './types'
 
 export const sessionQueryKey = ['auth', 'session'] as const
+let revision = 0
+export const sessionRevision = () => revision
 
 export function toSession(res: AuthResponse): Session {
   return {
@@ -16,6 +18,7 @@ export function toSession(res: AuthResponse): Session {
 
 /** Ghi phiên vào cache TanStack Query và đồng bộ token cho apiClient. */
 export function setSession(queryClient: QueryClient, session: Session | null) {
+  revision++
   tokenStore.set(session?.accessToken ?? null)
   queryClient.setQueryData<Session | null>(sessionQueryKey, session)
 }

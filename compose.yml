@@ -1,0 +1,59 @@
+name: pulsechat
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-pulsechat}
+      MYSQL_USER: ${MYSQL_USER:-pulsechat}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Run scripts/init-env.ps1 first}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Run scripts/init-env.ps1 first}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$$MYSQL_PASSWORD" mysql -h 127.0.0.1 -u "$$MYSQL_USER" -D "$$MYSQL_DATABASE" -e "SELECT 1" >/dev/null 2>&1']
+      interval: 5s
+      timeout: 5s
+      retries: 40
+    restart: unless-stopped
+  app:
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+      target: runtime
+      args:
+        ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-DQGM.dev}
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-pulsechat}?connectionTimeZone=UTC
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-pulsechat}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?Run scripts/init-env.ps1 first}
+      JWT_SECRET: ${JWT_SECRET:?Run scripts/init-env.ps1 first}
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-DQGM.dev}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      ACCESS_TTL_SECONDS: ${ACCESS_TTL_SECONDS:-900}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, curl, -fsS, http://localhost:8080/actuator/health]
+      interval: 10s
+      timeout: 5s
+      start_period: 45s
+      retries: 12
+    restart: unless-stopped
+  smoke:
+    profiles: [tools]
+    build:
+      context: .
+      dockerfile: infra/Dockerfile
+      target: smoke-test
+    environment:
+      BASE_URL: http://app:8080
+      ALLOWED_EMAIL_DOMAINS: ${ALLOWED_EMAIL_DOMAINS:-DQGM.dev}
+    depends_on:
+      app:
+        condition: service_healthy
+volumes:
+  mysql-data:

@@ -1,0 +1,10 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:pulsechat;MODE=MySQL;DB_CLOSE_DELAY=-1
+    username: sa
+    password: ""
+app:
+  jwt-secret: test-secret-only-at-least-thirty-two-characters-long
+  access-ttl-seconds: 5
+  allowed-email-domains: DQGM.dev
+  allowed-origins: http://localhost:8080,http://localhost:5173

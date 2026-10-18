@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { config } from '../config'
 import { useLogout, useSession } from '../features/auth/hooks'
+import { RealtimeStatus } from '../features/realtime/RealtimeStatus'
 
 /** Trang tạm sau khi đăng nhập; giao diện chat sẽ thay thế ở F03. */
 export function HomePage() {
@@ -37,6 +38,7 @@ export function HomePage() {
           <dd>{new Date(session.expiresAt).toLocaleTimeString('vi-VN')}</dd>
         </dl>
       </section>
+      <RealtimeStatus />
     </main>
   )
 }

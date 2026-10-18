@@ -60,9 +60,9 @@ describe('authRequest', () => {
 
     await expect(authRequest('/api/rooms')).resolves.toEqual({ ok: true })
     expect(refresh).toHaveBeenCalledTimes(1)
-    const headers = (call: number) => fetchMock.mock.calls[call][1]?.headers
-    expect(headers(0)).toMatchObject({ Authorization: 'Bearer old-token' })
-    expect(headers(1)).toMatchObject({ Authorization: 'Bearer new-token' })
+    const headers = (call: number) => new Headers(fetchMock.mock.calls[call][1]?.headers)
+    expect(headers(0).get('Authorization')).toBe('Bearer old-token')
+    expect(headers(1).get('Authorization')).toBe('Bearer new-token')
   })
 
   it('không lặp refresh nếu vẫn 401 sau khi refresh', async () => {
@@ -79,7 +79,7 @@ describe('authRequest', () => {
     const refresh = vi.fn().mockResolvedValue('new-token')
     setRefreshHandler(refresh)
     fetchMock.mockImplementation(async (_url, init) => {
-      const auth = (init?.headers as Record<string, string>).Authorization
+      const auth = new Headers(init?.headers).get('Authorization')
       return auth === 'Bearer new-token'
         ? jsonResponse(200, { ok: true })
         : jsonResponse(401, { error: { code: 'unauthorized' } })
