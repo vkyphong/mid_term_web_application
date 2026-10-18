@@ -12,10 +12,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.5.0",
     "@tanstack/react-query": "^5.62.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-router-dom": "^7.1.1",
+    "react-router-dom": "^7.18.4",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -35,6 +36,6 @@
     "typescript": "~5.8.3",
     "typescript-eslint": "^8.30.1",
     "vite": "^6.3.5",
-    "vitest": "^3.0.5"
+    "vitest": "^4.1.12"
   }
 }

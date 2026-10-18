@@ -9,15 +9,14 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
 /** Request thô: JSON in/out, gửi kèm cookie, chuẩn hoá lỗi thành ApiError. */
 export async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { body, headers, ...rest } = options
+  const requestHeaders = new Headers(headers)
+  if (body !== undefined && !requestHeaders.has('Content-Type')) requestHeaders.set('Content-Type', 'application/json')
   let res: Response
   try {
     res = await fetch(`${config.apiBaseUrl}${path}`, {
       ...rest,
       credentials: 'include',
-      headers: {
-        ...(body !== undefined && { 'Content-Type': 'application/json' }),
-        ...headers,
-      },
+      headers: requestHeaders,
       body: body !== undefined ? JSON.stringify(body) : undefined,
     })
   } catch {
@@ -53,10 +52,11 @@ export function refreshAccessToken(): Promise<string | null> {
  * rồi thử lại, không lặp vô hạn.
  */
 export async function authRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const withToken = (token: string | null): RequestOptions => ({
-    ...options,
-    headers: { ...options.headers, ...(token && { Authorization: `Bearer ${token}` }) },
-  })
+  const withToken = (token: string | null): RequestOptions => {
+    const headers = new Headers(options.headers)
+    if (token) headers.set('Authorization', `Bearer ${token}`)
+    return { ...options, headers }
+  }
 
   try {
     return await request<T>(path, withToken(tokenStore.get()))

@@ -1,0 +1,42 @@
+server:
+  port: 8080
+  address: 0.0.0.0
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: pulsechat
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/pulsechat}
+    username: ${SPRING_DATASOURCE_USERNAME:pulsechat}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate.jdbc.time_zone: UTC
+  flyway:
+    enabled: true
+  jackson:
+    default-property-inclusion: non_null
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+logging:
+  level:
+    # Framework error logs may contain full STOMP CONNECT headers (including JWT).
+    org.springframework.web.socket.messaging.StompSubProtocolHandler: 'OFF'
+app:
+  jwt-secret: ${JWT_SECRET}
+  access-ttl-seconds: ${ACCESS_TTL_SECONDS:900}
+  refresh-ttl-seconds: 604800
+  allowed-email-domains: ${ALLOWED_EMAIL_DOMAINS:DQGM.dev}
+  allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173}
+  cookie-secure: ${COOKIE_SECURE:false}

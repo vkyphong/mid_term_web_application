@@ -1,53 +1,22 @@
-# PulseChat – Client
+# PulseChat client
 
-React 19 + TypeScript + Vite, TanStack Query, React Router, zod. Test bằng Vitest + Testing Library.
+React + TypeScript + Vite, TanStack Query, React Router, Zod and StompJS. Feature folders separate authentication and realtime; `lib/` contains shared HTTP/error/token infrastructure.
 
-## Chạy
+The supported full-stack workflow is Docker: see [root README](../README.md). React is built into Spring Boot static resources, so REST and WebSocket use the browser origin.
 
-```bash
-cd client
-npm install
-cp .env.example .env.local   # chỉnh nếu cần
-npm run dev                  # http://localhost:5173
+For optional local frontend development:
+
+```sh
+npm ci
+npm run dev
 ```
 
-| Biến | Ý nghĩa |
-| --- | --- |
-| `VITE_USE_MOCK_API` | `true`: dùng mock API trong trình duyệt (khi BE chưa chạy). `false`: gọi BE thật. |
-| `VITE_API_PROXY_TARGET` | Địa chỉ BE cho Vite proxy `/api` khi dev (mặc định `http://localhost:3000`). |
-| `VITE_API_BASE_URL` | Base URL API khi build/deploy; để trống nếu FE và BE cùng origin. |
-| `VITE_ALLOWED_EMAIL_DOMAINS` | Domain email được đăng ký, phân tách bằng dấu phẩy; phải khớp cấu hình BE. |
-| `VITE_MOCK_ACCESS_TTL_SECONDS` | TTL access token của mock; đặt `30` để demo tự refresh. |
+Vite proxies `/api` and `/ws` to `http://localhost:8080`. Configure `VITE_API_PROXY_TARGET` if needed. `VITE_ALLOWED_EMAIL_DOMAINS` must match backend `ALLOWED_EMAIL_DOMAINS` (default `DQGM.dev`). `VITE_USE_MOCK_API=true` enables the old browser-only auth mock; realtime is disabled in this mode. Do not use real credentials with mock storage.
 
-Mock lưu dữ liệu trong `localStorage` (khoá `pulsechat.mock.*`); xoá các khoá này để reset.
-
-## Lệnh
-
-```bash
-npm test         # chạy toàn bộ test một lần
+```sh
+npm test
 npm run lint
 npm run build
 ```
 
-## Cấu trúc auth (F01)
-
-```
-src/
-  config.ts                  đọc biến môi trường
-  lib/
-    apiClient.ts             fetch JSON + cookie; authRequest tự refresh 1 lần khi 401
-    apiError.ts              chuẩn hoá lỗi { code, reason, details }
-    tokenStore.ts            access token chỉ giữ trong bộ nhớ
-  features/auth/
-    authApi.ts               REST /api/auth/* (hoặc mockAuthApi khi bật mock)
-    domain.ts                so khớp domain email chính xác
-    schemas.ts               zod schema cho form
-    errors.ts                map lỗi API → thông báo tiếng Việt
-    session.ts, hooks.ts     phiên đăng nhập bằng TanStack Query
-    AuthProvider.tsx         refresh chủ động, xử lý phiên hết hạn
-    components/              LoginPage, RegisterPage, RouteGuards
-```
-
-Contract API: [docs/api/auth.md](../docs/api/auth.md).
-
-Dùng `authRequest` (không dùng `fetch` trực tiếp) cho các API cần đăng nhập ở các chức năng sau để được gắn token và tự refresh.
+Auth access tokens stay in memory. Refresh cookies are issued by Spring Boot. REST consumers use `authRequest`; websocket consumers use the realtime feature. [REST contract](../docs/api/auth.md), [STOMP contract](../docs/api/realtime.md).

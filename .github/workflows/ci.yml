@@ -1,0 +1,24 @@
+name: Verify
+on:
+  push:
+  pull_request:
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test frontend and backend
+        run: docker build -t pulsechat-ci -f infra/Dockerfile .
+      - name: Generate ephemeral CI configuration
+        shell: pwsh
+        run: ./scripts/init-env.ps1
+      - name: Start app and MySQL
+        run: docker compose up --build -d --wait --wait-timeout 180
+      - name: Verify real MySQL and STOMP flow
+        run: docker compose --profile tools run --build --rm --no-deps smoke
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --tail 100
+      - name: Stop containers
+        if: always()
+        run: docker compose down

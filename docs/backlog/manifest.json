@@ -1,0 +1,281 @@
+[
+  {
+    "id": "F01",
+    "title": "[F01] Đăng ký / đăng nhập JWT",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP4",
+      "fe",
+      "be"
+    ],
+    "milestone": "W02 - Tuần 2",
+    "owner": "TV2_GH"
+  },
+  {
+    "id": "F02",
+    "title": "[F02] Xác thực JWT tại STOMP CONNECT",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP4",
+      "fe",
+      "be"
+    ],
+    "milestone": "W02 - Tuần 2",
+    "owner": "TV2_GH"
+  },
+  {
+    "id": "F03",
+    "title": "[F03] Kênh chat công khai",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W03 - Tuần 3",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F04",
+    "title": "[F04] Nhắn tin riêng 1-1",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W03 - Tuần 3",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F05",
+    "title": "[F05] Lưu và tải lịch sử tin nhắn",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP1",
+      "fe",
+      "be"
+    ],
+    "milestone": "W03 - Tuần 3",
+    "owner": "TV2_GH"
+  },
+  {
+    "id": "F06",
+    "title": "[F06] Trạng thái online/offline",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W04 - Tuần 4",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F07",
+    "title": "[F07] Hiển thị đang gõ",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W04 - Tuần 4",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F08",
+    "title": "[F08] Đã nhận / đã xem",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W04 - Tuần 4",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F09",
+    "title": "[F09] Thông báo realtime và @mention",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP2",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W05 - Tuần 5",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F10",
+    "title": "[F10] Tự kết nối lại và hàng đợi offline",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP4",
+      "fe",
+      "be"
+    ],
+    "milestone": "W05 - Tuần 5",
+    "owner": "TV2_GH"
+  },
+  {
+    "id": "F11",
+    "title": "[F11] Rate limiting và kiểm tra đầu vào",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP4",
+      "fe",
+      "be"
+    ],
+    "milestone": "W05 - Tuần 5",
+    "owner": "TV2_GH"
+  },
+  {
+    "id": "F12",
+    "title": "[F12] Admin Live Dashboard",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP2",
+      "KP4",
+      "fe",
+      "be",
+      "area:admin"
+    ],
+    "milestone": "W06 - Tuần 6",
+    "owner": "TV3_GH"
+  },
+  {
+    "id": "F13",
+    "title": "[F13] Protocol Lab",
+    "labels": [
+      "type:feature",
+      "priority:must",
+      "KP1",
+      "fe",
+      "be",
+      "area:lab"
+    ],
+    "milestone": "W06 - Tuần 6",
+    "owner": "TV3_GH"
+  },
+  {
+    "id": "F14",
+    "title": "[F14] Sửa / xóa / thả cảm xúc tin nhắn",
+    "labels": [
+      "type:feature",
+      "priority:should",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F15",
+    "title": "[F15] Gửi ảnh / file",
+    "labels": [
+      "type:feature",
+      "priority:should",
+      "KP1",
+      "KP3",
+      "fe",
+      "be"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV1_GH"
+  },
+  {
+    "id": "F16",
+    "title": "[F16] Mở rộng nhiều server — ngoài phạm vi",
+    "labels": [
+      "type:feature",
+      "priority:should",
+      "KP4",
+      "be",
+      "infra"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV2_GH",
+    "outOfScope": true
+  },
+  {
+    "id": "F17",
+    "title": "[F17] Heartbeat ping/pong",
+    "labels": [
+      "type:feature",
+      "priority:should",
+      "KP1",
+      "KP4",
+      "be"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV2_GH"
+  },
+  {
+    "id": "F18",
+    "title": "[F18] Kiểm thử tải 500–1000 kết nối",
+    "labels": [
+      "type:feature",
+      "priority:should",
+      "KP4",
+      "be",
+      "test"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV3_GH"
+  },
+  {
+    "id": "F19",
+    "title": "[F19] Bảng trắng cộng tác",
+    "labels": [
+      "type:feature",
+      "priority:could",
+      "KP2",
+      "fe",
+      "be"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV3_GH"
+  },
+  {
+    "id": "F20",
+    "title": "[F20] Mini game cờ caro 2 người",
+    "labels": [
+      "type:feature",
+      "priority:could",
+      "KP2",
+      "fe",
+      "be"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV3_GH"
+  },
+  {
+    "id": "F21",
+    "title": "[F21] Browser Notification khi ẩn tab",
+    "labels": [
+      "type:feature",
+      "priority:could",
+      "KP2",
+      "fe",
+      "be"
+    ],
+    "milestone": "W07 - Tuần 7",
+    "owner": "TV3_GH"
+  }
+]

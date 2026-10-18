@@ -20,7 +20,7 @@ export function createRegisterSchema(allowedDomains: readonly string[]) {
   return z
     .object({
       email: email.refine(
-        (value) => allowedDomains.length === 0 || isAllowedEmailDomain(value, allowedDomains),
+        (value) => isAllowedEmailDomain(value, allowedDomains),
         { message: `Chỉ chấp nhận email @${allowedDomains.join(', @')}` },
       ),
       displayName: z

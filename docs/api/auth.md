@@ -1,7 +1,6 @@
-# F01 – Auth REST API contract (draft)
+# F01 — Auth REST API contract
 
-> Trạng thái: **bản nháp do FE đề xuất** – cần TV2 (BE) xác nhận/điều chỉnh trước khi chốt.
-> FE (`client/`) và mock API (`client/src/features/auth/mockAuthApi.ts`) đang bám theo tài liệu này.
+> Implemented by Spring Boot (`server/`) and React (`client/`). Database: MySQL, managed by Flyway. Defaults: `DQGM.dev`, access TTL 900 seconds, fixed refresh lifetime 7 days.
 
 ## Tổng quan
 
@@ -22,14 +21,14 @@ interface AuthResponse {
 
 ## Token
 
-- **Access token** (JWT, 15 phút): trả trong body. FE chỉ giữ trong bộ nhớ, gửi qua header `Authorization: Bearer <token>` (và khi handshake Socket.IO ở F02).
+- **Access token** (JWT, 15 phút): trả trong body. FE chỉ giữ trong bộ nhớ, gửi qua header `Authorization: Bearer <token>` (gửi trong STOMP CONNECT ở F02; xem [realtime.md](realtime.md)).
 - **Refresh token** (7 ngày): đặt trong cookie, FE không đọc được:
 
   ```
   Set-Cookie: refreshToken=<opaque>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age=604800
   ```
 
-  - Khi dev qua Vite proxy (`http://localhost:5173` → `:3000`) cookie là same-origin; có thể bỏ `Secure` ở môi trường dev HTTP.
+  - Khi dev qua Vite proxy (`http://localhost:5173` → `:8080`) cookie là same-origin; có thể bỏ `Secure` ở môi trường dev HTTP.
   - `/refresh` cấp refresh token mới và vô hiệu token cũ (rotation).
   - `/logout` vô hiệu refresh token hiện tại → dùng lại token cũ phải nhận `401`.
 - FE gọi `/refresh` khi tải trang (khôi phục phiên), ~60s trước khi access token hết hạn, và **một lần** khi API trả `401`.
@@ -60,7 +59,7 @@ Mọi lỗi trả về cùng một dạng; `code` theo contract chung của dự
 
 | Tình huống | HTTP | `code` | `reason` |
 | --- | --- | --- | --- |
-| Body sai (zod) | 400 | `invalid_payload` | `validation` (+ `details: [{ field, message }]`) |
+| Body sai (Jakarta/custom validation) | 400 | `invalid_payload` | `validation` (+ `details: [{ field, message }]`) |
 | Email ngoài domain | 403 | `forbidden` | `domain_not_allowed` |
 | Email đã tồn tại | 409 | `invalid_payload` | `email_taken` |
 | Sai email / mật khẩu | 401 | `unauthorized` | `invalid_credentials` |
@@ -69,3 +68,14 @@ Mọi lỗi trả về cùng một dạng; `code` theo contract chung của dự
 | Quá giới hạn (F11) | 429 | `rate_limited` | – (`retryAfter`: giây) |
 
 Login sai email hay sai mật khẩu đều trả `invalid_credentials` (không tiết lộ email có tồn tại hay không).
+
+## Persisted sessions and Origin
+
+- `GET /api/auth/me`: Bearer JWT required; returns the `user` object. Invalid/revoked/expired access tokens return 401 with `invalid_token`.
+- JWT signature: HS256, issuer `pulsechat`, subject user ID, `sid` auth-session ID. Secret is at least 32 characters, supplied by environment.
+- Refresh values are opaque random 256-bit secrets; only SHA-256 hashes are stored in `auth_sessions`. Rotation is single-use with a row lock; stale/replayed refresh values return 401 without invalidating the newly rotated session. Concurrent refresh: exactly one succeeds.
+- Logout revokes the persisted session, clears the refresh cookie and closes its WebSockets. Access JWTs for this session also stop working. Independent login sessions remain valid. Retired refresh hashes map old rotated cookies to their session for logout only, so a concurrent refresh cannot undo logout; they cannot be used to refresh.
+- Refresh rotation preserves the original seven-day deadline. It does not create an indefinite sliding session. Login/register responses set a new seven-day cookie; refresh cookie Max-Age is the remaining lifetime.
+- Exact same-origin requests and configured `ALLOWED_ORIGINS` are accepted. Cross-origin browser requests outside that list return 403. SameSite Strict cookies and Origin checks protect cookie-authenticated POST requests; non-browser clients may omit Origin.
+- `enabled=false` in `users` blocks login, refresh, authenticated REST and subsequent STOMP frames. Admin ban management is F12.
+- Docker builds frontend with `VITE_USE_MOCK_API=false`; local mock remains optional and is not a real JWT/database implementation.

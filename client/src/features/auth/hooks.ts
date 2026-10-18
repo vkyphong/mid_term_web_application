@@ -28,6 +28,7 @@ export function useSession() {
 export function useLogin() {
   const queryClient = useQueryClient()
   return useMutation({
+    onMutate: () => queryClient.cancelQueries({ queryKey: sessionQueryKey }),
     mutationFn: (input: LoginInput) => authApi.login(input),
     onSuccess: (res) => setSession(queryClient, toSession(res)),
   })
@@ -36,6 +37,7 @@ export function useLogin() {
 export function useRegister() {
   const queryClient = useQueryClient()
   return useMutation({
+    onMutate: () => queryClient.cancelQueries({ queryKey: sessionQueryKey }),
     mutationFn: (input: RegisterInput) => authApi.register(input),
     onSuccess: (res) => setSession(queryClient, toSession(res)),
   })
@@ -45,8 +47,9 @@ export function useLogout() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: () => authApi.logout(),
-    // Kể cả khi request lỗi, phía client vẫn phải xoá phiên.
-    onSettled: () => {
+    // Clear locally before the request so an in-flight refresh cannot restore a logged-out session.
+    onMutate: async () => {
+      await queryClient.cancelQueries({ queryKey: sessionQueryKey })
       setSession(queryClient, null)
       queryClient.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' })
     },

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { render, screen, waitFor } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -15,6 +15,7 @@ import type { AuthResponse } from './types'
 vi.mock('./authApi', () => ({
   authApi: { register: vi.fn(), login: vi.fn(), refresh: vi.fn(), logout: vi.fn() },
 }))
+vi.mock('../realtime/RealtimeStatus', () => ({ RealtimeStatus: () => null }))
 
 const api = vi.mocked(authApi)
 const domain = config.allowedEmailDomains[0]
@@ -67,10 +68,34 @@ describe('trạng thái phiên', () => {
     await screen.findByRole('heading', { name: /Xin chào/ })
 
     api.refresh.mockRejectedValueOnce(noSession())
-    await refreshAccessToken()
+    await act(async () => { await refreshAccessToken() })
 
     expect(await screen.findByText(/Phiên đăng nhập đã hết hạn/)).toBeInTheDocument()
     expect(tokenStore.get()).toBeNull()
+  })
+
+  it('lỗi mạng khi refresh không xoá phiên', async () => {
+    api.refresh.mockResolvedValueOnce(authResponse)
+    renderApp('/')
+    await screen.findByRole('heading', { name: /Xin chào/ })
+    api.refresh.mockRejectedValueOnce(new ApiError(0, { code: 'network_error' }))
+    await act(async () => { await expect(refreshAccessToken()).rejects.toMatchObject({ code: 'network_error' }) })
+    expect(tokenStore.get()).toBe('access-1')
+    expect(screen.getByRole('heading', { name: /Xin chào/ })).toBeInTheDocument()
+  })
+
+  it('refresh đang chạy không khôi phục phiên sau logout', async () => {
+    api.refresh.mockResolvedValueOnce(authResponse)
+    renderApp('/')
+    await screen.findByRole('heading', { name: /Xin chào/ })
+    let resolve!: (value: AuthResponse) => void
+    api.refresh.mockImplementationOnce(() => new Promise((done) => { resolve = done }))
+    const pending = refreshAccessToken()
+    await userEvent.click(screen.getByRole('button', { name: 'Đăng xuất' }))
+    await screen.findByRole('heading', { name: 'Đăng nhập' })
+    await act(async () => { resolve(authResponse); await pending })
+    expect(tokenStore.get()).toBeNull()
+    expect(screen.getByRole('heading', { name: 'Đăng nhập' })).toBeInTheDocument()
   })
 })
 
