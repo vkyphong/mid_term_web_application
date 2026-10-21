@@ -20,3 +20,13 @@ npm run build
 ```
 
 Auth access tokens stay in memory. Refresh cookies are issued by Spring Boot. REST consumers use `authRequest`; websocket consumers use the realtime feature. [REST contract](../docs/api/auth.md), [STOMP contract](../docs/api/realtime.md).
+
+## Chat (F03 / F04)
+
+`features/chat` implements channels and direct messages against the draft [chat contract](../docs/api/chat.md):
+
+- `RealtimeProvider` opens the single STOMP connection; `realtimeBus` shares the connected client.
+- `transport.ts` sends `{ type, payload, ts, correlationId }` and resolves on the matching application ack (`/user/queue/acks`, 10 s timeout); `/user/queue/events` delivers `message:new`.
+- `hooks.ts` keeps rooms and messages in the TanStack Query cache; sends are optimistic (`clientMsgId`), failed sends can be retried with the same `clientMsgId`.
+
+Mock mode (`VITE_USE_MOCK_API=true`) also mocks chat. Each browser tab holds its own login, so several tabs can chat with each other (events cross tabs via `BroadcastChannel`). Demo accounts `phong@<domain>` and `an@<domain>`, password `Demo1234`, exist for trying direct messages.

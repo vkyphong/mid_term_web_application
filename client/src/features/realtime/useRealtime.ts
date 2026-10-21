@@ -4,6 +4,7 @@ import { config } from '../../config'
 import { refreshAccessToken } from '../../lib/apiClient'
 import { tokenStore } from '../../lib/tokenStore'
 import { useSession } from '../auth/hooks'
+import { clearActiveClient, setActiveClient } from './realtimeBus'
 
 export type RealtimeState = 'connecting' | 'connected' | 'disconnected' | 'unauthorized' | 'limited' | 'mock'
 
@@ -44,6 +45,7 @@ export function useRealtime() {
         attempts = 0
         authFailures.current = 0
         setState('connected')
+        setActiveClient(client)
         client.subscribe('/user/queue/session', (message: IMessage) => {
           try {
             const value = JSON.parse(message.body)
@@ -53,6 +55,7 @@ export function useRealtime() {
         client.publish({ destination: '/app/session/ping', body: '{}' })
       },
       onStompError: (frame) => {
+        clearActiveClient(client)
         if (disposed) return
         let code = frame.headers.message
         try { code = JSON.parse(frame.body).error.code } catch { /* Use the STOMP message code. */ }
@@ -63,6 +66,7 @@ export function useRealtime() {
         if (code === 'unauthorized') refreshOnce()
       },
       onWebSocketClose: (event) => {
+        clearActiveClient(client)
         if (disposed || terminalError) return
         if (event.code === 1008) {
           client.reconnectDelay = 0
@@ -76,7 +80,7 @@ export function useRealtime() {
     })
     // Finish closing the old socket before replacement, including when all five slots are occupied.
     void shutdown.current.then(() => { if (!disposed) client.activate() })
-    return () => { disposed = true; shutdown.current = client.deactivate() }
+    return () => { disposed = true; clearActiveClient(client); shutdown.current = client.deactivate() }
   }, [session])
 
   return { state: config.useMockApi ? 'mock' as const : state, lastPong }
