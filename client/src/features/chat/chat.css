@@ -1,0 +1,525 @@
+/* Layout */
+.chat-app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.chat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.chat-header-right .btn-secondary,
+.room-header .btn-secondary {
+  white-space: nowrap;
+}
+
+.chat-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.chat-user {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+}
+
+.chat-body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  min-height: 0;
+}
+
+.chat-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.status-pill--ok .status-dot {
+  background: #22a06b;
+}
+
+.status-pill--warn .status-dot {
+  background: #e2a03f;
+}
+
+.status-pill--error .status-dot {
+  background: var(--danger);
+}
+
+/* Sidebar */
+.sidebar {
+  overflow-y: auto;
+  padding: 12px 8px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.sidebar-section + .sidebar-section {
+  margin-top: 20px;
+}
+
+.sidebar-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 8px 6px;
+}
+
+.sidebar-heading h2 {
+  margin: 0;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
+.sidebar-actions {
+  display: flex;
+  gap: 2px;
+}
+
+.sidebar ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.sidebar .muted,
+.sidebar .field-error,
+.sidebar .link-btn {
+  padding: 4px 8px;
+}
+
+.room-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.room-link:hover {
+  background: var(--bg);
+  text-decoration: none;
+}
+
+.room-link--active,
+.room-link--active:hover {
+  background: var(--primary);
+  color: var(--primary-text);
+}
+
+.room-link-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-hash {
+  width: 22px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+.room-hash--lg {
+  width: auto;
+  font-size: 1.4rem;
+}
+
+.icon-btn {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  font: inherit;
+  font-size: 1.05rem;
+  line-height: 1;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.icon-btn:hover {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.link-btn {
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--primary);
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Avatar */
+.avatar {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  font-weight: 600;
+  color: #fff;
+}
+
+.avatar--md {
+  width: 34px;
+  height: 34px;
+  font-size: 0.8rem;
+}
+
+.avatar--sm {
+  width: 22px;
+  height: 22px;
+  font-size: 0.6rem;
+}
+
+.avatar--c0 { background: #4f46e5; }
+.avatar--c1 { background: #0e8a5f; }
+.avatar--c2 { background: #c2410c; }
+.avatar--c3 { background: #0369a1; }
+.avatar--c4 { background: #a21caf; }
+.avatar--c5 { background: #b45309; }
+
+/* Room */
+.room-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.room-title {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-title h1,
+.room-title p {
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-title h1 {
+  font-size: 1.05rem;
+}
+
+.back-link {
+  display: none;
+  padding: 0 4px;
+  font-size: 1.2rem;
+}
+
+.room-empty {
+  margin: auto;
+  max-width: 440px;
+  padding: 24px 16px;
+  text-align: center;
+}
+
+.room-empty h1,
+.room-empty h2 {
+  margin: 0 0 8px;
+}
+
+.btn-inline {
+  width: auto;
+  padding-inline: 20px;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+.center {
+  text-align: center;
+}
+
+/* Messages */
+.message-scroller {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 0;
+}
+
+.message-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.message {
+  display: flex;
+  gap: 10px;
+  padding: 2px 16px;
+}
+
+.message--head {
+  margin-top: 10px;
+}
+
+.message:hover {
+  background: var(--surface);
+}
+
+.message-gutter {
+  flex: none;
+  width: 34px;
+}
+
+.message-body {
+  min-width: 0;
+}
+
+.message-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.message-meta time {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.message--own .message-meta strong {
+  color: var(--primary);
+}
+
+.message-content {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.message-status {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.message-status--failed {
+  color: var(--danger);
+}
+
+.message-status .link-btn {
+  font-size: 0.75rem;
+}
+
+/* Composer */
+.composer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+}
+
+.composer textarea {
+  flex: 1;
+  min-width: 0;
+  max-height: 160px;
+  padding: 10px 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+
+.composer textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.composer-send {
+  width: auto;
+  margin: 0;
+  padding-inline: 20px;
+}
+
+.composer-count {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.modal {
+  width: 100%;
+  max-width: 460px;
+  max-height: 85vh;
+  overflow-y: auto;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.2);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.channel-browser,
+.user-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.channel-browser li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.channel-browser-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.user-result {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.user-result:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.user-result > span:last-child {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Mobile: một cột, hiện danh sách phòng hoặc phòng đang mở */
+@media (max-width: 720px) {
+  .chat-body {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-app--room-open .sidebar,
+  .chat-app:not(.chat-app--room-open) .chat-main {
+    display: none;
+  }
+
+  .sidebar {
+    border-right: none;
+  }
+
+  .back-link {
+    display: inline;
+  }
+
+  .chat-user-name {
+    display: none;
+  }
+
+  /* Ẩn chữ nhưng vẫn cho trình đọc màn hình đọc trạng thái. */
+  .status-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+
+  .status-pill {
+    padding: 6px;
+  }
+
+  .chat-header,
+  .chat-header-right {
+    gap: 8px;
+  }
+}

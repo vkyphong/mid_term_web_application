@@ -15,6 +15,8 @@ export type ErrorReason =
   | 'refresh_invalid'
   | 'banned'
   | 'validation'
+  | 'room_name_taken'
+  | 'not_found'
 
 export interface FieldIssue {
   field: string

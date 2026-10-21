@@ -16,6 +16,10 @@ vi.mock('./authApi', () => ({
   authApi: { register: vi.fn(), login: vi.fn(), refresh: vi.fn(), logout: vi.fn() },
 }))
 vi.mock('../realtime/RealtimeStatus', () => ({ RealtimeStatus: () => null }))
+vi.mock('../chat/chatApi', () => ({
+  chatApi: { listRooms: vi.fn().mockResolvedValue([]) },
+  chatTransport: { onEvent: () => () => {}, onConnected: () => () => {} },
+}))
 
 const api = vi.mocked(authApi)
 const domain = config.allowedEmailDomains[0]
