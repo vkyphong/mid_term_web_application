@@ -8,7 +8,7 @@ function parseDomains(raw: string | undefined): string[] {
 }
 
 export const config = {
-  appName: 'PulseChat',
+  appName: 'Tập Đoàn M Chat',
   apiBaseUrl: (env.VITE_API_BASE_URL ?? '').replace(/\/$/, ''),
   allowedEmailDomains: parseDomains(env.VITE_ALLOWED_EMAIL_DOMAINS),
   useMockApi: env.VITE_USE_MOCK_API === 'true',
