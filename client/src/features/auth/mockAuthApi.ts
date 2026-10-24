@@ -1,3 +1,4 @@
+import { uuid } from '../../lib/uuid'
 /**
  * Mock API chạy trong trình duyệt khi BE chưa sẵn sàng (VITE_USE_MOCK_API=true).
  * Mô phỏng contract ở docs/api/auth.md. CHỈ dùng cho dev/demo.
@@ -67,7 +68,7 @@ async function ensureDemoUsers() {
   write(USERS_KEY, [
     ...read<StoredUser[]>(USERS_KEY, []),
     ...missing.map((d) => ({
-      id: crypto.randomUUID(), email: `${d.local}@${domain}`, displayName: d.displayName, role: 'user' as const, passwordHash,
+      id: uuid(), email: `${d.local}@${domain}`, displayName: d.displayName, role: 'user' as const, passwordHash,
     })),
   ])
 }
@@ -88,7 +89,7 @@ async function hash(password: string): Promise<string> {
 
 function issueSession(user: StoredUser): AuthResponse {
   const refresh: StoredRefresh = {
-    token: crypto.randomUUID(),
+    token: uuid(),
     userId: user.id,
     expiresAt: Date.now() + REFRESH_TTL_MS,
   }
@@ -96,7 +97,7 @@ function issueSession(user: StoredUser): AuthResponse {
   sessionStorage.setItem(REFRESH_KEY, JSON.stringify(refresh))
   sessionStorage.setItem(CURRENT_USER_KEY, JSON.stringify(publicUser))
   return {
-    accessToken: `mock.${crypto.randomUUID()}`,
+    accessToken: `mock.${uuid()}`,
     expiresIn: config.mockAccessTtlSeconds,
     user: publicUser,
   }
@@ -126,7 +127,7 @@ export const mockAuthApi: AuthApi = {
       })
     }
     const user: StoredUser = {
-      id: crypto.randomUUID(),
+      id: uuid(),
       email,
       displayName: input.displayName.trim(),
       role: 'user',

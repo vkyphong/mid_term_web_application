@@ -1,7 +1,14 @@
 import type { ChatMessage } from './types'
 
+// Server UTC instants may omit trailing fractional zeros; keep microsecond ordering.
+export function compareTimestamps(a: string, b: string): number {
+  const key = (value: string) => value.replace(/(?:\.(\d+))?Z$/, (_, fraction: string = '') => `.${fraction.padEnd(9, '0')}Z`)
+  const left = key(a), right = key(b)
+  return left < right ? -1 : left > right ? 1 : 0
+}
+
 const byTimeThenId = (a: ChatMessage, b: ChatMessage) =>
-  a.createdAt === b.createdAt ? (a.id < b.id ? -1 : a.id > b.id ? 1 : 0) : a.createdAt < b.createdAt ? -1 : 1
+  compareTimestamps(a.createdAt, b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
 /**
  * Thêm hoặc thay một tin, không tạo trùng:
@@ -11,11 +18,11 @@ const byTimeThenId = (a: ChatMessage, b: ChatMessage) =>
  */
 export function upsertMessage(list: readonly ChatMessage[], incoming: ChatMessage): ChatMessage[] {
   const next = list.filter(
-    (m) => m.id !== incoming.id && !(incoming.clientMsgId && m.clientMsgId === incoming.clientMsgId),
+    (m) => m.id !== incoming.id && !(incoming.clientMsgId && m.clientMsgId === incoming.clientMsgId && m.sender.id === incoming.sender.id),
   )
   // Bản tạm đến sau tin đã xác nhận cùng clientMsgId (vd retry khi ack đã tới) → giữ tin thật.
   if (incoming.status) {
-    const confirmed = list.find((m) => !m.status && m.clientMsgId && m.clientMsgId === incoming.clientMsgId)
+    const confirmed = list.find((m) => !m.status && m.clientMsgId && m.clientMsgId === incoming.clientMsgId && m.sender.id === incoming.sender.id)
     if (confirmed) return [...list]
   }
   next.push(incoming)

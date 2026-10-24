@@ -16,6 +16,19 @@ jobs:
         run: docker compose up --build -d --wait --wait-timeout 180
       - name: Verify real MySQL and STOMP flow
         run: docker compose --profile tools run --build --rm --no-deps smoke
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install browser test dependencies
+        working-directory: client
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Verify channels and DMs in three browsers
+        working-directory: client
+        run: npm run test:e2e
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail 100

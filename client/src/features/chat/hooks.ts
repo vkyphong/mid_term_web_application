@@ -1,8 +1,9 @@
+import { uuid } from '../../lib/uuid'
 import { useCallback, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useSession } from '../auth/hooks'
 import { chatApi, chatTransport } from './chatApi'
-import { mergeMessages, setPendingStatus, upsertMessage } from './messages'
+import { compareTimestamps, mergeMessages, setPendingStatus, upsertMessage } from './messages'
 import type { ChatMessage, CreateRoomInput, Message, Room } from './types'
 
 export const chatKeys = {
@@ -30,7 +31,7 @@ function applyMessage(queryClient: QueryClient, message: ChatMessage) {
   if (!message.status) {
     updateRooms(queryClient, (rooms) =>
       rooms.map((r) =>
-        r.id === message.roomId && (!r.lastMessageAt || r.lastMessageAt < message.createdAt)
+        r.id === message.roomId && (!r.lastMessageAt || compareTimestamps(r.lastMessageAt, message.createdAt) < 0)
           ? { ...r, lastMessageAt: message.createdAt }
           : r,
       ),
@@ -120,7 +121,7 @@ export function useSendMessage(roomId: string) {
   const send = useCallback(
     (content: string) => {
       if (!user) return
-      const clientMsgId = crypto.randomUUID()
+      const clientMsgId = uuid()
       applyMessage(queryClient, {
         id: `pending:${clientMsgId}`,
         roomId,

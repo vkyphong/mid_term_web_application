@@ -29,7 +29,7 @@ function socket() {
   return { ws, opened, closed, next, send: (frame) => ws.send(`${frame}\0`) }
 }
 
-for (const path of ['/', '/login', '/register']) {
+for (const path of ['/', '/login', '/register', '/rooms/smoke-route']) {
   const result = expectStatus(await request(path), 200)
   assert.match(result.text, /<div id="root">/)
   const asset = result.text.match(/src="([^"]+\.js)"/)
@@ -73,3 +73,4 @@ try {
 } finally { valid.ws.close(); bad.ws.close() }
 console.log('PASS: built SPA routes, domain/duplicate validation, login failure, protected REST, MySQL concurrent refresh rotation, valid/invalid STOMP, private pong, logout closes socket and revokes tokens.')
 console.log('Smoke test created one isolated smoke-* user; no existing user or database volume was removed.')
+await import('./smoke-chat.mjs')

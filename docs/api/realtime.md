@@ -24,6 +24,6 @@ Subscribe to `/user/queue/session`, then SEND `{}` to `/app/session/ping`. The s
 {"type":"session:pong","payload":{"userId":"<authenticated-user-id>"},"ts":"2026-10-18T00:00:00Z"}
 ```
 
-All other SEND/SUBSCRIBE destinations are denied. Client may UNSUBSCRIBE and DISCONNECT. Frame limit is 8 KiB; send buffer limit 32 KiB. Negotiated STOMP heartbeats use 10 seconds; blackhole detection timing is not claimed until F17 is measured.
+F03/F04 also allow SEND to `/app/room.join`, `/app/room.leave`, `/app/message.send` and SUBSCRIBE to `/user/queue/acks`, `/user/queue/events`; see the [chat contract](chat.md). All other SEND/SUBSCRIBE destinations are denied. Client may UNSUBSCRIBE and DISCONNECT. Frame limit is 8 KiB; send buffer limit 32 KiB. Negotiated STOMP heartbeats use 10 seconds; blackhole detection timing is not claimed until F17 is measured.
 
-For future business events retain `{ type, payload, ts }`. Application acknowledgements must use a correlation ID and follow successful database commit. A STOMP RECEIPT is only a transport-level receipt; it does not replace a business acknowledgement.
+Business events retain `{ type, payload, ts }`. Application acknowledgements use a correlation ID and follow successful database commit. Chat validation and membership failures return negative acks without closing the socket. A STOMP RECEIPT is only a transport-level receipt; it does not replace a business acknowledgement.

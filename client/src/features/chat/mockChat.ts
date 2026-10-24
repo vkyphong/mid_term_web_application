@@ -1,3 +1,4 @@
+import { uuid } from '../../lib/uuid'
 /**
  * Mock chat chạy trong trình duyệt khi BE chưa sẵn sàng (VITE_USE_MOCK_API=true).
  * Mô phỏng docs/api/chat.md: dữ liệu chung trong localStorage, event phát giữa các tab
@@ -45,7 +46,7 @@ function load(): Store {
   }
   const store: Store = {
     rooms: SEED_CHANNELS.map((c) => ({
-      id: crypto.randomUUID(),
+      id: uuid(),
       type: 'channel',
       name: c.name,
       description: c.description,
@@ -137,7 +138,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         throw new ApiError(409, { code: 'invalid_payload', reason: 'room_name_taken', message: 'Channel exists' })
       }
       const room: StoredRoom = {
-        id: crypto.randomUUID(), type: 'channel', name, description, members: [user.id], lastMessageAt: null,
+        id: uuid(), type: 'channel', name, description, members: [user.id], lastMessageAt: null,
       }
       store.rooms.push(room)
       save(store)
@@ -165,7 +166,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         (r) => r.type === 'dm' && r.members.includes(user.id) && r.members.includes(userId),
       )
       if (!room) {
-        room = { id: crypto.randomUUID(), type: 'dm', name: '', description: null, members: [user.id, userId], lastMessageAt: null }
+        room = { id: uuid(), type: 'dm', name: '', description: null, members: [user.id, userId], lastMessageAt: null }
         store.rooms.push(room)
         save(store)
       }
@@ -207,7 +208,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       const existing = list.find((m) => m.clientMsgId === clientMsgId && m.sender.id === user.id)
       if (existing) return existing as never
       const message: Message = {
-        id: crypto.randomUUID(),
+        id: uuid(),
         roomId: room.id,
         clientMsgId,
         sender: { id: user.id, displayName: user.displayName },

@@ -13,6 +13,17 @@ const msg = (id: string, createdAt: string, extra: Partial<ChatMessage> = {}): C
 })
 
 describe('upsertMessage', () => {
+  it('giữ hai người gửi dùng cùng clientMsgId', () => {
+    const first = msg('a', '2026-10-21T08:00:00Z', { clientMsgId: 'same' })
+    const second = msg('b', '2026-10-21T08:00:01Z', { clientMsgId: 'same', sender: { id: 'u2', displayName: 'An' } })
+    expect(upsertMessage([first], second).map((m) => m.id)).toEqual(['a', 'b'])
+  })
+
+  it('xếp đúng timestamp UTC có phần thập phân khác độ dài', () => {
+    const list = [msg('a', '2026-10-21T08:00:00.123Z'), msg('b', '2026-10-21T08:00:00.123001Z')]
+    expect(mergeMessages([], list).map((m) => m.id)).toEqual(['a', 'b'])
+  })
+
   it('xếp theo thời gian rồi id, không trùng id', () => {
     let list = upsertMessage([], msg('b', '2026-10-21T08:00:01Z'))
     list = upsertMessage(list, msg('a', '2026-10-21T08:00:00Z'))

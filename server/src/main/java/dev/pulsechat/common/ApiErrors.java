@@ -31,6 +31,8 @@ public class ApiErrors {
     }
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<?> malformed() { return api(new ApiException(400, "invalid_payload", "validation", "Invalid JSON")); }
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    ResponseEntity<?> invalidParameter() { return api(new ApiException(400, "invalid_payload", "validation", "Invalid query parameter")); }
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<?> conflict() { return api(new ApiException(409, "invalid_payload", "email_taken", "Email already registered")); }
 }

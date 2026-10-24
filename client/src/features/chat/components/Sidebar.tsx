@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { describeChatError } from '../errors'
 import { useRooms } from '../hooks'
+import { compareTimestamps } from '../messages'
 import type { Room } from '../types'
 import { Avatar } from './Avatar'
 import { BrowseChannelsDialog } from './BrowseChannelsDialog'
@@ -10,7 +11,7 @@ import { NewDirectMessageDialog } from './NewDirectMessageDialog'
 
 type Dialog = 'create' | 'browse' | 'dm' | null
 
-const byRecent = (a: Room, b: Room) => (b.lastMessageAt ?? '').localeCompare(a.lastMessageAt ?? '')
+const byRecent = (a: Room, b: Room) => compareTimestamps(b.lastMessageAt ?? '', a.lastMessageAt ?? '')
 
 function RoomLink({ room }: { room: Room }) {
   return (

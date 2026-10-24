@@ -1,3 +1,4 @@
+import { uuid } from '../../lib/uuid'
 import type { Client, IMessage } from '@stomp/stompjs'
 import { ApiError, type ApiErrorBody } from '../../lib/apiError'
 import { onActiveClientChange, getActiveClient } from '../realtime/realtimeBus'
@@ -100,7 +101,7 @@ export function createStompTransport(): ChatTransport {
     request(type, payload) {
       const client = getActiveClient()
       if (!client) return Promise.reject(networkError('Not connected'))
-      const correlationId = crypto.randomUUID()
+      const correlationId = uuid()
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
           settle(correlationId)

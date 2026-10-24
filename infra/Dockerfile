@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -ntp -s /usr/share/maven/ref/puls
 
 FROM node:22-alpine AS smoke-test
 WORKDIR /checks
-COPY scripts/smoke.mjs ./smoke.mjs
+COPY scripts/smoke*.mjs ./
 ENTRYPOINT ["node", "smoke.mjs"]
 
 FROM eclipse-temurin:21-jre-jammy AS runtime

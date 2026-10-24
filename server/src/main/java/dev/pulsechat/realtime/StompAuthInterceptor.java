@@ -24,9 +24,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         if (!(headers.getUser() instanceof SessionPrincipal principal))
             throw new ApiException(401, "unauthorized", "invalid_token", "CONNECT authentication required");
         auth.validate(principal);
-        if (command == StompCommand.SEND && !"/app/session/ping".equals(headers.getDestination()))
+        if (command == StompCommand.SEND && !java.util.Set.of("/app/session/ping", "/app/room.join", "/app/room.leave", "/app/message.send").contains(headers.getDestination()))
             throw new ApiException(403, "forbidden", null, "Destination not allowed");
-        if (command == StompCommand.SUBSCRIBE && !"/user/queue/session".equals(headers.getDestination()))
+        if (command == StompCommand.SUBSCRIBE && !java.util.Set.of("/user/queue/session", "/user/queue/acks", "/user/queue/events").contains(headers.getDestination()))
             throw new ApiException(403, "forbidden", null, "Subscription not allowed");
         if (command != StompCommand.SEND && command != StompCommand.SUBSCRIBE && command != StompCommand.UNSUBSCRIBE)
             throw new ApiException(403, "forbidden", null, "Command not allowed");

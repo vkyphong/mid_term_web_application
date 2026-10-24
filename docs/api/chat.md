@@ -1,7 +1,7 @@
-# F03 / F04 — Channels and direct messages contract (draft)
+# F03 / F04 — Channels and direct messages contract
 
-> Status: **draft proposed by FE**, to be confirmed by TV2 (BE) before implementation.
-> FE (`client/src/features/chat/`) and its mock (`client/src/features/chat/mockChat.ts`) follow this document.
+> Status: **implemented in FE and BE**. Human peer review remains a team acceptance step.
+> FE (`client/src/features/chat/`), its mock and BE (`server/src/main/java/dev/pulsechat/chat/`) follow this document.
 > Builds on [auth.md](auth.md) (REST Bearer auth) and [realtime.md](realtime.md) (authenticated STOMP session).
 
 ## Models
@@ -38,9 +38,9 @@ interface Message {
 | `POST /api/rooms` | `{ name, description? }` | `201 Room` (type `channel`, creator auto-joined) |
 | `GET /api/users?search=&limit=20` | `search` matches displayName or email, case-insensitive | `200 { users: UserSummary[] }`, excludes requester, max 20 |
 | `POST /api/dms` | `{ userId }` | `200 Room` (type `dm`). **Idempotent**: one DM per pair, concurrent calls return the same room |
-| `GET /api/rooms/{id}/messages?limit=30&before=` | F05 cursor pagination | `200 { messages: Message[], nextCursor: string \| null }`, oldest → newest |
+| `GET /api/rooms/{id}/messages?limit=30&before=` | `limit` 1–100; optional opaque `before` cursor | `200 { messages: Message[], nextCursor: string \| null }`, oldest → newest |
 
-Seed channels: **Engineering, HR, Sales, Marketing**.
+Seed channels: **Engineering, HR, Sales, Marketing**, inserted once by Flyway. New accounts are not automatically joined. The current UI loads the latest page; scroll-to-load remains F05. Cursors bind the room ID and the oldest returned `(createdAt, id)` pair, avoiding gaps or duplicates when timestamps tie. Invalid query types, out-of-range limits or malformed/cross-room cursors return `invalid_payload` / `validation`.
 
 Validation: channel `name` 2–40 characters after trim, unique case-insensitive; `description` ≤ 200 characters.
 
@@ -74,7 +74,7 @@ Each SEND body also carries a client-generated `correlationId` (UUID):
 Rules:
 - `room:join` / `room:leave` apply to channels only; on a DM → `forbidden`.
 - `message:send` requires membership → otherwise `forbidden`. `content` is trimmed, 1–2048 UTF-8 bytes (F11 may tighten).
-- Resending the same `clientMsgId` in the same room must not create a duplicate (returns the original message). Needed by F10.
+- `clientMsgId` must be a UUID. Resending it in the same room **by the same sender** returns the original message and does not rebroadcast it. The key includes sender identity so another member cannot reuse it to suppress a message. Needed by F10.
 - The message is **persisted before** the ack is sent.
 
 ### Server → client
@@ -103,6 +103,8 @@ Events:
 | `message:new` | `Message` | Every current member of `roomId` (sender included), after commit |
 
 Ordering: commit → ack to the sender's session → `message:new` to members. A user who left a channel receives no further `message:new` for it. A DM's `message:new` reaching a member who has never loaded it lets the client discover the new DM (it re-fetches `GET /api/rooms`).
+
+Business validation/membership errors on these three allowed SEND destinations are negative application acks and leave the connection usable. A missing correlation ID produces an ack with an empty correlation ID; no valid request can be matched to it. Invalid/revoked/expired authentication and forbidden protocol destinations retain the F02 ERROR/disconnect behavior. Clients cannot subscribe to raw broker queues, room topics, or another user's destinations.
 
 ## Client behaviour (FE reference)
 
