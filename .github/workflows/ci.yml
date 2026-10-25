@@ -29,6 +29,13 @@ jobs:
       - name: Verify channels and DMs in three browsers
         working-directory: client
         run: npm run test:e2e
+      - name: Restart app with a 20 s access token
+        run: ACCESS_TTL_SECONDS=20 docker compose up -d --wait --wait-timeout 180 app
+      - name: Verify token expiry, refresh and reconnect (F02)
+        working-directory: client
+        env:
+          E2E_ACCESS_TTL_SECONDS: '20'
+        run: npx playwright test session
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail 100
