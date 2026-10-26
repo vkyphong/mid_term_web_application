@@ -13,7 +13,10 @@ import static dev.pulsechat.chat.ChatDtos.*;
 @RequestMapping("/api")
 public class ChatController {
     private final ChatService chat;
-    public ChatController(ChatService chat) { this.chat = chat; }
+    private final MessageActions actions;
+    public ChatController(ChatService chat, MessageActions actions) { this.chat = chat; this.actions=actions; }
+    @GetMapping("/messages/{id}/receipts")
+    public Object receipts(@AuthenticationPrincipal SessionPrincipal user,@PathVariable String id){return actions.receipts(user.userId(),id);}
     @GetMapping("/rooms")
     public Object rooms(@AuthenticationPrincipal SessionPrincipal user) { return Map.of("rooms", chat.listRooms(user.userId())); }
     @PostMapping("/rooms")

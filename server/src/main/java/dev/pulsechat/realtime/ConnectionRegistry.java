@@ -21,7 +21,13 @@ public class ConnectionRegistry {
     }
     private final ConcurrentMap<String, Connection> connections = new ConcurrentHashMap<>();
     private final ThreadPoolTaskScheduler scheduler;
-    public ConnectionRegistry(ThreadPoolTaskScheduler realtimeScheduler) { scheduler = realtimeScheduler; }
+    private final org.springframework.context.ApplicationEventPublisher publisher;
+    public record PresenceChanged(String userId,boolean online) {}
+    public record UserKicked(String userId) {}
+    public ConnectionRegistry(ThreadPoolTaskScheduler realtimeScheduler,org.springframework.context.ApplicationEventPublisher publisher) { scheduler = realtimeScheduler; this.publisher=publisher; }
+    public java.util.Set<String> onlineUsers(){return connections.values().stream().filter(c->c.principal!=null).map(c->c.principal.userId()).collect(java.util.stream.Collectors.toSet());}
+    public long authenticatedCount(){return connections.values().stream().filter(c->c.principal!=null).count();}
+    public void kick(String user){connections.forEach((id,c)->{if(c.principal!=null&&c.principal.userId().equals(user))close(id,"Disconnected by administrator");});publisher.publishEvent(new UserKicked(user));}
     public void opened(WebSocketSession socket) {
         var connection = new Connection(socket); connections.put(socket.getId(), connection);
         connection.deadline = scheduler.schedule(() -> close(socket.getId(), "CONNECT timeout"), Instant.now().plusSeconds(5));
@@ -34,10 +40,13 @@ public class ConnectionRegistry {
         connection.principal = principal;
         if (connection.deadline != null) connection.deadline.cancel(false);
         connection.deadline = scheduler.schedule(() -> close(socketId, "Access token expired"), principal.expiresAt());
+        if(count==0) publisher.publishEvent(new PresenceChanged(principal.userId(),true));
     }
     public synchronized void removed(String id) {
         var connection = connections.remove(id);
         if (connection != null && connection.deadline != null) connection.deadline.cancel(false);
+        if(connection!=null&&connection.principal!=null&&!onlineUsers().contains(connection.principal.userId()))
+            publisher.publishEvent(new PresenceChanged(connection.principal.userId(),false));
     }
     private void close(String id, String reason) {
         var connection = connections.get(id);

@@ -72,6 +72,14 @@ describe('realtime lifecycle', () => {
     act(() => mocks.clients[1].options.onStompError({ headers: { message: 'unauthorized' }, body: '' } as never))
     expect(mocks.refresh).toHaveBeenCalledTimes(1)
   })
+  it('deactivates on token-expiry close (1008) so stompjs cannot reconnect with the expired token', () => {
+    const { result } = renderHook(() => useRealtime())
+    const client = mocks.clients[0]
+    act(() => client.options.onWebSocketClose({ code: 1008 } as never))
+    expect(client.deactivate).toHaveBeenCalled()
+    expect(result.current.state).toBe('unauthorized')
+    expect(mocks.refresh).toHaveBeenCalledTimes(1)
+  })
   it('stops network reconnects after five failed attempts', () => {
     renderHook(() => useRealtime())
     const client = mocks.clients[0]

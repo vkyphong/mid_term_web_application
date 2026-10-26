@@ -18,11 +18,13 @@ import static dev.pulsechat.chat.ChatDtos.*;
 @Transactional
 public class ChatService {
     private final JdbcTemplate db;
-    public ChatService(JdbcTemplate db) { this.db = db; }
+    private final dev.pulsechat.notification.NotificationService notifications;
+    public ChatService(JdbcTemplate db, dev.pulsechat.notification.NotificationService notifications) { this.db = db; this.notifications = notifications; }
     private static final String MESSAGE_SELECT = "SELECT m.*, u.display_name FROM messages m JOIN users u ON u.id=m.sender_id ";
-    private static final RowMapper<Message> MESSAGE = (rs, n) -> new Message(rs.getString("id"), rs.getString("room_id"),
+    private final RowMapper<Message> MESSAGE = (rs, n) -> new Message(rs.getString("id"), rs.getString("room_id"),
         rs.getString("client_msg_id"), new Sender(rs.getString("sender_id"), rs.getString("display_name")),
-        rs.getString("content"), rs.getTimestamp("created_at").toInstant());
+        rs.getString("content"), rs.getTimestamp("created_at").toInstant(), instant(rs,"edited_at"), instant(rs,"deleted_at"),
+        attachment(rs.getString("id")), receipts(rs.getString("id")), reactions(rs.getString("id")));
 
     @Transactional(readOnly = true)
     public List<Room> listRooms(String user) {
@@ -78,19 +80,36 @@ public class ChatService {
         db.update("DELETE FROM room_members WHERE room_id=? AND user_id=?", id, user);
     }
     public Delivery send(String room, String user, String content, String clientMsgId) {
+        return send(room,user,content,clientMsgId,null,List.of());
+    }
+    public Delivery send(String room, String user, String content, String clientMsgId, String uploadId, List<String> mentions) {
+        db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockRoom(room); requireMember(room, user);
-        if (content == null || content.trim().isEmpty() || content.trim().getBytes(StandardCharsets.UTF_8).length > 2048)
+        if (content == null || (content.trim().isEmpty() && uploadId == null) || content.trim().getBytes(StandardCharsets.UTF_8).length > 2048)
             throw field("content", "Message must contain 1–2048 UTF-8 bytes");
         if (clientMsgId == null || !clientMsgId.matches("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"))
             throw field("clientMsgId", "A UUID is required");
-        var existing = db.query(MESSAGE_SELECT + "WHERE m.room_id=? AND m.sender_id=? AND m.client_msg_id=?", MESSAGE, room, user, clientMsgId);
-        if (!existing.isEmpty()) return new Delivery(existing.getFirst(), List.of(), false);
+        var existing = db.query(MESSAGE_SELECT + "WHERE m.sender_id=? AND m.client_msg_id=?", MESSAGE, user, clientMsgId);
+        if (!existing.isEmpty()) {
+            if (!existing.getFirst().roomId().equals(room)) throw field("clientMsgId", "Retry key already belongs to another room");
+            return new Delivery(existing.getFirst(), List.of(), false);
+        }
+        if (mentions.size()>20 || new HashSet<>(mentions).size()!=mentions.size()) throw field("mentions", "At most 20 distinct member IDs");
+        for (String mentioned : mentions) requireMember(room,mentioned);
         String id = UUID.randomUUID().toString(); Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
         db.update("INSERT INTO messages(id,room_id,sender_id,client_msg_id,content,created_at) VALUES (?,?,?,?,?,?)",
             id, room, user, clientMsgId, content.trim(), Timestamp.from(now));
         db.update("UPDATE rooms SET last_message_at=? WHERE id=?", Timestamp.from(now), room);
+        if (uploadId != null && db.update("UPDATE uploads SET message_id=? WHERE id=? AND owner_id=? AND room_id=? AND message_id IS NULL", id, uploadId,user,room)!=1)
+            throw field("uploadId", "Upload must be unused, owned by sender and belong to this room");
+        var recipients = db.query("SELECT user_id FROM room_members WHERE room_id=?", (rs,n)->rs.getString(1),room);
+        for (String recipient : recipients) if (!recipient.equals(user)) {
+            db.update("INSERT INTO message_receipts(message_id,user_id) VALUES (?,?)",id,recipient);
+            String type = "dm".equals(db.queryForObject("SELECT type FROM rooms WHERE id=?",String.class,room)) ? "dm" : mentions.contains(recipient) ? "mention" : null;
+            if(type != null) notifications.create(recipient,type,room,id,content.trim());
+        }
         var message = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, id);
-        return new Delivery(message, db.query("SELECT user_id FROM room_members WHERE room_id=?", (rs, n) -> rs.getString(1), room), true);
+        return new Delivery(message, recipients, true);
     }
     @Transactional(readOnly = true)
     public MessagePage history(String room, String user, int limit, String before) {
@@ -129,7 +148,22 @@ public class ChatService {
     private boolean member(String room, String user) {
         return db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=? AND user_id=?", Integer.class, room, user) > 0;
     }
-    private void requireMember(String room, String user) { if (!member(room, user)) throw forbidden(); }
+    public void requireMember(String room, String user) { if (!member(room, user)) throw forbidden(); }
+    public List<String> recipients(String room) { return db.query("SELECT user_id FROM room_members WHERE room_id=?",(rs,n)->rs.getString(1),room); }
+    public Message message(String id, String user) {
+        var found=db.query(MESSAGE_SELECT+"WHERE m.id=?",MESSAGE,id);
+        if(found.isEmpty()) throw notFound(); requireMember(found.getFirst().roomId(),user); return found.getFirst();
+    }
+    private Object attachment(String id) {
+        var rows=db.query("SELECT id,filename,media_type,size_bytes FROM uploads WHERE message_id=?",(rs,n)->Map.of("id",rs.getString(1),"filename",rs.getString(2),"mediaType",rs.getString(3),"size",rs.getLong(4),"url","/api/uploads/"+rs.getString(1)),id);
+        return rows.isEmpty()?null:rows.getFirst();
+    }
+    private Object receipts(String id) {
+        return db.queryForObject("SELECT COUNT(*), COUNT(delivered_at), COUNT(seen_at) FROM message_receipts WHERE message_id=?",(rs,n)->Map.of("recipients",rs.getInt(1),"delivered",rs.getInt(2),"seen",rs.getInt(3)),id);
+    }
+    private Object reactions(String id) {
+        return db.query("SELECT user_id,emoji FROM message_reactions WHERE message_id=? ORDER BY emoji,user_id",(rs,n)->Map.of("userId",rs.getString(1),"emoji",rs.getString(2)),id);
+    }
     private Room room(String id, String user) {
         var rooms = db.query("SELECT * FROM rooms WHERE id=?", (rs, n) -> {
             boolean joined = member(id, user); String type = rs.getString("type");

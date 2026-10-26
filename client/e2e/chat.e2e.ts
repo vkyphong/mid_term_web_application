@@ -56,6 +56,9 @@ async function employee(browser: Browser, label: string) {
 }
 
 async function send(page: Page, content: string) {
+  // Deliberate workload pacing: F11 permits 10 sends per rolling five seconds.
+  // This delay is before STOMP SEND and is not included in measured transport latency.
+  await new Promise((resolve) => setTimeout(resolve, 550))
   await page.getByRole('textbox', { name: 'Nội dung tin nhắn' }).fill(content)
   await page.getByRole('button', { name: 'Gửi', exact: true }).click()
 }

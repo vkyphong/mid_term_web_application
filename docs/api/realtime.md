@@ -1,4 +1,6 @@
-# F02 — authenticated STOMP session
+# Realtime transport — F02
+
+Uses the [shared API conventions](README.md). This document covers connection behavior; business payloads are defined in [chat](chat.md) and [collaboration](collaboration.md).
 
 Transport: native WebSocket `/ws`, subprotocol `v12.stomp`. Docker uses `ws://<app-host>:8080/ws`; HTTPS uses `wss://`. Origin is checked at HTTP Upgrade. Authentication occurs at STOMP CONNECT, not at the HTTP handshake. No token in URL or logs.
 
@@ -24,6 +26,33 @@ Subscribe to `/user/queue/session`, then SEND `{}` to `/app/session/ping`. The s
 {"type":"session:pong","payload":{"userId":"<authenticated-user-id>"},"ts":"2026-10-18T00:00:00Z"}
 ```
 
-F03/F04 also allow SEND to `/app/room.join`, `/app/room.leave`, `/app/message.send` and SUBSCRIBE to `/user/queue/acks`, `/user/queue/events`; see the [chat contract](chat.md). All other SEND/SUBSCRIBE destinations are denied. Client may UNSUBSCRIBE and DISCONNECT. Frame limit is 8 KiB; send buffer limit 32 KiB. Negotiated STOMP heartbeats use 10 seconds; blackhole detection timing is not claimed until F17 is measured.
+## Destination permissions
+
+| SEND destination | Required permission |
+| --- | --- |
+| `/app/session/ping` | Authenticated session |
+| `/app/room.join`, `/app/room.leave` | Channel operation; membership rules in chat |
+| `/app/message.send` | Current room membership |
+| `/app/typing.start`, `/app/typing.stop` | Current room membership |
+| `/app/message.delivered`, `/app/message.seen` | Current member and original recipient |
+| `/app/message.edit`, `/app/message.delete` | Current member and author |
+| `/app/message.react` | Current room membership |
+| `/app/admin.kick`, `/app/admin.broadcast` | Enabled admin account |
+
+| SUBSCRIBE destination | Content |
+| --- | --- |
+| `/user/queue/session` | Session-specific connectivity probe |
+| `/user/queue/acks` | Command acks for the sending socket |
+| `/user/queue/events` | Messages and mutations for room members |
+| `/user/queue/presence` | User presence transitions |
+| `/user/queue/typing` | Typing events for room members |
+| `/user/queue/notifications` | The account's notifications and read-state updates |
+| `/user/queue/admin` | Admin-only statistics |
+
+Other SEND/SUBSCRIBE destinations are denied. UNSUBSCRIBE and DISCONNECT are allowed. Business permissions are checked by the corresponding service; admin destination permissions are also checked at the protocol boundary.
+
+## Transport limits
+
+Frame limit is 8 KiB; send buffer limit is 32 KiB. Negotiated STOMP heartbeats use 10 seconds; blackhole detection timing is not claimed until F17 is measured. [Collaboration](collaboration.md#f11-limits) defines message-send and action limits.
 
 Business events retain `{ type, payload, ts }`. Application acknowledgements use a correlation ID and follow successful database commit. Chat validation and membership failures return negative acks without closing the socket. A STOMP RECEIPT is only a transport-level receipt; it does not replace a business acknowledgement.

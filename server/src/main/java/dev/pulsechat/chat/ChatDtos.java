@@ -10,7 +10,8 @@ public final class ChatDtos {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
     public record Room(String id, String type, String name, String description, int memberCount,
                        boolean joined, UserSummary peer, Instant lastMessageAt) {}
-    public record Message(String id, String roomId, String clientMsgId, Sender sender, String content, Instant createdAt) {}
+    public record Message(String id, String roomId, String clientMsgId, Sender sender, String content, Instant createdAt,
+                          Instant editedAt, Instant deletedAt, Object attachment, Object receipts, Object reactions) {}
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
     public record MessagePage(List<Message> messages, String nextCursor) {}
     public record CreateRoom(String name, String description) {}

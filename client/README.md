@@ -1,6 +1,6 @@
 # PulseChat client
 
-React + TypeScript + Vite, TanStack Query, React Router, Zod and StompJS. Feature folders separate authentication and realtime; `lib/` contains shared HTTP/error/token infrastructure.
+React + TypeScript + Vite, TanStack Query, React Router, Zod and StompJS. Feature folders separate auth, realtime and chat; `lib/` contains shared HTTP/error/token infrastructure.
 
 The supported full-stack workflow is Docker: see [root README](../README.md). React is built into Spring Boot static resources, so REST and WebSocket use the browser origin.
 
@@ -11,7 +11,7 @@ npm ci
 npm run dev
 ```
 
-Vite proxies `/api` and `/ws` to `http://localhost:8080`. Configure `VITE_API_PROXY_TARGET` if needed. `VITE_ALLOWED_EMAIL_DOMAINS` must match backend `ALLOWED_EMAIL_DOMAINS` (default `DQGM.dev`). `VITE_USE_MOCK_API=true` enables the old browser-only auth mock; realtime is disabled in this mode. Do not use real credentials with mock storage.
+Vite proxies `/api` and `/ws` to `http://localhost:8080`. Copy `.env.example` to `.env.local` for overrides; the example file is not loaded automatically. `.env.test` supplies Vitest configuration. `VITE_API_PROXY_TARGET` changes the proxy target; `VITE_ALLOWED_EMAIL_DOMAINS` must match backend `ALLOWED_EMAIL_DOMAINS` (default `DQGM.dev`). `VITE_USE_MOCK_API=true` enables browser-only auth/chat mocks and disables the real WebSocket connection. Use demo credentials with mock storage.
 
 ```sh
 npm test
@@ -19,7 +19,7 @@ npm run lint
 npm run build
 ```
 
-Auth access tokens stay in memory. Refresh cookies are issued by Spring Boot. REST consumers use `authRequest`; websocket consumers use the realtime feature. [REST contract](../docs/api/auth.md), [STOMP contract](../docs/api/realtime.md).
+Auth access tokens stay in memory. Refresh cookies are issued by Spring Boot. REST consumers use `authRequest`; websocket consumers use the realtime feature. Start with the [API index](../docs/api/README.md) for REST, STOMP and integration order.
 
 ## Chat (F03 / F04)
 
@@ -33,11 +33,8 @@ Mock mode (`VITE_USE_MOCK_API=true`) also mocks chat. Each browser tab holds its
 
 Docker always builds with mock mode disabled. Channels, DMs, membership and messages use the real backend and MySQL. History initially loads the latest 30 messages; scrolling to the top (or **Tải tin cũ hơn**) loads older pages through the cursor API (F05). UUID generation falls back to `crypto.getRandomValues` on HTTP LAN origins.
 
-With the Docker application healthy at `http://localhost:8080` and the default `DQGM.dev` email domain:
+## Feature handoff and E2E
 
-```sh
-npx playwright install chromium
-npm run test:e2e
-```
+The backend exposes F05–F15 additions through the [chat](../docs/api/chat.md), [collaboration](../docs/api/collaboration.md) and [Lab](../docs/api/lab.md) contracts. These additions require separate frontend integration; existing chat/mock behavior is not proof of those features' UI acceptance.
 
-The Playwright test uses three independent Chromium contexts, creates test accounts/channels, and verifies channel membership, private DMs, persisted history, reconnect and localhost message latency. Its workload is 20 sequential messages between two members, with a third user connected; p95 STOMP SEND-to-receiver-frame latency must be below 200 ms. Unit tests use mocks; this browser test requires the real backend. Screenshots, video and traces are disabled, and scratch output is outside the repository with `preserveOutput: never`.
+See [browser E2E](../docs/testing.md#browser-e2e) for requirements, commands, pacing and latency definitions. Unit tests use mocks; E2E requires the real backend.
