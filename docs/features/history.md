@@ -24,8 +24,8 @@ Measured on 26 October 2026 with the Docker application on localhost:
 
 | Check | Result |
 | --- | --- |
-| Browser test `client/e2e/history.e2e.ts`: 65 messages, second user reopens the room | First request returned 30 messages (#36–#65); scrolling to the top loaded the older pages; final list #1–#65 in order with no duplicates or gaps; a message pushed during the session appeared exactly once; scroll position preserved after insertion (offset > 200 px, not reset to the top) |
-| Stability | 4 of 4 repeated runs passed |
+| Browser test `client/e2e/history.e2e.ts`: 45 messages sent in bursts of 10 per 5.2 s to respect the F11 limit of 10 messages per 5 s per socket; second user reopens the room | First request returned 30 messages (#16–#45); scrolling to the top loaded the older page; final list #1–#45 in order with no duplicates or gaps; a message pushed during the session appeared exactly once; scroll position preserved after insertion (offset > 200 px, not reset to the top) |
+| Stability | 4 of 4 repeated runs passed (65 messages before F11); 2 of 2 after pacing for F11 |
 | Persistence | 378 messages in MySQL before restarting the application container, 378 after |
 | Unit and component tests | Merge across pages and live events, gap handling after reconnect, cursor pagination in the mock (30/30/5 pages), loading state, error and retry |
 
