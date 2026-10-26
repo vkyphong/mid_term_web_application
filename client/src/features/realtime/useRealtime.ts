@@ -69,7 +69,11 @@ export function useRealtime() {
         clearActiveClient(client)
         if (disposed || terminalError) return
         if (event.code === 1008) {
+          // stompjs 7 chốt độ trễ reconnect lúc kích hoạt, nên reconnectDelay = 0 là chưa đủ:
+          // phải deactivate để không kết nối lại bằng token đã hết hạn. Socket mới được tạo khi có token mới.
           client.reconnectDelay = 0
+          terminalError = true
+          void client.deactivate()
           setState('unauthorized')
           refreshOnce()
         } else {
