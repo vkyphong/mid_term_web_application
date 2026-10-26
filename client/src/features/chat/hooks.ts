@@ -3,13 +3,14 @@ import { useCallback, useEffect } from 'react'
 import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useSession } from '../auth/hooks'
 import { chatApi, chatTransport } from './chatApi'
-import { compareTimestamps, mergeMessages, setPendingStatus, upsertMessage } from './messages'
+import { compareTimestamps, mergeMessages, reconcileLatestPage, setPendingStatus, upsertMessage } from './messages'
 import type { ChatMessage, CreateRoomInput, Message, Room } from './types'
 
 export const chatKeys = {
   all: ['chat'] as const,
   rooms: ['chat', 'rooms'] as const,
   messages: (roomId: string) => ['chat', 'messages', roomId] as const,
+  cursor: (roomId: string) => ['chat', 'cursor', roomId] as const,
   users: (search: string) => ['chat', 'users', search] as const,
 }
 
@@ -79,6 +80,7 @@ export function useLeaveRoom() {
         ),
       )
       queryClient.removeQueries({ queryKey: chatKeys.messages(roomId) })
+      queryClient.removeQueries({ queryKey: chatKeys.cursor(roomId) })
     },
   })
 }
@@ -89,14 +91,50 @@ export function useMessages(roomId: string, enabled: boolean) {
     queryKey: chatKeys.messages(roomId),
     queryFn: async () => {
       const page = await chatApi.listMessages(roomId)
-      // Giữ tin tạm và tin realtime đến trong lúc đang tải.
+      // Giữ tin tạm, tin realtime đến trong lúc tải và tin cũ đã tải thêm (nếu còn nối liền).
       const current = queryClient.getQueryData<ChatMessage[]>(chatKeys.messages(roomId)) ?? []
-      return mergeMessages(page.messages, current)
+      const { messages, resetCursor } = reconcileLatestPage(current, page)
+      if (resetCursor) queryClient.setQueryData<string | null>(chatKeys.cursor(roomId), page.nextCursor)
+      return messages
     },
     enabled,
     // Tin mới đến qua realtime; chỉ tải lại khi reconnect (useChatEvents).
     staleTime: Infinity,
   })
+}
+
+/** Cursor để tải trang cũ hơn; null = đã hết lịch sử. Chỉ ghi qua setQueryData. */
+function useHistoryCursor(roomId: string) {
+  return useQuery<string | null>({
+    queryKey: chatKeys.cursor(roomId),
+    queryFn: () => null,
+    enabled: false,
+    staleTime: Infinity,
+  }).data
+}
+
+/** F05: tải trang tin cũ hơn và gộp vào cache theo ID. */
+export function useLoadOlder(roomId: string) {
+  const queryClient = useQueryClient()
+  const cursor = useHistoryCursor(roomId)
+  const mutation = useMutation({
+    mutationFn: (before: string) => chatApi.listMessages(roomId, before),
+    onSuccess: (page, before) => {
+      // Cursor đã đổi (vd trang mới nhất được đặt lại sau reconnect) → bỏ kết quả cũ.
+      if (queryClient.getQueryData(chatKeys.cursor(roomId)) !== before) return
+      queryClient.setQueryData<ChatMessage[]>(chatKeys.messages(roomId), (list) =>
+        list ? mergeMessages(list, page.messages) : list,
+      )
+      queryClient.setQueryData<string | null>(chatKeys.cursor(roomId), page.nextCursor)
+    },
+  })
+
+  const { mutate, isPending } = mutation
+  const loadOlder = useCallback(() => {
+    if (cursor && !isPending) mutate(cursor)
+  }, [cursor, isPending, mutate])
+
+  return { loadOlder, hasMore: Boolean(cursor), isLoading: isPending, error: mutation.error }
 }
 
 /** Gửi tin: hiện ngay bản tạm, thay bằng tin thật khi có ack hoặc message:new. */

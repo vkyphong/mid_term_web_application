@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useSession } from '../../auth/hooks'
 import { FormAlert } from '../../auth/components/FormAlert'
 import { describeChatError } from '../errors'
-import { useJoinRoom, useLeaveRoom, useMessages, useRooms, useSendMessage } from '../hooks'
+import { useJoinRoom, useLeaveRoom, useLoadOlder, useMessages, useRooms, useSendMessage } from '../hooks'
 import type { Room } from '../types'
 import { Avatar } from './Avatar'
 import { Composer } from './Composer'
@@ -26,6 +26,7 @@ function JoinPrompt({ room }: { room: Room }) {
 function Conversation({ room }: { room: Room }) {
   const { user } = useSession()
   const messages = useMessages(room.id, true)
+  const older = useLoadOlder(room.id)
   const { send, retry } = useSendMessage(room.id)
   const leave = useLeaveRoom()
 
@@ -57,6 +58,12 @@ function Conversation({ room }: { room: Room }) {
         error={messages.error}
         currentUserId={user?.id ?? ''}
         onRetry={retry}
+        history={{
+          hasMore: older.hasMore,
+          isLoading: older.isLoading,
+          error: older.error,
+          onLoadOlder: older.loadOlder,
+        }}
       />
       <Composer
         placeholder={room.type === 'dm' ? `Nhắn cho ${room.name}` : `Nhắn vào #${room.name}`}

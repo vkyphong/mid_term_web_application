@@ -76,6 +76,26 @@ describe('mock chat (theo docs/api/chat.md)', () => {
     expect(received).toHaveBeenCalledTimes(1)
   })
 
+  it('phân trang lịch sử bằng cursor: 30 tin/lần, không trùng, không thiếu (F05)', async () => {
+    const { api, transport } = createMockChat()
+    const [eng] = await api.listRooms()
+    await transport.request('room:join', { roomId: eng.id })
+    // Ghi thẳng 65 tin vào store cho nhanh (cùng một timestamp để kiểm tra thứ tự ổn định).
+    const store = JSON.parse(localStorage.getItem('pulsechat.mock.chat')!)
+    store.messages[eng.id] = Array.from({ length: 65 }, (_, i) => ({
+      id: `m${String(i + 1).padStart(2, '0')}`, roomId: eng.id, clientMsgId: `c${i}`,
+      sender: { id: 'u1', displayName: 'u1' }, content: `#${i + 1}`, createdAt: '2026-10-26T08:00:00Z',
+    }))
+    localStorage.setItem('pulsechat.mock.chat', JSON.stringify(store))
+
+    const pages = [await api.listMessages(eng.id)]
+    while (pages[pages.length - 1].nextCursor) pages.push(await api.listMessages(eng.id, pages[pages.length - 1].nextCursor!))
+    expect(pages.map((p) => p.messages.length)).toEqual([30, 30, 5])
+    const ids = pages.reverse().flatMap((p) => p.messages.map((m) => m.id))
+    expect(ids).toEqual(Array.from({ length: 65 }, (_, i) => `m${String(i + 1).padStart(2, '0')}`))
+    await expect(api.listMessages(eng.id, 'không-tồn-tại')).rejects.toMatchObject({ code: 'invalid_payload' })
+  })
+
   it('tên kênh trùng (không phân biệt hoa thường) bị từ chối', async () => {
     const { api } = createMockChat()
     await expect(api.createRoom({ name: 'engineering' })).rejects.toMatchObject({ reason: 'room_name_taken' })

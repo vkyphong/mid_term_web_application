@@ -11,8 +11,8 @@ export interface ChatApi {
   createRoom(input: CreateRoomInput): Promise<Room>
   searchUsers(search: string): Promise<UserSummary[]>
   openDm(userId: string): Promise<Room>
-  /** Trang tin mới nhất (F05 sẽ thêm cuộn lên tải tiếp bằng `before`). */
-  listMessages(roomId: string): Promise<MessagePage>
+  /** Trang tin mới nhất, hoặc trang cũ hơn `before` (cursor từ trang trước). */
+  listMessages(roomId: string, before?: string): Promise<MessagePage>
 }
 
 export const httpChatApi: ChatApi = {
@@ -23,8 +23,11 @@ export const httpChatApi: ChatApi = {
     return (await authRequest<{ users: UserSummary[] }>(`/api/users?${params}`)).users
   },
   openDm: (userId) => authRequest('/api/dms', { method: 'POST', body: { userId } }),
-  listMessages: (roomId) =>
-    authRequest(`/api/rooms/${encodeURIComponent(roomId)}/messages?limit=${HISTORY_PAGE_SIZE}`),
+  listMessages: (roomId, before) => {
+    const params = new URLSearchParams({ limit: String(HISTORY_PAGE_SIZE) })
+    if (before) params.set('before', before)
+    return authRequest(`/api/rooms/${encodeURIComponent(roomId)}/messages?${params}`)
+  },
 }
 
 const mock = config.useMockApi ? createMockChat() : null

@@ -12,6 +12,7 @@ import type { ChatTransport } from './transport'
 import type { Message, Room, ServerEvent, UserSummary } from './types'
 
 const STORE_KEY = 'pulsechat.mock.chat'
+const PAGE_SIZE = 30 // = HISTORY_PAGE_SIZE (không import để tránh vòng chatApi ↔ mockChat)
 const CHANNEL_NAME = 'pulsechat.mock.chat'
 const SEED_CHANNELS = [
   { name: 'Engineering', description: 'Kỹ thuật và phát triển sản phẩm' },
@@ -173,12 +174,20 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       return toRoom(room, user.id)
     },
 
-    async listMessages(roomId) {
+    async listMessages(roomId, before) {
       await delay()
       const user = currentUser()
       const store = load()
       requireMember(findRoom(store, roomId), user.id)
-      return { messages: (store.messages[roomId] ?? []).slice(-30), nextCursor: null }
+      // Cursor = id của tin cũ nhất trang trước (tin lưu theo thứ tự gửi).
+      const all = store.messages[roomId] ?? []
+      let end = all.length
+      if (before) {
+        end = all.findIndex((m) => m.id === before)
+        if (end < 0) throw invalid('before', 'Invalid history cursor')
+      }
+      const start = Math.max(0, end - PAGE_SIZE)
+      return { messages: all.slice(start, end), nextCursor: start > 0 ? all[start].id : null }
     },
   }
 

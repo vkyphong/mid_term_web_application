@@ -216,3 +216,64 @@ describe('tin nhắn riêng (F04)', () => {
     expect(screen.queryByRole('button', { name: 'Rời kênh' })).not.toBeInTheDocument()
   })
 })
+
+describe('lịch sử tin nhắn (F05)', () => {
+  const page = (from: number, to: number) =>
+    Array.from({ length: to - from + 1 }, (_, k) => {
+      const i = from + k
+      return message(`m${String(i).padStart(2, '0')}`, `Tin số ${i}`, { createdAt: `2026-10-21T08:${String(i).padStart(2, '0')}:00.000Z` })
+    })
+  const shown = () => screen.getAllByText(/^Tin số \d+$/).map((el) => Number(el.textContent!.replace('Tin số ', '')))
+
+  it('tải thêm tin cũ theo cursor cho tới khi hết, không trùng và đúng thứ tự', async () => {
+    api.listMessages.mockReset()
+    api.listMessages
+      .mockResolvedValueOnce({ messages: page(31, 60), nextCursor: 'c31' })
+      .mockResolvedValueOnce({ messages: page(1, 30), nextCursor: null })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    expect(await screen.findByText('Tin số 60')).toBeInTheDocument()
+    expect(shown()).toHaveLength(30)
+    expect(screen.queryByText('Đã hiển thị toàn bộ lịch sử')).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Tải tin cũ hơn' }))
+    expect(api.listMessages).toHaveBeenLastCalledWith(eng.id, 'c31')
+    expect(await screen.findByText('Tin số 1')).toBeInTheDocument()
+    expect(shown()).toEqual(Array.from({ length: 60 }, (_, i) => i + 1))
+    expect(screen.getByText('Đã hiển thị toàn bộ lịch sử')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Tải tin cũ hơn' })).not.toBeInTheDocument()
+  })
+
+  it('tin mới đến trong lúc đang tải tin cũ vẫn hiện, gộp theo ID', async () => {
+    let older!: (p: { messages: Message[]; nextCursor: null }) => void
+    api.listMessages.mockReset()
+    api.listMessages
+      .mockResolvedValueOnce({ messages: page(31, 60), nextCursor: 'c31' })
+      .mockImplementationOnce(() => new Promise((resolve) => { older = resolve }))
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await screen.findByText('Tin số 60')
+    await user.click(screen.getByRole('button', { name: 'Tải tin cũ hơn' }))
+    expect(screen.getByRole('button', { name: 'Đang tải tin cũ…' })).toBeDisabled()
+
+    act(() => emit({ type: 'message:new', payload: page(61, 61)[0], ts: '' }))
+    // Trang cũ trả về có lẫn một tin đã có (m31) → không bị nhân đôi.
+    await act(async () => older({ messages: [...page(1, 30), ...page(31, 31)], nextCursor: null }))
+    await waitFor(() => expect(shown()).toEqual(Array.from({ length: 61 }, (_, i) => i + 1)))
+  })
+
+  it('tải tin cũ lỗi thì báo và cho thử lại', async () => {
+    api.listMessages.mockReset()
+    api.listMessages
+      .mockResolvedValueOnce({ messages: page(31, 60), nextCursor: 'c31' })
+      .mockRejectedValueOnce(new ApiError(0, { code: 'network_error' }))
+      .mockResolvedValueOnce({ messages: page(1, 30), nextCursor: null })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await screen.findByText('Tin số 60')
+    await user.click(screen.getByRole('button', { name: 'Tải tin cũ hơn' }))
+    await user.click(await screen.findByRole('button', { name: 'Thử lại' }))
+    expect(await screen.findByText('Tin số 1')).toBeInTheDocument()
+    expect(api.listMessages).toHaveBeenLastCalledWith(eng.id, 'c31')
+  })
+})

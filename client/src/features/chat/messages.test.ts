@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mergeMessages, setPendingStatus, upsertMessage } from './messages'
+import { mergeMessages, reconcileLatestPage, setPendingStatus, upsertMessage } from './messages'
 import type { ChatMessage } from './types'
 
 const msg = (id: string, createdAt: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({
@@ -59,6 +59,37 @@ describe('upsertMessage', () => {
     const list = upsertMessage([], msg('srv-1', '2026-10-21T08:30:00Z', { clientMsgId: 'x' }))
     const after = upsertMessage(list, msg('pending:x', '2026-10-21T08:31:00Z', { clientMsgId: 'x', status: 'sending' }))
     expect(after.map((m) => m.id)).toEqual(['srv-1'])
+  })
+})
+
+describe('reconcileLatestPage (F05)', () => {
+  const t = (i: number) => `2026-10-26T08:00:${String(i).padStart(2, '0')}Z`
+  const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, k) => msg(`m${from + k}`, t(from + k)))
+
+  it('lần tải đầu: dùng trang và cursor của nó', () => {
+    const page = { messages: range(31, 60), nextCursor: 'c31' }
+    expect(reconcileLatestPage([], page)).toEqual({ messages: page.messages, resetCursor: true })
+  })
+
+  it('tải lại sau reconnect còn nối liền: giữ tin cũ đã tải thêm và tin tạm, không đổi cursor', () => {
+    const pending = msg('pending:x', t(59), { clientMsgId: 'x', status: 'sending' })
+    const current = [...range(1, 50), pending]
+    const result = reconcileLatestPage(current, { messages: range(25, 54), nextCursor: 'c25' })
+    expect(result.resetCursor).toBe(false)
+    expect(result.messages.map((m) => m.id)).toEqual([...range(1, 54).map((m) => m.id), 'pending:x'])
+  })
+
+  it('lỡ quá một trang khi offline: bỏ tin cũ để không có khoảng trống, đặt lại cursor', () => {
+    const pending = msg('pending:x', t(1), { clientMsgId: 'x', status: 'failed' })
+    const result = reconcileLatestPage([...range(1, 10), pending], { messages: range(30, 59), nextCursor: 'c30' })
+    expect(result.resetCursor).toBe(true)
+    expect(result.messages.map((m) => m.id)).toEqual([...range(30, 59).map((m) => m.id), 'pending:x'])
+  })
+
+  it('trang cuối cùng của phòng (không còn cursor) thì không coi là khoảng trống', () => {
+    const result = reconcileLatestPage(range(1, 3), { messages: range(5, 6), nextCursor: null })
+    expect(result.resetCursor).toBe(false)
+    expect(result.messages.map((m) => m.id)).toEqual(['m1', 'm2', 'm3', 'm5', 'm6'])
   })
 })
 
