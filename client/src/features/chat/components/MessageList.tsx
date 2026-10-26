@@ -153,17 +153,18 @@ export function MessageList({ messages, isPending, error, currentUserId, onRetry
               className={`message${own ? ' message--own' : ''}${head ? ' message--head' : ''}`}
               data-message-id={needsReceipt(m, 'seen', currentUserId) ? m.id : undefined}
             >
-              <div className="message-gutter">{head && <Avatar name={m.sender.displayName} />}</div>
+              {/* Tin của mình: bong bóng bên phải, không avatar. Tin người khác: bên trái kèm avatar. */}
+              {!own && <div className="message-gutter">{head && <Avatar name={m.sender.displayName} />}</div>}
               <div className="message-body">
                 {head && (
                   <div className="message-meta">
-                    <strong>{own ? 'Bạn' : m.sender.displayName}</strong>
+                    {own ? <span className="sr-only">Bạn</span> : <strong>{m.sender.displayName}</strong>}
                     <time dateTime={m.createdAt} title={receipt?.detail}>
                       {timeOf(m.createdAt)}
                     </time>
                   </div>
                 )}
-                <p className="message-content">{m.content}</p>
+                <p className="message-content message-bubble">{m.content}</p>
                 {m.status === 'sending' && <span className="message-status">Đang gửi…</span>}
                 {receipt && m.id === lastOwnId && (
                   <span className="message-status message-receipt" title={receipt.detail}>

@@ -263,6 +263,7 @@
 
 .message-receipt {
   display: block;
+  padding: 0 4px;
 }
 
 .avatar--md {
@@ -367,40 +368,48 @@
 
 .message {
   display: flex;
-  gap: 10px;
+  align-items: flex-end;
+  gap: 8px;
   padding: 2px 16px;
+}
+
+/* Tin của mình nằm bên phải. */
+.message--own {
+  justify-content: flex-end;
 }
 
 .message--head {
   margin-top: 10px;
 }
 
-.message:hover {
-  background: var(--surface);
-}
-
 .message-gutter {
   flex: none;
+  align-self: flex-start;
   width: 34px;
 }
 
 .message-body {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
   min-width: 0;
+  max-width: min(70%, 560px);
+}
+
+.message--own .message-body {
+  align-items: flex-end;
 }
 
 .message-meta {
   display: flex;
   align-items: baseline;
   gap: 8px;
+  padding: 0 4px 2px;
 }
 
 .message-meta time {
   font-size: 0.75rem;
   color: var(--muted);
-}
-
-.message--own .message-meta strong {
-  color: var(--primary);
 }
 
 .message-content {
@@ -409,7 +418,31 @@
   overflow-wrap: anywhere;
 }
 
+/* Bong bóng: người khác nền xám nhạt, của mình nền màu chính. */
+.message-bubble {
+  max-width: 100%;
+  padding: 7px 12px;
+  border-radius: 18px;
+  border-bottom-left-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.message--own .message-bubble {
+  border-radius: 18px;
+  border-bottom-right-radius: 6px;
+  color: var(--primary-text);
+  background: var(--primary);
+  border-color: transparent;
+}
+
+/* Bản tạm đang gửi / gửi lỗi: nhạt hơn để phân biệt với tin đã lưu. */
+.message--own:has(.message-status:not(.message-receipt)) .message-bubble {
+  opacity: 0.7;
+}
+
 .message-status {
+  padding: 2px 4px 0;
   font-size: 0.75rem;
   color: var(--muted);
 }
@@ -567,6 +600,10 @@
 
   .chat-user-name {
     display: none;
+  }
+
+  .message-body {
+    max-width: 82%;
   }
 
   /* Ẩn chữ nhưng vẫn cho trình đọc màn hình đọc trạng thái. */
