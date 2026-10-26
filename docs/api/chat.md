@@ -53,6 +53,7 @@ Optional message fields may be omitted. Message timestamps are assigned by the s
 | `POST /api/dms` | `{userId}` | 200 `Room`; idempotent even on concurrent creation |
 | `GET /api/rooms/{id}/messages?limit=30&before=` | Limit 1–100, optional opaque cursor | 200 `{messages: Message[],nextCursor: string \| null}` |
 
+Seed channels: **Engineering, HR, Sales, Marketing**, inserted once by Flyway. New accounts are not automatically joined. The UI loads the latest page and fetches older pages with `before` when the reader scrolls up (F05, see [history](../features/history.md)). Cursors bind the room ID and the oldest returned `(createdAt, id)` pair, avoiding gaps or duplicates when timestamps tie. Invalid query types, out-of-range limits or malformed/cross-room cursors return `invalid_payload` / `validation`.
 Flyway seeds Engineering, HR, Sales and Marketing once. New accounts choose which channels to join. Channel names are trimmed, 2–40 characters and unique case-insensitively; descriptions are at most 200 characters. A DM has exactly two fixed participants; channel join/leave operations cannot change them.
 
 ### History pagination

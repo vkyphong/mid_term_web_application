@@ -35,6 +35,31 @@ export function mergeMessages(list: readonly ChatMessage[], incoming: readonly C
   return incoming.reduce<ChatMessage[]>((acc, m) => upsertMessage(acc, m), [...list])
 }
 
+/**
+ * Gộp trang tin mới nhất (lần tải đầu hoặc tải lại sau reconnect) với cache hiện có.
+ * - Trang nối liền với cache → giữ cả tin cũ đã tải thêm (cursor cũ vẫn đúng).
+ * - Trang không nối liền (lỡ quá 1 trang khi offline) → bỏ tin cũ để không có khoảng trống,
+ *   chỉ giữ tin tạm; `resetCursor` báo phải dùng cursor của trang mới.
+ */
+export function reconcileLatestPage(
+  current: readonly ChatMessage[],
+  page: { messages: readonly ChatMessage[]; nextCursor: string | null },
+): { messages: ChatMessage[]; resetCursor: boolean } {
+  const confirmed = current.filter((m) => !m.status)
+  const pending = current.filter((m) => m.status)
+  if (confirmed.length === 0) return { messages: mergeMessages(page.messages, current), resetCursor: true }
+
+  const newestKnown = confirmed[confirmed.length - 1]
+  const oldestInPage = page.messages[0]
+  const gap =
+    page.nextCursor !== null &&
+    oldestInPage !== undefined &&
+    !page.messages.some((m) => m.id === newestKnown.id) &&
+    byTimeThenId(oldestInPage, newestKnown) > 0
+  if (gap) return { messages: mergeMessages(page.messages, pending), resetCursor: true }
+  return { messages: mergeMessages(page.messages, current), resetCursor: false }
+}
+
 export function setPendingStatus(
   list: readonly ChatMessage[],
   clientMsgId: string,

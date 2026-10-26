@@ -22,7 +22,7 @@ The chat controller invokes the transactional service before publishing a succes
 
 The existing inbound executor dispatches application messages on one thread, and the broker preserves publish order. In this single-instance scope, a leave acknowledgement precedes subsequent sends and the departed user is excluded from their recipient lists. Business validation failures return negative application acknowledgements while keeping the socket usable. Authentication failures and forbidden protocol destinations retain the F02 disconnection behavior.
 
-Persistence and WebSocket delivery do not form a distributed transaction. A process failure after commit and before publication can prevent an immediate event from reaching a recipient. Reconnection invalidates the room list and active history, allowing clients to recover committed messages through REST. The current UI reloads the latest 30 messages; older history is accessible through the cursor API, while scroll-to-load UI and broader delivery guarantees belong to subsequent features.
+Persistence and WebSocket delivery do not form a distributed transaction. A process failure after commit and before publication can prevent an immediate event from reaching a recipient. Reconnection invalidates the room list and active history, allowing clients to recover committed messages through REST. The UI reloads the latest 30 messages and keeps older pages already loaded when they still connect; scroll-to-load is described in [history.md](history.md). Broader delivery guarantees belong to subsequent features.
 
 ## Verification procedure
 

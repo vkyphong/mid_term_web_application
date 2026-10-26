@@ -295,6 +295,12 @@
   padding: 12px 0;
 }
 
+.history-loader {
+  display: flex;
+  justify-content: center;
+  padding: 4px 16px 8px;
+}
+
 .message-list {
   list-style: none;
   margin: 0;
