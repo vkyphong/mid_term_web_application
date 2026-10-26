@@ -1,7 +1,10 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
 
 /** F05: cuộn lên tải thêm lịch sử theo cursor, gộp với tin realtime, không trùng/thiếu. */
-const TOTAL = 65
+// > 1 trang (30) để có trang cũ hơn; gửi theo đợt vì F11 giới hạn 10 tin / 5 s / socket.
+const TOTAL = 45
+const BURST = 10
+const RATE_WINDOW_MS = 5_200
 
 async function employee(browser: Browser, label: string) {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
@@ -48,8 +51,12 @@ test('F05: cuộn lên tải hết lịch sử theo trang 30 tin, không trùng/
 
     await alice.page.goto(`/rooms/${roomId}`)
     await expect(alice.page.getByRole('textbox', { name: 'Nội dung tin nhắn' })).toBeEnabled()
-    for (let i = 1; i <= TOTAL; i++) await send(alice.page, `#${i}`)
+    for (let i = 1; i <= TOTAL; i++) {
+      await send(alice.page, `#${i}`)
+      if (i % BURST === 0) await alice.page.waitForTimeout(RATE_WINDOW_MS)
+    }
     await expect(alice.page.getByText('Đang gửi…', { exact: true })).toHaveCount(0, { timeout: 20_000 })
+    await expect(alice.page.getByText('Gửi lỗi', { exact: false })).toHaveCount(0)
     await expect(bob.page.getByText(`#${TOTAL}`, { exact: true })).toBeVisible()
 
     // Mở lại phòng: chỉ tải trang mới nhất (30 tin).
