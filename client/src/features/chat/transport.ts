@@ -2,7 +2,7 @@ import { uuid } from '../../lib/uuid'
 import type { Client, IMessage } from '@stomp/stompjs'
 import { ApiError, type ApiErrorBody } from '../../lib/apiError'
 import { onActiveClientChange, getActiveClient } from '../realtime/realtimeBus'
-import type { ClientEvents, ClientEventType, ServerEvent } from './types'
+import { SERVER_EVENT_TYPES, type ClientEvents, type ClientEventType, type ServerEvent } from './types'
 
 export const ACK_TIMEOUT_MS = 10_000
 
@@ -19,6 +19,10 @@ export const DESTINATIONS: Record<ClientEventType, string> = {
   'room:join': '/app/room.join',
   'room:leave': '/app/room.leave',
   'message:send': '/app/message.send',
+  'typing:start': '/app/typing.start',
+  'typing:stop': '/app/typing.stop',
+  'message:delivered': '/app/message.delivered',
+  'message:seen': '/app/message.seen',
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
@@ -76,7 +80,7 @@ export function createStompTransport(): ChatTransport {
     } catch {
       return
     }
-    if (event?.type !== 'message:new') return
+    if (!event || !SERVER_EVENT_TYPES.has(event.type)) return
     for (const listener of eventListeners) listener(event)
   }
 
@@ -91,6 +95,8 @@ export function createStompTransport(): ChatTransport {
     }
     client.subscribe('/user/queue/acks', handleAck)
     client.subscribe('/user/queue/events', handleEvent)
+    client.subscribe('/user/queue/presence', handleEvent)
+    client.subscribe('/user/queue/typing', handleEvent)
     for (const listener of connectedListeners) listener()
   }
 

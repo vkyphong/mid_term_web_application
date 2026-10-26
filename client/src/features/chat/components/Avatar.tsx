@@ -17,10 +17,18 @@ function colorIndex(name: string): number {
   return h % PALETTE
 }
 
-export function Avatar({ name, size = 'md' }: { name: string; size?: 'sm' | 'md' }) {
+interface AvatarProps {
+  name: string
+  size?: 'sm' | 'md'
+  /** F06: undefined = không hiện chấm trạng thái. */
+  online?: boolean
+}
+
+export function Avatar({ name, size = 'md', online }: AvatarProps) {
   return (
     <span className={`avatar avatar--${size} avatar--c${colorIndex(name)}`} aria-hidden="true">
       {initials(name)}
+      {online !== undefined && <span className={`presence-dot${online ? ' presence-dot--online' : ''}`} />}
     </span>
   )
 }

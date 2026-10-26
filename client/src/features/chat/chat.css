@@ -207,6 +207,64 @@
   color: #fff;
 }
 
+.avatar {
+  position: relative;
+}
+
+.presence-dot {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #9aa1b4;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.presence-dot--online {
+  background: #22a06b;
+}
+
+.person-link {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.person-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.person-status {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+
+.room-link--active .person-status {
+  color: inherit;
+}
+
+.typing-indicator {
+  min-height: 1.4em;
+  margin: 0;
+  padding: 0 16px 2px;
+  font-size: 0.8rem;
+  font-style: italic;
+  color: var(--muted);
+  background: var(--bg);
+}
+
+.message-receipt {
+  display: block;
+}
+
 .avatar--md {
   width: 34px;
   height: 34px;

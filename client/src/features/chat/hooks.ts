@@ -4,6 +4,9 @@ import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tansta
 import { useSession } from '../auth/hooks'
 import { chatApi, chatTransport } from './chatApi'
 import { compareTimestamps, mergeMessages, reconcileLatestPage, setPendingStatus, upsertMessage } from './messages'
+import { applyPresence } from './presence'
+import { markDelivered, resetReceipts } from './receipts'
+import { applyTyping, resetTyping } from './typing'
 import type { ChatMessage, CreateRoomInput, Message, Room } from './types'
 
 export const chatKeys = {
@@ -209,12 +212,28 @@ export function useOpenDm() {
 /** Nối event realtime vào cache. Mount một lần trong layout chat. */
 export function useChatEvents() {
   const queryClient = useQueryClient()
+  const { user } = useSession()
+  const selfId = user?.id
 
   useEffect(() => {
     const offEvent = chatTransport.onEvent((event) => {
+      switch (event.type) {
+        case 'presence:update':
+          return applyPresence(queryClient, event.payload)
+        case 'typing:start':
+        case 'typing:stop':
+          if (event.payload.userId !== selfId) applyTyping(event.payload)
+          return
+      }
       const message: Message = event.payload
       const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.some((r) => r.id === message.roomId)
+      // message:delivered / message:seen mang Message đã cập nhật receipts → thay theo ID.
       applyMessage(queryClient, message)
+      if (event.type === 'message:new') {
+        if (selfId) markDelivered(message, selfId)
+        // Tin đến thì người đó hết "đang gõ".
+        applyTyping({ roomId: message.roomId, userId: message.sender.id, typing: false, ttlMs: 0 })
+      }
       // Phòng chưa biết (vd ai đó vừa mở DM với mình) → tải lại danh sách.
       if (!known) void queryClient.invalidateQueries({ queryKey: chatKeys.rooms })
     })
@@ -225,6 +244,8 @@ export function useChatEvents() {
     return () => {
       offEvent()
       offConnected()
+      resetTyping()
+      resetReceipts()
     }
-  }, [queryClient])
+  }, [queryClient, selfId])
 }

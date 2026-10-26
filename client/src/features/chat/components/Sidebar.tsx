@@ -8,15 +8,17 @@ import { Avatar } from './Avatar'
 import { BrowseChannelsDialog } from './BrowseChannelsDialog'
 import { CreateChannelDialog } from './CreateChannelDialog'
 import { NewDirectMessageDialog } from './NewDirectMessageDialog'
+import { PeopleSection } from './PeopleSection'
+import { usePresence } from '../presence'
 
 type Dialog = 'create' | 'browse' | 'dm' | null
 
 const byRecent = (a: Room, b: Room) => compareTimestamps(b.lastMessageAt ?? '', a.lastMessageAt ?? '')
 
-function RoomLink({ room }: { room: Room }) {
+function RoomLink({ room, online }: { room: Room; online?: boolean }) {
   return (
     <NavLink to={`/rooms/${room.id}`} className={({ isActive }) => `room-link${isActive ? ' room-link--active' : ''}`}>
-      {room.type === 'dm' ? <Avatar name={room.name} size="sm" /> : <span className="room-hash">#</span>}
+      {room.type === 'dm' ? <Avatar name={room.name} size="sm" online={online ?? false} /> : <span className="room-hash">#</span>}
       <span className="room-link-name">{room.name}</span>
     </NavLink>
   )
@@ -24,6 +26,7 @@ function RoomLink({ room }: { room: Room }) {
 
 export function Sidebar() {
   const rooms = useRooms()
+  const presence = usePresence()
   const [dialog, setDialog] = useState<Dialog>(null)
   const close = () => setDialog(null)
 
@@ -72,11 +75,13 @@ export function Sidebar() {
         <ul>
           {dms.map((room) => (
             <li key={room.id}>
-              <RoomLink room={room} />
+              <RoomLink room={room} online={presence.get(room.peer?.id)?.online} />
             </li>
           ))}
         </ul>
       </section>
+
+      <PeopleSection />
 
       {dialog === 'create' && <CreateChannelDialog onClose={close} />}
       {dialog === 'browse' && <BrowseChannelsDialog onClose={close} />}
