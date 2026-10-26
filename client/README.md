@@ -31,7 +31,7 @@ Auth access tokens stay in memory. Refresh cookies are issued by Spring Boot. RE
 
 Mock mode (`VITE_USE_MOCK_API=true`) also mocks chat. Each browser tab holds its own login, so several tabs can chat with each other (events cross tabs via `BroadcastChannel`). Demo accounts `phong@<domain>` and `an@<domain>`, password `Demo1234`, exist for trying direct messages.
 
-Docker always builds with mock mode disabled. Channels, DMs, membership and messages use the real backend and MySQL. History initially loads the latest 30 messages; the API supports cursors, while scroll-to-load UI belongs to F05. UUID generation falls back to `crypto.getRandomValues` on HTTP LAN origins.
+Docker always builds with mock mode disabled. Channels, DMs, membership and messages use the real backend and MySQL. History initially loads the latest 30 messages; scrolling to the top (or **Tải tin cũ hơn**) loads older pages through the cursor API (F05). UUID generation falls back to `crypto.getRandomValues` on HTTP LAN origins.
 
 With the Docker application healthy at `http://localhost:8080` and the default `DQGM.dev` email domain:
 

@@ -40,7 +40,7 @@ interface Message {
 | `POST /api/dms` | `{ userId }` | `200 Room` (type `dm`). **Idempotent**: one DM per pair, concurrent calls return the same room |
 | `GET /api/rooms/{id}/messages?limit=30&before=` | `limit` 1–100; optional opaque `before` cursor | `200 { messages: Message[], nextCursor: string \| null }`, oldest → newest |
 
-Seed channels: **Engineering, HR, Sales, Marketing**, inserted once by Flyway. New accounts are not automatically joined. The current UI loads the latest page; scroll-to-load remains F05. Cursors bind the room ID and the oldest returned `(createdAt, id)` pair, avoiding gaps or duplicates when timestamps tie. Invalid query types, out-of-range limits or malformed/cross-room cursors return `invalid_payload` / `validation`.
+Seed channels: **Engineering, HR, Sales, Marketing**, inserted once by Flyway. New accounts are not automatically joined. The UI loads the latest page and fetches older pages with `before` when the reader scrolls up (F05, see [history](../features/history.md)). Cursors bind the room ID and the oldest returned `(createdAt, id)` pair, avoiding gaps or duplicates when timestamps tie. Invalid query types, out-of-range limits or malformed/cross-room cursors return `invalid_payload` / `validation`.
 
 Validation: channel `name` 2–40 characters after trim, unique case-insensitive; `description` ≤ 200 characters.
 

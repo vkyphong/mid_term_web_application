@@ -58,8 +58,8 @@ scripts/                      Env initialization, smoke test, issue sync
 - **F02:** Origin check ở HTTP Upgrade, JWT ở STOMP CONNECT, tối đa 5 kết nối/user, đóng khi hết hạn/logout, private ping/pong và UI trạng thái.
 - **F03:** tạo kênh, tham gia/rời kênh, gửi tin đã lưu và broadcast đúng thành viên. Bốn kênh Engineering, HR, Sales, Marketing được tạo một lần bằng migration; người dùng tự chọn tham gia.
 - **F04:** tìm nhân viên, mở DM duy nhất cho mỗi cặp, trao đổi riêng đúng hai người. REST và socket đều kiểm tra membership. Retry cùng `clientMsgId` trong một phòng và cùng người gửi không tạo tin trùng.
-- **Lịch sử:** API có cursor, mặc định 30 tin gần nhất. UI cuộn tải thêm thuộc F05 và chưa triển khai. Reconnect tải lại danh sách phòng và lịch sử đang mở.
-- **F05 trở đi:** các phần còn lại trong backlog. F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit tương lai dùng memory một instance, mất state tạm khi restart.
+- **F05:** lịch sử lưu trong MySQL, tải qua REST có cursor (30 tin/trang). Mở phòng tải 30 tin gần nhất; cuộn lên đầu (hoặc bấm **Tải tin cũ hơn**) tải trang cũ hơn, giữ nguyên vị trí đang đọc, hết thì hiện "Đã hiển thị toàn bộ lịch sử". Tin realtime và tin từ REST gộp theo ID nên không trùng. Reconnect tải lại trang mới nhất; nếu đã lỡ hơn một trang thì đặt lại từ trang mới nhất để không có khoảng trống. Thiết kế: [message history](docs/features/history.md).
+- **F06 trở đi:** các phần còn lại trong backlog. F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit tương lai dùng memory một instance, mất state tạm khi restart.
 
 Sau khi đăng nhập, dùng **Duyệt kênh** để tham gia kênh mẫu hoặc **Tạo kênh** để mở kênh mới. Dùng **Tin nhắn mới** để tìm tài khoản nhân viên đã đăng ký và mở DM. Hai trình duyệt/máy dùng tài khoản riêng để thử gửi nhận qua cùng backend. Tin nhắn đã lưu vẫn còn khi reload hoặc restart app.
 
