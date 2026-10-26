@@ -94,17 +94,27 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
     await expect(bob.page.getByText(greeting, { exact: true })).toBeVisible()
     await expect(bob.page.getByText('Đã kết nối', { exact: true })).toBeVisible()
 
+    // Workload: WARMUP tin khởi động không tính (JVM/JIT, connection pool vừa khởi động),
+    // rồi SAMPLES tin đo tuần tự. p95 của 40 mẫu là giá trị thứ 38, nên một vài gai lẻ
+    // trên máy CI dùng chung không quyết định kết quả; median và số mẫu > 200 ms được in ra.
+    const WARMUP = 5
+    const SAMPLES = 40
     const latencies: number[] = []
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < WARMUP + SAMPLES; i++) {
       const text = `latency-${channelId}-${i}`
       await send(alice.page, text)
       await expect.poll(() => bob.wire.received.has(text)).toBe(true)
-      latencies.push(bob.wire.received.get(text)! - alice.wire.sent.get(text)!)
+      if (i >= WARMUP) latencies.push(bob.wire.received.get(text)! - alice.wire.sent.get(text)!)
     }
     latencies.sort((x, y) => x - y)
-    const p95 = latencies[Math.ceil(latencies.length * 0.95) - 1]
-    console.log(`Localhost: 20 sequential messages, 3 browser contexts, 2 channel members, STOMP SEND→receiver frame; p50=${latencies[9].toFixed(1)}ms, p95=${p95.toFixed(1)}ms, max=${latencies[19].toFixed(1)}ms`)
-    expect(p95).toBeLessThan(200)
+    const at = (q: number) => latencies[Math.ceil(latencies.length * q) - 1]
+    const over = latencies.filter((ms) => ms >= 200).length
+    console.log(
+      `Localhost: ${SAMPLES} sequential messages after ${WARMUP} warm-up, 3 browser contexts, 2 channel members, ` +
+        `STOMP SEND→receiver frame; p50=${at(0.5).toFixed(1)}ms, p95=${at(0.95).toFixed(1)}ms, ` +
+        `max=${latencies[latencies.length - 1].toFixed(1)}ms, samples>=200ms: ${over}/${SAMPLES}`,
+    )
+    expect(at(0.95)).toBeLessThan(200)
 
     await bob.page.getByRole('button', { name: 'Rời kênh', exact: true }).click()
     await expect(bob.page.getByRole('button', { name: 'Tham gia kênh', exact: true })).toBeVisible()
