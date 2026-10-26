@@ -10,10 +10,15 @@ import { ChatLayout } from './components/ChatLayout'
 import type { Message, Room, ServerEvent } from './types'
 
 vi.mock('./chatApi', () => ({
-  chatApi: { listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn() },
+  chatApi: { listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn() },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn() },
 }))
 vi.mock('../auth/authApi', () => ({ authApi: { logout: vi.fn() } }))
+// F07 có test riêng (typing.test.ts); ở đây tắt để không lẫn typing:start vào các lệnh message:send được đếm.
+vi.mock('./typing', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./typing')>()),
+  useTypingSender: () => ({ onInput: () => {}, onSent: () => {} }),
+}))
 
 const api = vi.mocked(chatApi)
 const transport = vi.mocked(chatTransport)
@@ -55,6 +60,8 @@ beforeEach(() => {
   vi.resetAllMocks()
   api.listRooms.mockResolvedValue([eng, hr, dm])
   api.listMessages.mockResolvedValue({ messages: [message('m1', 'Chào cả nhóm')], nextCursor: null })
+  api.getPresence.mockResolvedValue([])
+  api.searchUsers.mockResolvedValue([])
   transport.onEvent.mockImplementation((listener) => {
     emit = listener
     return () => {}

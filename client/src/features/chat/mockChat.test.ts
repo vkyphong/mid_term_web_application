@@ -96,6 +96,38 @@ describe('mock chat (theo docs/api/chat.md)', () => {
     await expect(api.listMessages(eng.id, 'không-tồn-tại')).rejects.toMatchObject({ code: 'invalid_payload' })
   })
 
+  it('receipts: chỉ người nhận gốc được xác nhận, không lùi trạng thái, người vào sau không thành người nhận (F08)', async () => {
+    const { api, transport } = createMockChat()
+    const [eng] = await api.listRooms()
+    as('u2'); await transport.request('room:join', { roomId: eng.id })
+    as('u1'); await transport.request('room:join', { roomId: eng.id })
+    const sent = await transport.request('message:send', { roomId: eng.id, content: 'hi', clientMsgId: 'r1' })
+    expect(sent.receipts).toEqual({ recipients: 1, delivered: 0, seen: 0 })
+    // Người gửi không tự xác nhận thay người nhận.
+    await expect(transport.request('message:seen', { messageId: sent.id })).rejects.toMatchObject({ code: 'forbidden' })
+    // Người vào sau khi tin được gửi không thuộc tập người nhận.
+    as('u3'); await transport.request('room:join', { roomId: eng.id })
+    await expect(transport.request('message:delivered', { messageId: sent.id })).rejects.toMatchObject({ code: 'forbidden' })
+    as('u2')
+    expect((await transport.request('message:seen', { messageId: sent.id })).receipts).toEqual({ recipients: 1, delivered: 1, seen: 1 })
+    // delivered đến sau seen không làm lùi.
+    expect((await transport.request('message:delivered', { messageId: sent.id })).receipts).toEqual({ recipients: 1, delivered: 1, seen: 1 })
+  })
+
+  it('typing chỉ giao cho thành viên phòng (F07)', async () => {
+    const { api, transport } = createMockChat()
+    const [eng] = await api.listRooms()
+    const received = vi.fn()
+    transport.onEvent(received)
+    await transport.request('room:join', { roomId: eng.id })
+    as('u2'); await transport.request('room:join', { roomId: eng.id })
+    await transport.request('typing:start', { roomId: eng.id })
+    as('u3') // không phải thành viên
+    await expect(transport.request('typing:start', { roomId: eng.id })).rejects.toMatchObject({ code: 'forbidden' })
+    as('u1')
+    expect(received).toHaveBeenCalledWith(expect.objectContaining({ type: 'typing:start', payload: expect.objectContaining({ userId: 'u2', ttlMs: 3000 }) }))
+  })
+
   it('tên kênh trùng (không phân biệt hoa thường) bị từ chối', async () => {
     const { api } = createMockChat()
     await expect(api.createRoom({ name: 'engineering' })).rejects.toMatchObject({ reason: 'room_name_taken' })
