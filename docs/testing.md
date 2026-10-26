@@ -43,7 +43,7 @@ npm run test:e2e
 
 Test F03/F04 dùng ba Chromium context độc lập để kiểm tra membership, DM, lưu lịch sử và reconnect. Workload gửi 20 tin giữa hai thành viên, chờ ít nhất 550 ms trước mỗi lần gửi để tuân thủ F11. Độ trễ đo từ STOMP SEND tới frame nhận bằng clock của test runner, không tính khoảng chờ; p95 mục tiêu dưới 200 ms trên localhost.
 
-Kết quả workload này không xác nhận tải 500/1000 client hoặc heartbeat blackhole F17/F18. Test chạy headless, tắt screenshot/video/trace và không tạo bộ bằng chứng demo riêng. E2E hiện tại không nghiệm thu UI F05–F15.
+Kết quả workload này không xác nhận tải 500/1000 client hoặc heartbeat blackhole F17/F18. Test chạy headless, tắt screenshot/video/trace và không tạo bộ bằng chứng demo riêng. `history.e2e.ts` kiểm tra UI F05; `realtime.e2e.ts` kiểm tra UI F06–F08 (presence nhiều tab, typing không lộ sang phòng khác, receipts DM). E2E hiện tại chưa nghiệm thu UI F09–F15.
 
 ## CI và cách đọc kết quả
 
