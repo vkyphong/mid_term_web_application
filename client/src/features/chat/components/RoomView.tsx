@@ -1,9 +1,13 @@
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '../../auth/hooks'
 import { FormAlert } from '../../auth/components/FormAlert'
 import { describeChatError } from '../errors'
 import { useJoinRoom, useLeaveRoom, useLoadOlder, useMessages, useRooms, useSendMessage } from '../hooks'
-import type { Room } from '../types'
+import { describePresence, usePresence } from '../presence'
+import { describeTyping, useTypingSender, useTypingUsers } from '../typing'
+import type { ChatMessage, Room, UserSummary } from '../types'
+import { chatKeys } from '../hooks'
 import { Avatar } from './Avatar'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
@@ -23,12 +27,41 @@ function JoinPrompt({ room }: { room: Room }) {
   )
 }
 
+/** Tên hiển thị cho userId: người trong DM, người đã nhắn trong phòng, hoặc danh sách đồng nghiệp. */
+function useDisplayName(room: Room, messages: ChatMessage[] | undefined) {
+  const queryClient = useQueryClient()
+  return (userId: string) =>
+    (room.peer?.id === userId ? room.peer.displayName : undefined) ??
+    messages?.find((m) => m.sender.id === userId)?.sender.displayName ??
+    queryClient.getQueryData<UserSummary[]>(chatKeys.users(''))?.find((u) => u.id === userId)?.displayName ??
+    'Ai đó'
+}
+
+function TypingIndicator({ room, messages, selfId }: { room: Room; messages: ChatMessage[] | undefined; selfId?: string }) {
+  const typing = useTypingUsers(room.id, selfId)
+  const nameOf = useDisplayName(room, messages)
+  const text = describeTyping(typing.map(nameOf))
+  return (
+    <p className="typing-indicator" aria-live="polite">
+      {text}
+    </p>
+  )
+}
+
 function Conversation({ room }: { room: Room }) {
   const { user } = useSession()
   const messages = useMessages(room.id, true)
   const older = useLoadOlder(room.id)
   const { send, retry } = useSendMessage(room.id)
+  const typing = useTypingSender(room.id)
+  const presence = usePresence()
   const leave = useLeaveRoom()
+  const peerPresence = presence.get(room.peer?.id)
+
+  const onSend = (content: string) => {
+    typing.onSent()
+    send(content)
+  }
 
   return (
     <>
@@ -36,12 +69,16 @@ function Conversation({ room }: { room: Room }) {
         <Link to="/" className="back-link" aria-label="Về danh sách phòng">
           ←
         </Link>
-        {room.type === 'dm' ? <Avatar name={room.name} /> : <span className="room-hash room-hash--lg">#</span>}
+        {room.type === 'dm' ? (
+          <Avatar name={room.name} online={peerPresence?.online ?? false} />
+        ) : (
+          <span className="room-hash room-hash--lg">#</span>
+        )}
         <div className="room-title">
           <h1>{room.name}</h1>
           <p className="muted small">
             {room.type === 'dm'
-              ? (room.peer?.email ?? 'Tin nhắn riêng')
+              ? [describePresence(peerPresence), room.peer?.email].filter(Boolean).join(' · ')
               : [room.description, `${room.memberCount} thành viên`].filter(Boolean).join(' · ')}
           </p>
         </div>
@@ -58,6 +95,7 @@ function Conversation({ room }: { room: Room }) {
         error={messages.error}
         currentUserId={user?.id ?? ''}
         onRetry={retry}
+        roomType={room.type}
         history={{
           hasMore: older.hasMore,
           isLoading: older.isLoading,
@@ -65,9 +103,11 @@ function Conversation({ room }: { room: Room }) {
           onLoadOlder: older.loadOlder,
         }}
       />
+      <TypingIndicator room={room} messages={messages.data} selfId={user?.id} />
       <Composer
         placeholder={room.type === 'dm' ? `Nhắn cho ${room.name}` : `Nhắn vào #${room.name}`}
-        onSend={send}
+        onSend={onSend}
+        onInput={typing.onInput}
         disabled={!messages.isSuccess}
       />
     </>

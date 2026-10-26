@@ -2,7 +2,7 @@ import { config } from '../../config'
 import { authRequest } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreateRoomInput, MessagePage, Room, UserSummary } from './types'
+import type { CreateRoomInput, MessagePage, Presence, Room, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -13,6 +13,8 @@ export interface ChatApi {
   openDm(userId: string): Promise<Room>
   /** Trang tin mới nhất, hoặc trang cũ hơn `before` (cursor từ trang trước). */
   listMessages(roomId: string, before?: string): Promise<MessagePage>
+  /** F06: snapshot online/lastSeen của mọi user. */
+  getPresence(): Promise<Presence[]>
 }
 
 export const httpChatApi: ChatApi = {
@@ -28,6 +30,7 @@ export const httpChatApi: ChatApi = {
     if (before) params.set('before', before)
     return authRequest(`/api/rooms/${encodeURIComponent(roomId)}/messages?${params}`)
   },
+  getPresence: async () => (await authRequest<{ users: Presence[] }>('/api/presence')).users,
 }
 
 const mock = config.useMockApi ? createMockChat() : null

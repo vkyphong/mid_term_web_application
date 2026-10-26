@@ -9,11 +9,14 @@ import { ApiError } from '../../lib/apiError'
 import { getMockCurrentUser, listMockUsers } from '../auth/mockAuthApi'
 import type { ChatApi } from './chatApi'
 import type { ChatTransport } from './transport'
-import type { Message, Room, ServerEvent, UserSummary } from './types'
+import type { Message, Presence, Room, ServerEvent, UserSummary } from './types'
 
 const STORE_KEY = 'pulsechat.mock.chat'
 const PAGE_SIZE = 30 // = HISTORY_PAGE_SIZE (không import để tránh vòng chatApi ↔ mockChat)
 const CHANNEL_NAME = 'pulsechat.mock.chat'
+const PRESENCE_KEY = 'pulsechat.mock.presence' // userId → lần "nhịp tim" cuối (ms)
+const HEARTBEAT_MS = 3_000
+const OFFLINE_AFTER_MS = 8_000
 const SEED_CHANNELS = [
   { name: 'Engineering', description: 'Kỹ thuật và phát triển sản phẩm' },
   { name: 'HR', description: 'Nhân sự' },
@@ -30,9 +33,16 @@ interface StoredRoom {
   lastMessageAt: string | null
 }
 
+interface StoredReceipts {
+  recipients: string[]
+  delivered: string[]
+  seen: string[]
+}
+
 interface Store {
   rooms: StoredRoom[]
   messages: Record<string, Message[]>
+  receipts?: Record<string, StoredReceipts>
 }
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms))
@@ -95,6 +105,36 @@ function requireMember(room: StoredRoom, userId: string) {
   if (!room.members.includes(userId)) throw new ApiError(403, { code: 'forbidden', message: 'Not a member' })
 }
 
+/** Gắn số đếm receipts (như BE) vào tin. */
+function withReceipts(store: Store, message: Message): Message {
+  const r = store.receipts?.[message.id]
+  if (!r) return message
+  return { ...message, receipts: { recipients: r.recipients.length, delivered: r.delivered.length, seen: r.seen.length } }
+}
+
+function readBeats(): Record<string, number> {
+  try {
+    return JSON.parse(localStorage.getItem(PRESENCE_KEY) ?? '{}') as Record<string, number>
+  } catch {
+    return {}
+  }
+}
+
+function beat() {
+  const user = getMockCurrentUser()
+  if (!user) return
+  localStorage.setItem(PRESENCE_KEY, JSON.stringify({ ...readBeats(), [user.id]: Date.now() }))
+}
+
+function presenceSnapshot(now = Date.now()): Presence[] {
+  const beats = readBeats()
+  return listMockUsers().map((u) => {
+    const last = beats[u.id]
+    const online = last !== undefined && now - last < OFFLINE_AFTER_MS
+    return { userId: u.id, online, lastSeen: last !== undefined && !online ? new Date(last).toISOString() : null }
+  })
+}
+
 const invalid = (field: string, message: string) =>
   new ApiError(400, { code: 'invalid_payload', reason: 'validation', message, details: [{ field, message }] })
 
@@ -102,13 +142,30 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
   const listeners = new Set<(event: ServerEvent) => void>()
   const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null
 
-  // Giống BE: chỉ giao message:new cho thành viên hiện tại của phòng.
+  // Giống BE: event của phòng chỉ giao cho thành viên hiện tại; presence giao cho mọi user đăng nhập.
   const deliver = (event: ServerEvent) => {
     const user = getMockCurrentUser()
     if (!user) return
-    const room = load().rooms.find((r) => r.id === event.payload.roomId)
-    if (!room?.members.includes(user.id)) return
+    if (event.type !== 'presence:update') {
+      const room = load().rooms.find((r) => r.id === event.payload.roomId)
+      if (!room?.members.includes(user.id)) return
+    }
     for (const listener of listeners) listener(event)
+  }
+
+  // Presence: mỗi tab tự đánh "nhịp tim" và tự so snapshot để phát presence:update cho chính nó.
+  if (typeof window !== 'undefined' && import.meta.env.MODE !== 'test') {
+    let previous = new Map(presenceSnapshot().map((p) => [p.userId, p.online]))
+    setInterval(() => {
+      beat()
+      const next = presenceSnapshot()
+      for (const p of next) {
+        if (previous.get(p.userId) !== p.online) {
+          for (const listener of listeners) listener({ type: 'presence:update', payload: p, ts: new Date().toISOString() })
+        }
+      }
+      previous = new Map(next.map((p) => [p.userId, p.online]))
+    }, HEARTBEAT_MS)
   }
 
   channel?.addEventListener('message', (e: MessageEvent<ServerEvent>) => deliver(e.data))
@@ -187,7 +244,17 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         if (end < 0) throw invalid('before', 'Invalid history cursor')
       }
       const start = Math.max(0, end - PAGE_SIZE)
-      return { messages: all.slice(start, end), nextCursor: start > 0 ? all[start].id : null }
+      return {
+        messages: all.slice(start, end).map((m) => withReceipts(store, m)),
+        nextCursor: start > 0 ? all[start].id : null,
+      }
+    },
+
+    async getPresence() {
+      await delay()
+      currentUser()
+      beat()
+      return presenceSnapshot()
     },
   }
 
@@ -196,7 +263,33 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       await delay(60)
       const user = currentUser()
       const store = load()
-      const room = findRoom(store, payload.roomId)
+
+      if (type === 'message:delivered' || type === 'message:seen') {
+        const { messageId } = payload as { messageId: string }
+        const message = Object.values(store.messages).flat().find((m) => m.id === messageId)
+        if (!message) throw invalid('messageId', 'Message not found')
+        requireMember(findRoom(store, message.roomId), user.id)
+        const r = store.receipts?.[messageId]
+        if (!r?.recipients.includes(user.id)) {
+          throw new ApiError(403, { code: 'forbidden', message: 'Only original recipients may acknowledge a message' })
+        }
+        // Idempotent, không lùi; seen bao hàm delivered.
+        if (!r.delivered.includes(user.id)) r.delivered.push(user.id)
+        if (type === 'message:seen' && !r.seen.includes(user.id)) r.seen.push(user.id)
+        save(store)
+        const updated = withReceipts(store, message)
+        setTimeout(() => emit({ type, payload: updated, ts: new Date().toISOString() }), 0)
+        return updated as never
+      }
+
+      const room = findRoom(store, (payload as { roomId: string }).roomId)
+
+      if (type === 'typing:start' || type === 'typing:stop') {
+        requireMember(room, user.id)
+        const data = { roomId: room.id, userId: user.id, typing: type === 'typing:start', ttlMs: 3000 }
+        emit({ type, payload: data, ts: new Date().toISOString() })
+        return data as never
+      }
 
       if (type === 'room:join' || type === 'room:leave') {
         if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
@@ -215,7 +308,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       if (!text || utf8Bytes(text) > 2048) throw invalid('content', 'Nội dung cần 1–2048 byte')
       const list = (store.messages[room.id] ??= [])
       const existing = list.find((m) => m.clientMsgId === clientMsgId && m.sender.id === user.id)
-      if (existing) return existing as never
+      if (existing) return withReceipts(store, existing) as never
       const message: Message = {
         id: uuid(),
         roomId: room.id,
@@ -226,10 +319,13 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       }
       list.push(message)
       room.lastMessageAt = message.createdAt
+      // Người nhận = thành viên lúc gửi, trừ người gửi (vào sau không thành người nhận).
+      ;(store.receipts ??= {})[message.id] = { recipients: room.members.filter((id) => id !== user.id), delivered: [], seen: [] }
       save(store)
+      const saved = withReceipts(store, message)
       // Ack trước, rồi mới broadcast (đúng thứ tự trong contract).
-      setTimeout(() => emit({ type: 'message:new', payload: message, ts: new Date().toISOString() }), 0)
-      return message as never
+      setTimeout(() => emit({ type: 'message:new', payload: saved, ts: new Date().toISOString() }), 0)
+      return saved as never
     },
     onEvent(listener) {
       listeners.add(listener)

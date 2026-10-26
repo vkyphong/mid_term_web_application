@@ -35,6 +35,6 @@ Docker always builds with mock mode disabled. Channels, DMs, membership and mess
 
 ## Feature handoff and E2E
 
-The backend exposes F05–F15 additions through the [chat](../docs/api/chat.md), [collaboration](../docs/api/collaboration.md) and [Lab](../docs/api/lab.md) contracts. These additions require separate frontend integration; existing chat/mock behavior is not proof of those features' UI acceptance.
+F06–F08 (presence, typing, receipts) are integrated in `features/chat` (`presence.ts`, `typing.ts`, `receipts.ts`). The backend exposes the remaining F09–F15 additions through the [chat](../docs/api/chat.md), [collaboration](../docs/api/collaboration.md) and [Lab](../docs/api/lab.md) contracts. These additions require separate frontend integration; existing chat/mock behavior is not proof of those features' UI acceptance.
 
 See [browser E2E](../docs/testing.md#browser-e2e) for requirements, commands, pacing and latency definitions. Unit tests use mocks; E2E requires the real backend.

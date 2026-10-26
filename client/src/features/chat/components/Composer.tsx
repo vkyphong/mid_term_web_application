@@ -6,9 +6,11 @@ interface ComposerProps {
   onSend: (content: string) => void
   /** Khoá khi lịch sử chưa tải xong, để tin tạm không bị mất. */
   disabled?: boolean
+  /** F07: gọi mỗi lần nội dung thay đổi (để báo "đang gõ"). */
+  onInput?: (value: string) => void
 }
 
-export function Composer({ placeholder, onSend, disabled = false }: ComposerProps) {
+export function Composer({ placeholder, onSend, disabled = false, onInput }: ComposerProps) {
   const [value, setValue] = useState('')
   const trimmed = value.trim()
   const bytes = contentBytes(trimmed)
@@ -43,7 +45,10 @@ export function Composer({ placeholder, onSend, disabled = false }: ComposerProp
         rows={1}
         value={value}
         placeholder={placeholder}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => {
+          setValue(e.target.value)
+          onInput?.(e.target.value)
+        }}
         onKeyDown={onKeyDown}
         disabled={disabled}
         aria-invalid={tooLong || undefined}
