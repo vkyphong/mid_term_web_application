@@ -126,7 +126,8 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
     // Search and create a DM through the actual frontend.
     await alice.page.getByRole('button', { name: 'Tin nhắn mới', exact: true }).click()
     await alice.page.getByRole('searchbox', { name: 'Tìm nhân viên' }).fill(bob.account.email)
-    await alice.page.getByRole('button', { name: new RegExp(bob.account.displayName) }).click()
+    // Chọn kết quả trong hộp thoại tìm kiếm (mục "Đồng nghiệp" ở sidebar cũng có thể có tên Bob).
+    await alice.page.getByRole('dialog', { name: 'Tin nhắn mới' }).getByRole('button', { name: new RegExp(bob.account.displayName) }).click()
     await expect(alice.page.getByRole('heading', { name: bob.account.displayName, exact: true })).toBeVisible()
     const dmUrl = alice.page.url()
     const dmId = new URL(dmUrl).pathname.split('/').pop()!
