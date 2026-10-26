@@ -1,8 +1,6 @@
-# F03 / F04 — Channels and direct messages contract
+# Chat — F03–F05 and F10
 
-> Status: **implemented in FE and BE**. Human peer review remains a team acceptance step.
-> FE (`client/src/features/chat/`), its mock and BE (`server/src/main/java/dev/pulsechat/chat/`) follow this document.
-> Builds on [auth.md](auth.md) (REST Bearer auth) and [realtime.md](realtime.md) (authenticated STOMP session).
+Uses the [shared API conventions](README.md) and [authenticated STOMP transport](realtime.md). This contract defines the canonical room and message models, including fields used by [collaboration](collaboration.md).
 
 ## Models
 
@@ -12,102 +10,99 @@ interface UserSummary { id: string; displayName: string; email: string }
 interface Room {
   id: string
   type: 'channel' | 'dm'
-  name: string                // channel: its name; dm: the other member's displayName
-  description: string | null  // channel only
+  name: string                 // channel name or the other DM member's displayName
+  description: string | null
   memberCount: number
-  joined: boolean             // requester is a member (always true for dm)
-  peer: UserSummary | null    // dm only: the other member
-  lastMessageAt: string | null // ISO-8601 UTC
+  joined: boolean
+  peer: UserSummary | null      // DM peer; null for channels
+  lastMessageAt: string | null
+}
+
+interface Attachment {
+  id: string
+  filename: string
+  mediaType: string
+  size: number                 // bytes
+  url: string                  // authenticated download path
 }
 
 interface Message {
   id: string
   roomId: string
-  clientMsgId: string | null  // echoed from message:send, lets the sender reconcile its optimistic copy
+  clientMsgId: string
   sender: { id: string; displayName: string }
-  content: string             // plain text; clients render as text, never HTML
-  createdAt: string           // ISO-8601 UTC, assigned by the server
+  content: string               // plain text; empty for a file-only or deleted message
+  createdAt: string
+  editedAt?: string
+  deletedAt?: string
+  attachment?: Attachment
+  receipts: { recipients: number; delivered: number; seen: number }
+  reactions: { userId: string; emoji: string }[]
 }
 ```
 
-## REST (Bearer access token)
+Optional message fields may be omitted. Message timestamps are assigned by the server. Receipt, deletion and attachment rules are in [collaboration](collaboration.md).
+
+## REST
 
 | Endpoint | Body / query | Success |
 | --- | --- | --- |
-| `GET /api/rooms` | – | `200 { rooms: Room[] }`: every channel (with `joined`) + DMs the requester belongs to |
-| `POST /api/rooms` | `{ name, description? }` | `201 Room` (type `channel`, creator auto-joined) |
-| `GET /api/users?search=&limit=20` | `search` matches displayName or email, case-insensitive | `200 { users: UserSummary[] }`, excludes requester, max 20 |
-| `POST /api/dms` | `{ userId }` | `200 Room` (type `dm`). **Idempotent**: one DM per pair, concurrent calls return the same room |
-| `GET /api/rooms/{id}/messages?limit=30&before=` | `limit` 1–100; optional opaque `before` cursor | `200 { messages: Message[], nextCursor: string \| null }`, oldest → newest |
+| `GET /api/rooms` | — | 200 `{rooms: Room[]}`: all channels plus the requester's DMs |
+| `POST /api/rooms` | `{name,description?}` | 201 `Room`; creator is joined |
+| `GET /api/users?search=&limit=20` | Case-insensitive name/email substring, limit 1–20 | 200 `{users: UserSummary[]}`; excludes requester and disabled users |
+| `POST /api/dms` | `{userId}` | 200 `Room`; idempotent even on concurrent creation |
+| `GET /api/rooms/{id}/messages?limit=30&before=` | Limit 1–100, optional opaque cursor | 200 `{messages: Message[],nextCursor: string \| null}` |
 
-Seed channels: **Engineering, HR, Sales, Marketing**, inserted once by Flyway. New accounts are not automatically joined. The current UI loads the latest page; scroll-to-load remains F05. Cursors bind the room ID and the oldest returned `(createdAt, id)` pair, avoiding gaps or duplicates when timestamps tie. Invalid query types, out-of-range limits or malformed/cross-room cursors return `invalid_payload` / `validation`.
+Flyway seeds Engineering, HR, Sales and Marketing once. New accounts choose which channels to join. Channel names are trimmed, 2–40 characters and unique case-insensitively; descriptions are at most 200 characters. A DM has exactly two fixed participants; channel join/leave operations cannot change them.
 
-Validation: channel `name` 2–40 characters after trim, unique case-insensitive; `description` ≤ 200 characters.
+### History pagination
 
-| Situation | HTTP | `code` | `reason` |
+History requires membership. The cursor binds the room and oldest returned `(createdAt,id)` pair, avoiding duplicate or missing records when timestamps tie on a stable dataset. Each page is oldest-first; `nextCursor:null` means there are no older records. Prepend older pages and merge realtime/history by message ID.
+
+## STOMP commands
+
+| Destination | Type | Payload | Ack data |
 | --- | --- | --- | --- |
-| Invalid body | 400 | `invalid_payload` | `validation` (+ `details`) |
-| Channel name exists | 409 | `invalid_payload` | `room_name_taken` |
-| DM with self / unknown user | 400 | `invalid_payload` | `validation` |
-| History of a room the requester is not a member of | 403 | `forbidden` | – |
-| Room not found | 404 | `invalid_payload` | `not_found` |
+| `/app/room.join` | `room:join` | `{roomId}` | `Room` |
+| `/app/room.leave` | `room:leave` | `{roomId}` | `{roomId}` |
+| `/app/message.send` | `message:send` | `{roomId,content,clientMsgId,mentions?,uploadId?}` | `Message` |
 
-## STOMP
-
-All frames use the authenticated session from F02. Envelope for every event: `{ type, payload, ts }`.
-
-### Client → server (SEND)
-
-| Destination | `type` | `payload` | Ack `data` |
-| --- | --- | --- | --- |
-| `/app/room.join` | `room:join` | `{ roomId }` | `Room` |
-| `/app/room.leave` | `room:leave` | `{ roomId }` | `{ roomId }` |
-| `/app/message.send` | `message:send` | `{ roomId, content, clientMsgId }` | `Message` |
-
-Each SEND body also carries a client-generated `correlationId` (UUID):
+Include `correlationId` and `ts` using the [command envelope](README.md#realtime-envelopes-and-acknowledgements).
 
 ```json
-{ "type": "message:send", "payload": { "roomId": "r1", "content": "Hello", "clientMsgId": "c-123" },
-  "ts": "2026-10-21T08:00:00Z", "correlationId": "5f1d…" }
+{
+  "type": "message:send",
+  "payload": {
+    "roomId": "9f3a3d4b-072a-47be-96b2-c845d3529034",
+    "content": "Hello",
+    "clientMsgId": "b5d9f175-3126-456f-9f87-82616b6df073"
+  },
+  "ts": "2026-10-25T00:00:00Z",
+  "correlationId": "4ac2f71b-0d87-4c3e-a211-dfb64d910e71"
+}
 ```
 
-Rules:
-- `room:join` / `room:leave` apply to channels only; on a DM → `forbidden`.
-- `message:send` requires membership → otherwise `forbidden`. `content` is trimmed, 1–2048 UTF-8 bytes (F11 may tighten).
-- `clientMsgId` must be a UUID. Resending it in the same room **by the same sender** returns the original message and does not rebroadcast it. The key includes sender identity so another member cannot reuse it to suppress a message. Needed by F10.
-- The message is **persisted before** the ack is sent.
+Join/leave are channel-only operations. Sending requires current membership. Content is trimmed and capped at 2048 UTF-8 bytes; nonblank content is required unless attaching a file. See [mentions](collaboration.md#f09-notifications-and-mentions), [uploads](collaboration.md#f15-files) and [rate limits](collaboration.md#f11-limits) for their additional rules.
 
-### Server → client
+### Retry and offline recovery
 
-Subscribe once per connection (no per-room topics, so clients never subscribe to other rooms):
+`clientMsgId` must be a UUID unique per sender across all rooms. Retrying the same ID in the same room returns the existing persisted Message without another insert, notification or broadcast. Reuse in another room fails with `invalid_payload/validation`. Another sender's identical UUID is independent.
 
-| Destination | Content |
-| --- | --- |
-| `/user/queue/acks` | Application acks, only to the sending session |
-| `/user/queue/events` | Room events for every member of the room, all of their sessions |
+Keep the original ID and payload when retrying. A duplicate ID does not edit an existing message. The sender receives a successful ack after commit; a new message is then published as `message:new` on `/user/queue/events` to all current members' connected sessions, including the sender. A user who has left is excluded from subsequent sends.
 
-Ack:
+Subscribe to `/user/queue/acks` for command results and `/user/queue/events` for messages and mutations. Additional notification/mutation events can arrive before their command ack. Acks are matched by correlation ID; optimistic messages are reconciled by sender/clientMsgId and persisted ID.
 
-```json
-{ "type": "ack", "payload": { "correlationId": "5f1d…", "ok": true, "data": { /* see table */ } }, "ts": "…" }
-{ "type": "ack", "payload": { "correlationId": "5f1d…", "ok": false,
-  "error": { "code": "forbidden", "message": "Not a member" } }, "ts": "…" }
-```
+The broker does not replay offline events. After reconnect, resubscribe and fetch rooms and open histories again. The existing chat UI loads the latest 30 messages and provides retry after a 10-second ack timeout; scroll-to-load and the F10 offline queue are separate FE work.
 
-`error.code` ∈ `unauthorized`, `rate_limited`, `invalid_payload`, `forbidden`. A STOMP RECEIPT is not an ack.
+## Errors
 
-Events:
-
-| `type` | `payload` | Sent to |
+| Situation | HTTP (REST) | Code / reason |
 | --- | --- | --- |
-| `message:new` | `Message` | Every current member of `roomId` (sender included), after commit |
+| Invalid body/query, limit or malformed/cross-room cursor | 400 | `invalid_payload/validation` |
+| Existing channel name | 409 | `invalid_payload/room_name_taken` |
+| DM with self or unknown/disabled user | 400 | `invalid_payload/validation` |
+| Nonmember reads history or sends a message | 403 | `forbidden` |
+| Missing room | 404 | `invalid_payload/not_found` |
+| Join/leave a DM | — | Negative ack with `forbidden` |
 
-Ordering: commit → ack to the sender's session → `message:new` to members. A user who left a channel receives no further `message:new` for it. A DM's `message:new` reaching a member who has never loaded it lets the client discover the new DM (it re-fetches `GET /api/rooms`).
-
-Business validation/membership errors on these three allowed SEND destinations are negative application acks and leave the connection usable. A missing correlation ID produces an ack with an empty correlation ID; no valid request can be matched to it. Invalid/revoked/expired authentication and forbidden protocol destinations retain the F02 ERROR/disconnect behavior. Clients cannot subscribe to raw broker queues, room topics, or another user's destinations.
-
-## Client behaviour (FE reference)
-
-- Optimistic send: a `sending` copy keyed by `clientMsgId`, replaced by the ack's `Message` or by the matching `message:new`, whichever arrives first; duplicates are merged by `id`.
-- No ack within 10 s, or no connection → message marked `failed`, user can retry with the **same** `clientMsgId`.
-- After a reconnect the client re-fetches rooms and open histories (events may have been missed while offline).
+Business errors on these destinations return negative acks and keep the connection usable. A missing correlation ID produces an ack with an empty correlation ID, so no valid pending command can match it. Invalid authentication or denied protocol destinations use the [STOMP error behavior](realtime.md).

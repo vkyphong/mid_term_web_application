@@ -3,6 +3,8 @@
 !.env.example
 .local/
 server/target/
+server/uploads/
+uploads/
 **/.DS_Store
 **/.idea/
 *.log

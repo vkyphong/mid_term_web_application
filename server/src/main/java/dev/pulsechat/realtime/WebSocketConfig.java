@@ -20,7 +20,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public WebSocketConfig(StompAuthInterceptor auth, ConnectionRegistry connections, AppProperties properties, ObjectMapper mapper, ThreadPoolTaskScheduler realtimeScheduler) {
         this.auth = auth; this.connections = connections; this.properties = properties; this.mapper = mapper; this.scheduler = realtimeScheduler;
     }
-    @Bean public static ThreadPoolTaskScheduler realtimeScheduler() {
+    @Bean @Primary public static ThreadPoolTaskScheduler realtimeScheduler() {
         var scheduler = new ThreadPoolTaskScheduler(); scheduler.setPoolSize(2); scheduler.setThreadNamePrefix("realtime-");
         scheduler.setRemoveOnCancelPolicy(true); return scheduler;
     }

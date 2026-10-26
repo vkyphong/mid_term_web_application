@@ -15,8 +15,9 @@ public class ChatSocketController {
     private final ChatService chat;
     private final SimpMessagingTemplate broker;
     private final ObjectMapper mapper;
-    public ChatSocketController(ChatService chat, SimpMessagingTemplate broker, ObjectMapper mapper) {
-        this.chat = chat; this.broker = broker; this.mapper = mapper;
+    private final dev.pulsechat.realtime.SessionRateLimiter limits;
+    public ChatSocketController(ChatService chat, SimpMessagingTemplate broker, ObjectMapper mapper, dev.pulsechat.realtime.SessionRateLimiter limits) {
+        this.chat = chat; this.broker = broker; this.mapper = mapper; this.limits=limits;
     }
     @MessageMapping({"/room.join", "/room.leave", "/message.send"})
     public void handle(byte[] body, SessionPrincipal user, SimpMessageHeaderAccessor headers) {
@@ -38,7 +39,15 @@ public class ChatSocketController {
             if (type.equals("room:join")) data = chat.join(room, user.userId());
             else if (type.equals("room:leave")) { chat.leave(room, user.userId()); data = Map.of("roomId", room); }
             else {
-                delivery = chat.send(room, user.userId(), text(payload, "content"), text(payload, "clientMsgId"));
+                limits.check(headers.getSessionId(),"messages",10,5000);
+                var mentions=new java.util.ArrayList<String>();
+                if(payload.has("mentions")) {
+                    if(!payload.path("mentions").isArray())throw ChatService.field("mentions","Array required");
+                    for(JsonNode mention:payload.path("mentions")) {if(!mention.isTextual())throw ChatService.field("mentions","User IDs required");mentions.add(mention.asText());}
+                }
+                if(!payload.path("content").isTextual())throw ChatService.field("content","String required");
+                if(payload.hasNonNull("uploadId")&&!payload.path("uploadId").isTextual())throw ChatService.field("uploadId","String required");
+                delivery = chat.send(room, user.userId(), payload.path("content").asText(), text(payload, "clientMsgId"),payload.path("uploadId").asText(null),mentions);
                 data = delivery.message();
             }
             // Service transaction has committed. Ack only this socket, then notify all member sessions.

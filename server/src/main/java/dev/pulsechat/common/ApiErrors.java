@@ -35,4 +35,8 @@ public class ApiErrors {
     ResponseEntity<?> invalidParameter() { return api(new ApiException(400, "invalid_payload", "validation", "Invalid query parameter")); }
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<?> conflict() { return api(new ApiException(409, "invalid_payload", "email_taken", "Email already registered")); }
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    ResponseEntity<?> uploadTooLarge(){return api(new ApiException(413,"invalid_payload","file_too_large","Maximum file size is 5 MiB"));}
+    @ExceptionHandler({org.springframework.web.bind.MissingServletRequestParameterException.class,org.springframework.web.multipart.support.MissingServletRequestPartException.class})
+    ResponseEntity<?> missingParameter(){return api(new ApiException(400,"invalid_payload","validation","Required parameter is missing"));}
 }

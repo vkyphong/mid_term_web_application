@@ -26,6 +26,7 @@ public class SecurityConfig {
             .sessionManagement(c -> c.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .formLogin(c -> c.disable()).httpBasic(c -> c.disable()).logout(c -> c.disable())
             .authorizeHttpRequests(c -> c
+                .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ASYNC).permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login", "/api/auth/refresh", "/api/auth/logout").permitAll()
                 .requestMatchers("/api/**").authenticated().anyRequest().permitAll())
             .exceptionHandling(c -> c

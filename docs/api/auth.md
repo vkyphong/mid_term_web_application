@@ -1,81 +1,87 @@
-# F01 — Auth REST API contract
+# Authentication — F01
 
-> Implemented by Spring Boot (`server/`) and React (`client/`). Database: MySQL, managed by Flyway. Defaults: `DQGM.dev`, access TTL 900 seconds, fixed refresh lifetime 7 days.
+Uses the [shared API conventions](README.md). Defaults: allowed email domain `DQGM.dev`, access lifetime 900 seconds, fixed refresh-session lifetime seven days.
 
-## Tổng quan
+## Endpoints
 
-| Endpoint | Body | Thành công |
+| Endpoint | Authentication / body | Success |
 | --- | --- | --- |
-| `POST /api/auth/register` | `{ email, displayName, password }` | `201` + `AuthResponse` + set cookie refresh |
-| `POST /api/auth/login` | `{ email, password }` | `200` + `AuthResponse` + set cookie refresh |
-| `POST /api/auth/refresh` | _(không body, đọc cookie)_ | `200` + `AuthResponse` + **xoay vòng** cookie refresh |
-| `POST /api/auth/logout` | _(không body, đọc cookie)_ | `204`, thu hồi refresh token, xoá cookie |
+| `POST /api/auth/register` | `{email,displayName,password}` | 201 `AuthResponse`, set refresh cookie |
+| `POST /api/auth/login` | `{email,password}` | 200 `AuthResponse`, set refresh cookie |
+| `POST /api/auth/refresh` | Refresh cookie, no body | 200 `AuthResponse`, rotate refresh cookie |
+| `POST /api/auth/logout` | Refresh cookie, no body | 204, revoke session and clear cookie |
+| `GET /api/auth/me` | Bearer access token | 200 user object |
 
 ```ts
+interface User {
+  id: string
+  email: string
+  displayName: string
+  role: 'user' | 'admin'
+}
+
 interface AuthResponse {
-  accessToken: string      // JWT, sống 15 phút
-  expiresIn: number        // giây, = 900
-  user: { id: string; email: string; displayName: string; role: 'user' | 'admin' }
+  accessToken: string
+  expiresIn: number // seconds; default 900, configurable
+  user: User
 }
 ```
 
-## Token
+Registration example:
 
-- **Access token** (JWT, 15 phút): trả trong body. FE chỉ giữ trong bộ nhớ, gửi qua header `Authorization: Bearer <token>` (gửi trong STOMP CONNECT ở F02; xem [realtime.md](realtime.md)).
-- **Refresh token** (7 ngày): đặt trong cookie, FE không đọc được:
-
-  ```
-  Set-Cookie: refreshToken=<opaque>; HttpOnly; Secure; SameSite=Strict; Path=/api/auth; Max-Age=604800
-  ```
-
-  - Khi dev qua Vite proxy (`http://localhost:5173` → `:8080`) cookie là same-origin; có thể bỏ `Secure` ở môi trường dev HTTP.
-  - `/refresh` cấp refresh token mới và vô hiệu token cũ (rotation).
-  - `/logout` vô hiệu refresh token hiện tại → dùng lại token cũ phải nhận `401`.
-- FE gọi `/refresh` khi tải trang (khôi phục phiên), ~60s trước khi access token hết hạn, và **một lần** khi API trả `401`.
-
-## Kiểm tra domain
-
-- Danh sách domain lấy từ cấu hình (vd `ALLOWED_EMAIL_DOMAINS=pulsechat.dev`).
-- Chuẩn hoá: `trim()` + `toLowerCase()`; email phải có **đúng một** `@`.
-- So khớp **chính xác** phần sau `@` với danh sách; **không** dùng `includes`/`endsWith`.
-  - `a@pulsechat.dev` ✅ · `a@evilpulsechat.dev` ❌ · `a@pulsechat.dev.evil.com` ❌ · `a@sub.pulsechat.dev` ❌
-- FE cũng kiểm tra để báo lỗi sớm, nhưng BE là nơi quyết định. Biến FE tương ứng: `VITE_ALLOWED_EMAIL_DOMAINS`.
+```json
+{
+  "email": "employee@DQGM.dev",
+  "displayName": "Employee",
+  "password": "DemoPassword123"
+}
+```
 
 ## Validation
 
-| Field | Quy tắc |
+| Field | Rule |
 | --- | --- |
-| `email` | email hợp lệ, domain được phép |
-| `displayName` | 2–50 ký tự sau `trim()` |
-| `password` | ≥ 8 ký tự, ≤ 72 byte UTF-8 (giới hạn bcrypt), có chữ và số |
+| `email` | Valid email, maximum 254 characters, exactly one `@`, allowed domain |
+| `displayName` | 2–50 characters after trimming |
+| `password` | At least eight characters, one ASCII letter and one digit, at most 72 UTF-8 bytes |
 
-## Lỗi
+Email is trimmed and lowercased. The server compares the domain exactly against `ALLOWED_EMAIL_DOMAINS`: `a@DQGM.dev` is allowed by default; `a@evilDQGM.dev`, `a@DQGM.dev.evil.com` and `a@sub.DQGM.dev` are rejected. Frontend validation provides early feedback; backend validation is authoritative.
 
-Mọi lỗi trả về cùng một dạng; `code` theo contract chung của dự án, `reason` để FE hiển thị thông báo cụ thể:
+## Tokens and sessions
 
-```json
-{ "error": { "code": "forbidden", "reason": "domain_not_allowed", "message": "Email domain is not allowed" } }
+Keep access tokens in frontend memory. Send them in the REST Authorization header and STOMP CONNECT header. JWTs use HS256, issuer `pulsechat`, user ID as subject and auth-session ID as `sid`. The JWT secret comes from environment configuration and must contain at least 32 characters.
+
+Refresh tokens are random opaque 256-bit values. Only their SHA-256 hashes are stored. The backend issues an HttpOnly cookie:
+
+```text
+Set-Cookie: refreshToken=<opaque>; HttpOnly; SameSite=Strict; Path=/api/auth; Max-Age=604800
 ```
 
-| Tình huống | HTTP | `code` | `reason` |
+`Secure` is also set when `COOKIE_SECURE=true`. HTTP local/LAN defaults to false. Use `credentials: 'include'` when calling cookie-authenticated endpoints.
+
+Rotation locks the stored session so only one concurrent refresh succeeds. An old refresh value returns 401 without invalidating the newly rotated session. Rotation preserves the original seven-day deadline; the new cookie's Max-Age is its remaining lifetime.
+
+Logout revokes the session, clears its cookie and closes that session's chat sockets. Access JWTs from the same session also stop working; independent logins remain valid. Retired refresh hashes permit logout with a pre-rotation cookie during an in-flight refresh, but cannot be used to refresh again.
+
+An enabled account and active session are checked on authenticated requests. Ban disables the account and revokes all sessions; subsequent calls may report `invalid_token` or `refresh_invalid` because revocation is checked before account enablement.
+
+## Errors
+
+| Situation | HTTP | Code | Reason |
 | --- | --- | --- | --- |
-| Body sai (Jakarta/custom validation) | 400 | `invalid_payload` | `validation` (+ `details: [{ field, message }]`) |
-| Email ngoài domain | 403 | `forbidden` | `domain_not_allowed` |
-| Email đã tồn tại | 409 | `invalid_payload` | `email_taken` |
-| Sai email / mật khẩu | 401 | `unauthorized` | `invalid_credentials` |
-| Refresh token thiếu / hết hạn / đã thu hồi | 401 | `unauthorized` | `refresh_invalid` |
-| Tài khoản bị ban (F12) | 403 | `forbidden` | `banned` |
-| Quá giới hạn (F11) | 429 | `rate_limited` | – (`retryAfter`: giây) |
+| Invalid input | 400 | `invalid_payload` | `validation`, with field details |
+| Disallowed domain | 403 | `forbidden` | `domain_not_allowed` |
+| Existing email | 409 | `invalid_payload` | `email_taken` |
+| Incorrect email/password | 401 | `unauthorized` | `invalid_credentials` |
+| Missing, expired, reused or revoked refresh token | 401 | `unauthorized` | `refresh_invalid` |
+| Invalid, expired or revoked access token | 401 | `unauthorized` | `invalid_token` |
+| Disabled account, when reached before session revocation | 403 | `forbidden` | `banned` |
+| Rejected Origin | 403 | `forbidden` | `origin_not_allowed` |
 
-Login sai email hay sai mật khẩu đều trả `invalid_credentials` (không tiết lộ email có tồn tại hay không).
+Wrong email and wrong password share `invalid_credentials`. F11's message-send limit does not rate-limit these auth endpoints, and they do not provide a `retryAfter` field.
 
-## Persisted sessions and Origin
+## Frontend lifecycle and Origin
 
-- `GET /api/auth/me`: Bearer JWT required; returns the `user` object. Invalid/revoked/expired access tokens return 401 with `invalid_token`.
-- JWT signature: HS256, issuer `pulsechat`, subject user ID, `sid` auth-session ID. Secret is at least 32 characters, supplied by environment.
-- Refresh values are opaque random 256-bit secrets; only SHA-256 hashes are stored in `auth_sessions`. Rotation is single-use with a row lock; stale/replayed refresh values return 401 without invalidating the newly rotated session. Concurrent refresh: exactly one succeeds.
-- Logout revokes the persisted session, clears the refresh cookie and closes its WebSockets. Access JWTs for this session also stop working. Independent login sessions remain valid. Retired refresh hashes map old rotated cookies to their session for logout only, so a concurrent refresh cannot undo logout; they cannot be used to refresh.
-- Refresh rotation preserves the original seven-day deadline. It does not create an indefinite sliding session. Login/register responses set a new seven-day cookie; refresh cookie Max-Age is the remaining lifetime.
-- Exact same-origin requests and configured `ALLOWED_ORIGINS` are accepted. Cross-origin browser requests outside that list return 403. SameSite Strict cookies and Origin checks protect cookie-authenticated POST requests; non-browser clients may omit Origin.
-- `enabled=false` in `users` blocks login, refresh, authenticated REST and subsequent STOMP frames. Admin ban management is F12.
-- Docker builds frontend with `VITE_USE_MOCK_API=false`; local mock remains optional and is not a real JWT/database implementation.
+Restore the session through refresh on page load. The current client refreshes ahead of access expiry (at most 60 seconds early), retries an unauthorized REST request once, and reconnects STOMP with the replacement token. Network refresh failures preserve the local session and retry after five seconds; 401/403 ends it. See [realtime](realtime.md) for connection limits and reconnect behavior.
+
+Cookie-authenticated POSTs use SameSite Strict cookies and an Origin guard. Same-origin requests and exact configured `ALLOWED_ORIGINS` are accepted; other browser origins are rejected. Non-browser clients may omit Origin. The [Vite proxy](../../client/README.md) keeps local frontend requests on one browser origin.

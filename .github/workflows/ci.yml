@@ -16,6 +16,10 @@ jobs:
         run: docker compose up --build -d --wait --wait-timeout 180
       - name: Verify real MySQL and STOMP flow
         run: docker compose --profile tools run --build --rm --no-deps smoke
+      - name: Verify collaboration backend on MySQL
+        run: docker compose --profile tools run --build --rm --no-deps --entrypoint node smoke smoke-collaboration.mjs
+      - name: Verify four Lab transports
+        run: docker compose --profile tools run --build --rm --no-deps --entrypoint node smoke smoke-lab.mjs
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

@@ -5,6 +5,10 @@ server:
     include-message: never
     include-stacktrace: never
 spring:
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
   application:
     name: pulsechat
   datasource:
