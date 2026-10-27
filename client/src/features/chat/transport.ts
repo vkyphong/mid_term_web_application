@@ -13,6 +13,8 @@ export interface ChatTransport {
   onEvent(listener: (event: ServerEvent) => void): () => void
   /** Gọi mỗi lần (re)connect thành công, để tải lại dữ liệu có thể đã lỡ. */
   onConnected(listener: () => void): () => void
+  /** Đang có kết nối đã xác thực (F10: quyết định gửi ngay hay xếp hàng chờ). */
+  isConnected(): boolean
 }
 
 export const DESTINATIONS: Record<ClientEventType, string> = {
@@ -23,6 +25,9 @@ export const DESTINATIONS: Record<ClientEventType, string> = {
   'typing:stop': '/app/typing.stop',
   'message:delivered': '/app/message.delivered',
   'message:seen': '/app/message.seen',
+  'message:edit': '/app/message.edit',
+  'message:delete': '/app/message.delete',
+  'message:react': '/app/message.react',
 }
 
 const STATUS_BY_CODE: Record<string, number> = {
@@ -97,6 +102,7 @@ export function createStompTransport(): ChatTransport {
     client.subscribe('/user/queue/events', handleEvent)
     client.subscribe('/user/queue/presence', handleEvent)
     client.subscribe('/user/queue/typing', handleEvent)
+    client.subscribe('/user/queue/notifications', handleEvent)
     for (const listener of connectedListeners) listener()
   }
 
@@ -133,5 +139,6 @@ export function createStompTransport(): ChatTransport {
       connectedListeners.add(listener)
       return () => connectedListeners.delete(listener)
     },
+    isConnected: () => getActiveClient() !== null,
   }
 }

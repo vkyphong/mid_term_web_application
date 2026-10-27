@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { describeChatError } from '../errors'
 import { describeReceipt, markSeen, needsReceipt } from '../receipts'
-import type { ChatMessage, RoomType } from '../types'
-import { Avatar } from './Avatar'
+import type { ChatMessage, RoomType, UserSummary } from '../types'
+import { MessageItem, type MessageActionsApi } from './MessageItem'
 
 interface HistoryProps {
   hasMore: boolean
@@ -20,7 +20,13 @@ interface MessageListProps {
   history?: HistoryProps
   /** F08: loại phòng để hiển thị trạng thái đã nhận/đã xem. */
   roomType?: RoomType
+  /** F09: thành viên phòng, để tô "@Tên". */
+  members?: readonly UserSummary[]
+  /** F14: sửa / xoá / thả cảm xúc. */
+  actions?: MessageActionsApi
 }
+
+const NO_MEMBERS: readonly UserSummary[] = []
 
 /** Tỉ lệ diện tích tin phải nằm trong khung nhìn mới coi là "đã xem". */
 const SEEN_VISIBLE_RATIO = 0.6
@@ -72,14 +78,23 @@ const LOAD_OLDER_THRESHOLD_PX = 120
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000
 
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 
 /** Tin liền nhau của cùng người trong 5 phút thì gộp, không lặp tên. */
 function startsGroup(prev: ChatMessage | undefined, m: ChatMessage) {
   return !prev || prev.sender.id !== m.sender.id || Date.parse(m.createdAt) - Date.parse(prev.createdAt) > GROUP_WINDOW_MS
 }
 
-export function MessageList({ messages, isPending, error, currentUserId, onRetry, history, roomType = 'channel' }: MessageListProps) {
+export function MessageList({
+  messages,
+  isPending,
+  error,
+  currentUserId,
+  onRetry,
+  history,
+  roomType = 'channel',
+  members = NO_MEMBERS,
+  actions,
+}: MessageListProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
   const previous = useRef<{ firstId?: string; height: number }>({ height: 0 })
@@ -145,42 +160,20 @@ export function MessageList({ messages, isPending, error, currentUserId, onRetry
       <ol className="message-list" aria-label="Tin nhắn" aria-live="polite">
         {messages?.map((m, i) => {
           const own = m.sender.id === currentUserId
-          const head = startsGroup(messages[i - 1], m)
-          const receipt = own && !m.status ? describeReceipt(m, roomType) : null
           return (
-            <li
+            <MessageItem
               key={m.id}
-              className={`message${own ? ' message--own' : ''}${head ? ' message--head' : ''}`}
-              data-message-id={needsReceipt(m, 'seen', currentUserId) ? m.id : undefined}
-            >
-              {/* Tin của mình: bong bóng bên phải, không avatar. Tin người khác: bên trái kèm avatar. */}
-              {!own && <div className="message-gutter">{head && <Avatar name={m.sender.displayName} />}</div>}
-              <div className="message-body">
-                {head && (
-                  <div className="message-meta">
-                    {own ? <span className="sr-only">Bạn</span> : <strong>{m.sender.displayName}</strong>}
-                    <time dateTime={m.createdAt} title={receipt?.detail}>
-                      {timeOf(m.createdAt)}
-                    </time>
-                  </div>
-                )}
-                <p className="message-content message-bubble">{m.content}</p>
-                {m.status === 'sending' && <span className="message-status">Đang gửi…</span>}
-                {receipt && m.id === lastOwnId && (
-                  <span className="message-status message-receipt" title={receipt.detail}>
-                    {receipt.label}
-                  </span>
-                )}
-                {m.status === 'failed' && (
-                  <span className="message-status message-status--failed">
-                    Gửi lỗi ·{' '}
-                    <button type="button" className="link-btn" onClick={() => onRetry(m)}>
-                      Thử lại
-                    </button>
-                  </span>
-                )}
-              </div>
-            </li>
+              message={m}
+              own={own}
+              head={startsGroup(messages[i - 1], m)}
+              selfId={currentUserId}
+              members={members}
+              receipt={own && !m.status ? describeReceipt(m, roomType) : null}
+              showReceipt={m.id === lastOwnId}
+              trackSeen={needsReceipt(m, 'seen', currentUserId)}
+              onRetry={onRetry}
+              actions={actions}
+            />
           )
         })}
       </ol>

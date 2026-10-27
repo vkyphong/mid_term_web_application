@@ -1,8 +1,8 @@
 import { config } from '../../config'
-import { authRequest } from '../../lib/apiClient'
+import { authBlob, authRequest, authUpload } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreateRoomInput, MessagePage, Presence, Room, UserSummary } from './types'
+import type { CreateRoomInput, MessagePage, NotificationPage, Presence, Room, Upload, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -15,6 +15,15 @@ export interface ChatApi {
   listMessages(roomId: string, before?: string): Promise<MessagePage>
   /** F06: snapshot online/lastSeen của mọi user. */
   getPresence(): Promise<Presence[]>
+  /** F09: thành viên hiện tại của phòng (để chọn @mention). */
+  listMembers(roomId: string): Promise<UserSummary[]>
+  /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
+  listNotifications(before?: string): Promise<NotificationPage>
+  markNotificationRead(id: string): Promise<void>
+  /** F15: upload một file (JPEG/PNG/PDF ≤ 5 MiB) vào phòng. */
+  uploadFile(roomId: string, file: File, onProgress?: (ratio: number) => void, signal?: AbortSignal): Promise<Upload>
+  /** F15: tải file đính kèm (cần đăng nhập và là thành viên phòng). */
+  downloadFile(url: string): Promise<Blob>
 }
 
 export const httpChatApi: ChatApi = {
@@ -31,6 +40,21 @@ export const httpChatApi: ChatApi = {
     return authRequest(`/api/rooms/${encodeURIComponent(roomId)}/messages?${params}`)
   },
   getPresence: async () => (await authRequest<{ users: Presence[] }>('/api/presence')).users,
+  listMembers: async (roomId) =>
+    (await authRequest<{ members: UserSummary[] }>(`/api/rooms/${encodeURIComponent(roomId)}/members`)).members,
+  listNotifications: (before) => {
+    const params = new URLSearchParams({ limit: '30' })
+    if (before) params.set('before', before)
+    return authRequest(`/api/notifications?${params}`)
+  },
+  markNotificationRead: (id) => authRequest(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' }),
+  uploadFile: (roomId, file, onProgress, signal) => {
+    const form = new FormData()
+    form.append('roomId', roomId)
+    form.append('file', file)
+    return authUpload('/api/uploads', form, onProgress, signal)
+  },
+  downloadFile: (url) => authBlob(url),
 }
 
 const mock = config.useMockApi ? createMockChat() : null

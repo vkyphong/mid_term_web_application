@@ -4,7 +4,7 @@ import { config } from '../../config'
 import { refreshAccessToken } from '../../lib/apiClient'
 import { tokenStore } from '../../lib/tokenStore'
 import { useSession } from '../auth/hooks'
-import { clearActiveClient, setActiveClient } from './realtimeBus'
+import { clearActiveClient, getActiveClient, setActiveClient } from './realtimeBus'
 
 export type RealtimeState = 'connecting' | 'connected' | 'disconnected' | 'unauthorized' | 'limited' | 'mock'
 
@@ -12,6 +12,13 @@ export function useRealtime() {
   const { session } = useSession()
   const [state, setState] = useState<RealtimeState>('disconnected')
   const [lastPong, setLastPong] = useState<string | null>(null)
+  // F10: sau 5 lần lỗi mạng client ngừng thử; khi trình duyệt báo có mạng lại thì tạo kết nối mới.
+  const [generation, setGeneration] = useState(0)
+  useEffect(() => {
+    const onOnline = () => { if (!getActiveClient()) setGeneration((g) => g + 1) }
+    window.addEventListener('online', onOnline)
+    return () => window.removeEventListener('online', onOnline)
+  }, [])
   const authFailures = useRef(0)
   const shutdown = useRef<Promise<void>>(Promise.resolve())
 
@@ -82,10 +89,19 @@ export function useRealtime() {
         }
       },
     })
+    // F10: trình duyệt báo mất mạng thì đóng socket ngay (không chờ heartbeat ~20 s),
+    // để giao diện và hàng đợi chuyển sang chế độ chờ kết nối.
+    const onOffline = () => { if (!disposed) client.forceDisconnect() }
+    window.addEventListener('offline', onOffline)
     // Finish closing the old socket before replacement, including when all five slots are occupied.
     void shutdown.current.then(() => { if (!disposed) client.activate() })
-    return () => { disposed = true; clearActiveClient(client); shutdown.current = client.deactivate() }
-  }, [session])
+    return () => {
+      disposed = true
+      window.removeEventListener('offline', onOffline)
+      clearActiveClient(client)
+      shutdown.current = client.deactivate()
+    }
+  }, [session, generation])
 
   return { state: config.useMockApi ? 'mock' as const : state, lastPong }
 }

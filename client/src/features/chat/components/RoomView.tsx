@@ -1,9 +1,23 @@
+import { useEffect, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '../../auth/hooks'
 import { FormAlert } from '../../auth/components/FormAlert'
 import { describeChatError } from '../errors'
-import { useJoinRoom, useLeaveRoom, useLoadOlder, useMessages, useRooms, useSendMessage } from '../hooks'
+import {
+  useJoinRoom,
+  useLeaveRoom,
+  useLoadOlder,
+  useMessageActions,
+  useMessages,
+  useRoomMembers,
+  useRooms,
+  useSendMessage,
+  type SendOptions,
+} from '../hooks'
+import { setActiveRoom } from '../notifications'
+import { onOutboxChange, outboxSize } from '../outbox'
+import { useRealtimeStatus } from '../../realtime/RealtimeContext'
 import { describePresence, usePresence } from '../presence'
 import { describeTyping, useTypingSender, useTypingUsers } from '../typing'
 import type { ChatMessage, Room, UserSummary } from '../types'
@@ -48,6 +62,31 @@ function TypingIndicator({ room, messages, selfId }: { room: Room; messages: Cha
   )
 }
 
+/** F10: báo mất kết nối và số tin đang chờ gửi bù. */
+function subscribeOnline(listener: () => void) {
+  window.addEventListener('online', listener)
+  window.addEventListener('offline', listener)
+  return () => {
+    window.removeEventListener('online', listener)
+    window.removeEventListener('offline', listener)
+  }
+}
+
+function ConnectionBanner() {
+  const { state } = useRealtimeStatus()
+  const queued = useSyncExternalStore(onOutboxChange, outboxSize)
+  const browserOnline = useSyncExternalStore(subscribeOnline, () => navigator.onLine)
+  if (browserOnline && (state === 'connected' || state === 'mock')) return null
+  return (
+    <p className="connection-banner" role="status">
+      {state === 'connecting' ? 'Đang kết nối lại…' : 'Mất kết nối.'}{' '}
+      {queued > 0
+        ? `${queued} tin đang chờ, sẽ tự gửi khi có kết nối.`
+        : 'Tin bạn gửi sẽ được xếp hàng và gửi khi có kết nối.'}
+    </p>
+  )
+}
+
 function Conversation({ room }: { room: Room }) {
   const { user } = useSession()
   const messages = useMessages(room.id, true)
@@ -56,11 +95,19 @@ function Conversation({ room }: { room: Room }) {
   const typing = useTypingSender(room.id)
   const presence = usePresence()
   const leave = useLeaveRoom()
+  const members = useRoomMembers(room.id)
+  const actions = useMessageActions()
   const peerPresence = presence.get(room.peer?.id)
 
-  const onSend = (content: string) => {
+  // F09: đang xem phòng này thì không bật toast cho thông báo của chính phòng này.
+  useEffect(() => {
+    setActiveRoom(room.id)
+    return () => setActiveRoom(null)
+  }, [room.id])
+
+  const onSend = (content: string, options: SendOptions) => {
     typing.onSent()
-    send(content)
+    send(content, options)
   }
 
   return (
@@ -96,6 +143,8 @@ function Conversation({ room }: { room: Room }) {
         currentUserId={user?.id ?? ''}
         onRetry={retry}
         roomType={room.type}
+        members={members.data}
+        actions={actions}
         history={{
           hasMore: older.hasMore,
           isLoading: older.isLoading,
@@ -104,11 +153,16 @@ function Conversation({ room }: { room: Room }) {
         }}
       />
       <TypingIndicator room={room} messages={messages.data} selfId={user?.id} />
+      <ConnectionBanner />
       <Composer
+        roomId={room.id}
+        members={members.data}
+        selfId={user?.id}
         placeholder={room.type === 'dm' ? `Nhắn cho ${room.name}` : `Nhắn vào #${room.name}`}
         onSend={onSend}
         onInput={typing.onInput}
-        disabled={!messages.isSuccess}
+        // Chỉ khoá khi lịch sử chưa từng tải xong (để chèn bản tạm); tải lại lỗi lúc offline vẫn cho gõ (F10).
+        disabled={messages.data === undefined}
       />
     </>
   )

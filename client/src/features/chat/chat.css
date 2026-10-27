@@ -624,3 +624,467 @@
     gap: 8px;
   }
 }
+
+/* ---------- F14: thao tác tin nhắn, cảm xúc ---------- */
+.message-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+/* Thanh thao tác nổi cạnh bong bóng, không chiếm chỗ (tin chỉ có file không bị khoảng trống). */
+.message-tools {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 4px);
+  z-index: 2;
+  display: flex;
+  gap: 2px;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 0.12s;
+}
+
+.message--own .message-tools {
+  left: auto;
+  right: calc(100% + 4px);
+}
+
+.message-row:empty,
+.message-row:has(> .message-tools:only-child) {
+  min-height: 0;
+}
+
+.message-row:has(> .message-tools:only-child) .message-tools {
+  top: 12px;
+}
+
+.message:hover .message-tools,
+.message:focus-within .message-tools {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .message-tools {
+    opacity: 1;
+  }
+}
+
+.message-tools .icon-btn {
+  width: 26px;
+  height: 26px;
+  font-size: 0.85rem;
+}
+
+.reaction-picker {
+  display: flex;
+  gap: 2px;
+  margin-top: 4px;
+  padding: 3px 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+}
+
+.reaction-option {
+  padding: 2px 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reaction-option:hover,
+.reaction-option[aria-pressed='true'] {
+  background: var(--bg);
+}
+
+.reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.reaction-chip {
+  padding: 1px 8px;
+  font: inherit;
+  font-size: 0.8rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.reaction-chip--mine {
+  border-color: var(--primary);
+  background: var(--focus);
+}
+
+.message-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: min(420px, 70vw);
+}
+
+.message-edit textarea {
+  width: 100%;
+  padding: 8px 10px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--primary);
+  border-radius: var(--radius);
+  resize: vertical;
+}
+
+.message-edit-actions,
+.message-confirm {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.message-confirm {
+  margin-top: 4px;
+  font-size: 0.85rem;
+}
+
+.message-edit-actions .btn-primary,
+.message-confirm .btn-secondary {
+  margin: 0;
+  padding: 4px 12px;
+}
+
+.btn-danger {
+  padding: 4px 12px;
+  font: inherit;
+  font-weight: 600;
+  color: #fff;
+  background: var(--danger);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.message-bubble--deleted,
+.message--own .message-bubble--deleted {
+  font-style: italic;
+  color: var(--muted);
+  background: transparent;
+  border: 1px dashed var(--border);
+}
+
+.message-edited {
+  font-size: 0.75rem;
+  opacity: 0.75;
+}
+
+/* ---------- F09: mention ---------- */
+.mention {
+  font-weight: 600;
+  color: var(--primary);
+}
+
+.message--own .mention {
+  color: inherit;
+  text-decoration: underline;
+}
+
+.mention--me {
+  padding: 0 2px;
+  border-radius: 4px;
+  background: rgba(226, 160, 63, 0.3);
+}
+
+.composer {
+  position: relative;
+}
+
+.mention-list {
+  position: absolute;
+  bottom: calc(100% - 4px);
+  left: 16px;
+  z-index: 5;
+  min-width: 220px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.mention-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.mention-list [aria-selected='true'] .mention-option,
+.mention-option:hover {
+  background: var(--bg);
+}
+
+/* ---------- F15: tệp đính kèm ---------- */
+.composer-attach {
+  align-self: center;
+}
+
+.upload-chip {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.upload-chip--error {
+  border-color: var(--danger);
+}
+
+.upload-chip progress {
+  flex: 1;
+  max-width: 200px;
+}
+
+.upload-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+
+.attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+  max-width: 100%;
+}
+
+.message--own .attachment {
+  align-items: flex-end;
+}
+
+.attachment-image {
+  display: block;
+  max-width: min(320px, 60vw);
+  max-height: 240px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.attachment-placeholder {
+  padding: 24px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+}
+
+.attachment-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 6px 12px;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.attachment-file:hover:not(:disabled) {
+  border-color: var(--primary);
+}
+
+.attachment-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-size {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* ---------- F09: chuông thông báo, toast ---------- */
+.notification-center {
+  position: relative;
+}
+
+.bell {
+  position: relative;
+  font-size: 1.05rem;
+}
+
+.badge {
+  position: absolute;
+  top: -4px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+  color: #fff;
+  background: var(--danger);
+  border-radius: 999px;
+}
+
+.notification-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: min(360px, 90vw);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.notification-panel h2 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.notification-panel ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.notification-item {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.notification-item:hover {
+  background: var(--bg);
+}
+
+.notification-item--unread {
+  background: var(--focus);
+}
+
+.notification-title {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.notification-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+
+.toast-host {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+}
+
+.toast {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 8px 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: 10px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+}
+
+.toast--error {
+  border-left-color: var(--danger);
+}
+
+.toast-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.toast-body span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- F10: mất kết nối ---------- */
+.connection-banner {
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 0.82rem;
+  color: #7a4b00;
+  background: #fff4dc;
+  border-top: 1px solid #f0d9a8;
+}
+
+@media (prefers-color-scheme: dark) {
+  .connection-banner {
+    color: #ffd58a;
+    background: #3a2d12;
+    border-top-color: #5a4518;
+  }
+}

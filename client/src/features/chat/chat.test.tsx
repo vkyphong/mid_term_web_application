@@ -11,7 +11,7 @@ import type { Message, Room, ServerEvent } from './types'
 
 vi.mock('./chatApi', () => ({
   chatApi: { listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn() },
-  chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn() },
+  chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
 vi.mock('../auth/authApi', () => ({ authApi: { logout: vi.fn() } }))
 // F07 có test riêng (typing.test.ts); ở đây tắt để không lẫn typing:start vào các lệnh message:send được đếm.
@@ -67,6 +67,7 @@ beforeEach(() => {
     return () => {}
   })
   transport.onConnected.mockReturnValue(() => {})
+  transport.isConnected.mockReturnValue(true)
 })
 
 describe('danh sách phòng (F03/F04)', () => {
@@ -152,16 +153,17 @@ describe('tin nhắn', () => {
     expect(screen.getAllByText('Họp lúc 3h nhé')).toHaveLength(1)
   })
 
-  it('gửi lỗi thì cho thử lại với cùng clientMsgId', async () => {
+  it('gửi lỗi (bị từ chối) thì báo lý do và cho thử lại với cùng clientMsgId', async () => {
     transport.request
-      .mockRejectedValueOnce(new ApiError(0, { code: 'network_error' }))
+      .mockRejectedValueOnce(new ApiError(403, { code: 'forbidden' }))
       .mockImplementationOnce(() => new Promise(() => {}))
     const user = userEvent.setup()
     renderChat(`/rooms/${eng.id}`)
     await screen.findByText('Chào cả nhóm')
     await user.type(screen.getByLabelText('Nội dung tin nhắn'), 'Xin chào{Enter}')
 
-    await user.click(await screen.findByRole('button', { name: 'Thử lại' }))
+    expect(await screen.findByText(/Bạn không có quyền trong phòng này/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Thử lại' }))
     const ids = transport.request.mock.calls.map(([, p]) => (p as { clientMsgId: string }).clientMsgId)
     expect(ids).toHaveLength(2)
     expect(ids[1]).toBe(ids[0])
