@@ -50,6 +50,16 @@ class ChatIntegrationTest {
     private String channel() throws Exception { return postJson("/api/rooms", a, Map.of("name", "Test-" + UUID.randomUUID().toString().substring(0, 24)), 201).path("id").asText(); }
     private Map<String, String> message(String room, String text, String id) { return Map.of("roomId", room, "content", text, "clientMsgId", id); }
 
+    @Test void listsMembersOnlyForMembers() throws Exception {
+        String room = channel();
+        assertThat(getJson("/api/rooms/" + room + "/members", a, 200).path("members").findValuesAsText("id")).containsExactly(a.id());
+        getJson("/api/rooms/" + room + "/members", b, 403);
+        getJson("/api/rooms/missing/members", a, 404);
+        String dm = postJson("/api/dms", a, Map.of("userId", b.id()), 200).path("id").asText();
+        assertThat(getJson("/api/rooms/" + dm + "/members", b, 200).path("members").findValuesAsText("id")).containsExactlyInAnyOrder(a.id(), b.id());
+        getJson("/api/rooms/" + dm + "/members", c, 403);
+    }
+
     @Test void validatesRoomsSearchAndHistoryParameters() throws Exception {
         var rooms = getJson("/api/rooms", a, 200).path("rooms");
         assertThat(rooms.findValuesAsText("name")).contains("Engineering", "HR", "Sales", "Marketing");

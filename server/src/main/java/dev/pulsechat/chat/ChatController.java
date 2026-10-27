@@ -31,6 +31,10 @@ public class ChatController {
     }
     @PostMapping("/dms")
     public Room dm(@AuthenticationPrincipal SessionPrincipal user, @RequestBody OpenDm input) { return chat.openDm(user.userId(), input); }
+    @GetMapping("/rooms/{id}/members")
+    public Object members(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
+        return Map.of("members", chat.members(id, user.userId()));
+    }
     @GetMapping("/rooms/{id}/messages")
     public MessagePage messages(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id,
                                @RequestParam(defaultValue = "30") int limit, @RequestParam(required = false) String before) {
