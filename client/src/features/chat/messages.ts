@@ -63,9 +63,10 @@ export function reconcileLatestPage(
 export function setPendingStatus(
   list: readonly ChatMessage[],
   clientMsgId: string,
-  status: 'sending' | 'failed',
+  status: 'sending' | 'queued' | 'failed',
+  error?: string,
 ): ChatMessage[] {
-  return list.map((m) => (m.status && m.clientMsgId === clientMsgId ? { ...m, status } : m))
+  return list.map((m) => (m.status && m.clientMsgId === clientMsgId ? { ...m, status, error } : m))
 }
 
 export const MAX_CONTENT_BYTES = 2048

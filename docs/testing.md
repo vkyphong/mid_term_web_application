@@ -43,7 +43,7 @@ npm run test:e2e
 
 Test F03/F04 dùng ba Chromium context độc lập để kiểm tra membership, DM, lưu lịch sử và reconnect. Workload gửi 5 tin khởi động (không tính) rồi đo 40 tin giữa hai thành viên, chờ ít nhất 550 ms trước mỗi lần gửi để tuân thủ F11. p95 của 40 mẫu là giá trị thứ 38, nên 1–2 gai lẻ trên máy CI dùng chung không quyết định kết quả; log in p50, p95, max và số mẫu ≥ 200 ms. Độ trễ đo từ STOMP SEND tới frame nhận bằng clock của test runner, không tính khoảng chờ; p95 mục tiêu dưới 200 ms trên localhost.
 
-Kết quả workload này không xác nhận tải 500/1000 client hoặc heartbeat blackhole F17/F18. Test chạy headless, tắt screenshot/video/trace và không tạo bộ bằng chứng demo riêng. `history.e2e.ts` kiểm tra UI F05; `realtime.e2e.ts` kiểm tra UI F06–F08 (presence nhiều tab, typing không lộ sang phòng khác, receipts DM). E2E hiện tại chưa nghiệm thu UI F09–F15.
+Kết quả workload này không xác nhận tải 500/1000 client hoặc heartbeat blackhole F17/F18. Test chạy headless, tắt screenshot/video/trace và không tạo bộ bằng chứng demo riêng. `history.e2e.ts` kiểm tra UI F05; `realtime.e2e.ts` kiểm tra UI F06–F08 (presence nhiều tab, typing không lộ sang phòng khác, receipts DM). `collaboration.e2e.ts` kiểm tra UI F09 (mention, toast, badge, đồng bộ đã đọc), F10 (offline rồi gửi bù đúng thứ tự), F11 (vượt giới hạn tự chờ, XSS), F14 (sửa/xoá/cảm xúc) và F15 (ảnh, PDF, file quá 5 MB, người ngoài bị 403). E2E chưa nghiệm thu UI F12–F13.
 
 ## CI và cách đọc kết quả
 

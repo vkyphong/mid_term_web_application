@@ -49,6 +49,7 @@ Optional message fields may be omitted. Message timestamps are assigned by the s
 | --- | --- | --- |
 | `GET /api/rooms` | — | 200 `{rooms: Room[]}`: all channels plus the requester's DMs |
 | `POST /api/rooms` | `{name,description?}` | 201 `Room`; creator is joined |
+| `GET /api/rooms/{id}/members` | Membership required | 200 `{members: UserSummary[]}`: current enabled members, used to choose F09 mention targets; non-member 403, unknown room 404 |
 | `GET /api/users?search=&limit=20` | Case-insensitive name/email substring, limit 1–20 | 200 `{users: UserSummary[]}`; excludes requester and disabled users |
 | `POST /api/dms` | `{userId}` | 200 `Room`; idempotent even on concurrent creation |
 | `GET /api/rooms/{id}/messages?limit=30&before=` | Limit 1–100, optional opaque cursor | 200 `{messages: Message[],nextCursor: string \| null}` |

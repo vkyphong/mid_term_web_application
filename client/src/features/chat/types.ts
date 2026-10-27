@@ -31,7 +31,42 @@ export interface Message {
   /** Số người nhận (snapshot thành viên lúc gửi, trừ người gửi) đã nhận / đã xem. */
   receipts?: Receipts
   reactions?: { userId: string; emoji: string }[]
+  /** F15: tệp đính kèm (tải qua REST có Bearer). */
+  attachment?: Attachment | null
 }
+
+export interface Attachment {
+  id: string
+  filename: string
+  mediaType: string
+  size: number
+  url: string
+}
+
+/** Kết quả POST /api/uploads. */
+export interface Upload extends Attachment {
+  roomId: string
+}
+
+/** F09. */
+export interface Notification {
+  id: string
+  type: 'mention' | 'dm' | 'system'
+  roomId?: string | null
+  messageId?: string | null
+  content: string
+  createdAt: string
+  readAt?: string | null
+}
+
+export interface NotificationPage {
+  notifications: Notification[]
+  nextCursor: string | null
+  unreadCount: number
+}
+
+/** F14: emoji server cho phép. */
+export const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🎉'] as const
 
 export interface Receipts {
   recipients: number
@@ -54,9 +89,11 @@ export interface TypingPayload {
   ttlMs: number
 }
 
-/** Tin trong cache của FE: tin từ server, hoặc bản tạm đang gửi / gửi lỗi. */
+/** Tin trong cache của FE: tin từ server, hoặc bản tạm đang gửi / chờ mạng / gửi lỗi. */
 export interface ChatMessage extends Message {
-  status?: 'sending' | 'failed'
+  status?: 'sending' | 'queued' | 'failed'
+  /** Lý do gửi lỗi (F11), hiển thị dưới tin. */
+  error?: string
 }
 
 export interface MessagePage {
@@ -73,7 +110,13 @@ export interface CreateRoomInput {
 export interface ClientEvents {
   'room:join': { payload: { roomId: string }; ack: Room }
   'room:leave': { payload: { roomId: string }; ack: { roomId: string } }
-  'message:send': { payload: { roomId: string; content: string; clientMsgId: string }; ack: Message }
+  'message:send': {
+    payload: { roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string }
+    ack: Message
+  }
+  'message:edit': { payload: { messageId: string; content: string }; ack: Message }
+  'message:delete': { payload: { messageId: string }; ack: Message }
+  'message:react': { payload: { messageId: string; emoji: string; active: boolean }; ack: Message }
   'typing:start': { payload: { roomId: string }; ack: TypingPayload }
   'typing:stop': { payload: { roomId: string }; ack: TypingPayload }
   'message:delivered': { payload: { messageId: string }; ack: Message }
@@ -84,10 +127,17 @@ export type ClientEventType = keyof ClientEvents
 
 /** Event server đẩy xuống /user/queue/events, /presence, /typing. */
 export type ServerEvent =
-  | { type: 'message:new' | 'message:delivered' | 'message:seen'; payload: Message; ts: string }
+  | {
+      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react'
+      payload: Message
+      ts: string
+    }
+  | { type: 'notification:new'; payload: Notification; ts: string }
+  | { type: 'notification:read'; payload: { id: string }; ts: string }
   | { type: 'presence:update'; payload: Presence; ts: string }
   | { type: 'typing:start' | 'typing:stop'; payload: TypingPayload; ts: string }
 
 export const SERVER_EVENT_TYPES: ReadonlySet<string> = new Set([
-  'message:new', 'message:delivered', 'message:seen', 'presence:update', 'typing:start', 'typing:stop',
+  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react',
+  'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read',
 ])

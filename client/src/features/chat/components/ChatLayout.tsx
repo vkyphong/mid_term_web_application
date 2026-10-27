@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { config } from '../../../config'
 import { useLogout, useSession } from '../../auth/hooks'
 import { RealtimeStatus } from '../../realtime/RealtimeStatus'
+import { NotificationBell, ToastHost } from './NotificationCenter'
 import { useChatEvents } from '../hooks'
 import '../chat.css'
 import { Avatar } from './Avatar'
@@ -39,6 +40,7 @@ export function ChatLayout() {
         </div>
         <div className="chat-header-right">
           <RealtimeStatus />
+          <NotificationBell />
           <span className="chat-user">
             <Avatar name={user.displayName} size="sm" />
             <span className="chat-user-name">{user.displayName}</span>
@@ -48,6 +50,7 @@ export function ChatLayout() {
           </button>
         </div>
       </header>
+      <ToastHost />
       <div className="chat-body">
         <Sidebar />
         <main className="chat-main">{roomId ? <RoomView roomId={roomId} /> : <Welcome name={user.displayName} />}</main>

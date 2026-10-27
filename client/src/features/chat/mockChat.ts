@@ -9,7 +9,7 @@ import { ApiError } from '../../lib/apiError'
 import { getMockCurrentUser, listMockUsers } from '../auth/mockAuthApi'
 import type { ChatApi } from './chatApi'
 import type { ChatTransport } from './transport'
-import type { Message, Presence, Room, ServerEvent, UserSummary } from './types'
+import { REACTION_EMOJIS, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
 
 const STORE_KEY = 'pulsechat.mock.chat'
 const PAGE_SIZE = 30 // = HISTORY_PAGE_SIZE (không import để tránh vòng chatApi ↔ mockChat)
@@ -39,10 +39,32 @@ interface StoredReceipts {
   seen: string[]
 }
 
+interface StoredUpload {
+  roomId: string
+  ownerId: string
+  filename: string
+  mediaType: string
+  size: number
+  messageId: string | null
+}
+
 interface Store {
   rooms: StoredRoom[]
   messages: Record<string, Message[]>
   receipts?: Record<string, StoredReceipts>
+  notifications?: Record<string, Notification[]> // userId → thông báo, mới nhất trước
+  uploads?: Record<string, StoredUpload>
+}
+
+/** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho 5 MiB). */
+const uploadBlobs = new Map<string, Blob>()
+const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
+
+/** Gói event gửi qua BroadcastChannel; `to` = chỉ giao cho đúng user đó (thông báo). */
+interface Envelope {
+  to?: string
+  event: ServerEvent
 }
 
 const delay = (ms = 120) => new Promise((r) => setTimeout(r, ms))
@@ -112,6 +134,12 @@ function withReceipts(store: Store, message: Message): Message {
   return { ...message, receipts: { recipients: r.recipients.length, delivered: r.delivered.length, seen: r.seen.length } }
 }
 
+function findMessage(store: Store, messageId: string): Message {
+  const message = Object.values(store.messages).flat().find((m) => m.id === messageId)
+  if (!message) throw invalid('messageId', 'Message not found')
+  return message
+}
+
 function readBeats(): Record<string, number> {
   try {
     return JSON.parse(localStorage.getItem(PRESENCE_KEY) ?? '{}') as Record<string, number>
@@ -142,12 +170,15 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
   const listeners = new Set<(event: ServerEvent) => void>()
   const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null
 
-  // Giống BE: event của phòng chỉ giao cho thành viên hiện tại; presence giao cho mọi user đăng nhập.
-  const deliver = (event: ServerEvent) => {
+  // Giống BE: event của phòng chỉ giao cho thành viên hiện tại; thông báo chỉ cho đúng người nhận;
+  // presence giao cho mọi user đăng nhập.
+  const deliver = ({ to, event }: Envelope) => {
     const user = getMockCurrentUser()
     if (!user) return
-    if (event.type !== 'presence:update') {
-      const room = load().rooms.find((r) => r.id === event.payload.roomId)
+    if (to !== undefined) {
+      if (to !== user.id) return
+    } else if (event.type !== 'presence:update') {
+      const room = load().rooms.find((r) => r.id === (event.payload as { roomId?: string }).roomId)
       if (!room?.members.includes(user.id)) return
     }
     for (const listener of listeners) listener(event)
@@ -168,11 +199,18 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     }, HEARTBEAT_MS)
   }
 
-  channel?.addEventListener('message', (e: MessageEvent<ServerEvent>) => deliver(e.data))
+  channel?.addEventListener('message', (e: MessageEvent<Envelope>) => deliver(e.data))
 
-  const emit = (event: ServerEvent) => {
-    channel?.postMessage(event)
-    deliver(event)
+  const emit = (event: ServerEvent, to?: string) => {
+    channel?.postMessage({ to, event })
+    deliver({ to, event })
+  }
+
+  const notify = (store: Store, userId: string, data: Omit<Notification, 'id' | 'createdAt' | 'readAt'>) => {
+    const n: Notification = { id: uuid(), createdAt: new Date().toISOString(), readAt: null, ...data }
+    const list = ((store.notifications ??= {})[userId] ??= [])
+    list.unshift(n)
+    setTimeout(() => emit({ type: 'notification:new', payload: n, ts: new Date().toISOString() }, userId), 0)
   }
 
   const api: ChatApi = {
@@ -256,6 +294,72 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       beat()
       return presenceSnapshot()
     },
+
+    async listMembers(roomId) {
+      await delay()
+      const user = currentUser()
+      const room = findRoom(load(), roomId)
+      requireMember(room, user.id)
+      const users = listMockUsers()
+      return room.members.map((id) => users.find((u) => u.id === id)).filter((u): u is UserSummary => Boolean(u))
+    },
+
+    async listNotifications(before) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const visible = (store.notifications?.[user.id] ?? []).filter(
+        (n) => !n.roomId || store.rooms.find((r) => r.id === n.roomId)?.members.includes(user.id),
+      )
+      const start = before ? visible.findIndex((n) => n.id === before) + 1 : 0
+      const page = visible.slice(start, start + 30)
+      return {
+        notifications: page,
+        nextCursor: start + 30 < visible.length ? page[page.length - 1].id : null,
+        unreadCount: visible.filter((n) => !n.readAt).length,
+      }
+    },
+
+    async markNotificationRead(id) {
+      await delay(60)
+      const user = currentUser()
+      const store = load()
+      const n = store.notifications?.[user.id]?.find((x) => x.id === id)
+      if (!n) throw invalid('id', 'Notification not found')
+      n.readAt ??= new Date().toISOString()
+      save(store)
+      emit({ type: 'notification:read', payload: { id }, ts: new Date().toISOString() }, user.id)
+    },
+
+    async uploadFile(roomId, file, onProgress) {
+      const user = currentUser()
+      const store = load()
+      requireMember(findRoom(store, roomId), user.id)
+      if (file.size < 1 || file.size > MAX_UPLOAD_BYTES) throw invalid('file', 'File must contain 1–5242880 bytes')
+      if (!UPLOAD_TYPES.includes(file.type)) throw invalid('file', 'Only JPEG, PNG and PDF signatures are accepted')
+      for (const step of [0.25, 0.5, 0.75, 1]) {
+        await delay(80)
+        onProgress?.(step)
+      }
+      const id = uuid()
+      uploadBlobs.set(id, file)
+      ;(store.uploads ??= {})[id] = { roomId, ownerId: user.id, filename: file.name, mediaType: file.type, size: file.size, messageId: null }
+      save(store)
+      return { id, roomId, filename: file.name, mediaType: file.type, size: file.size, url: `/api/uploads/${id}` }
+    },
+
+    async downloadFile(url) {
+      await delay(60)
+      const user = currentUser()
+      const id = url.split('/').pop() ?? ''
+      const store = load()
+      const meta = store.uploads?.[id]
+      if (!meta) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'File not found' })
+      requireMember(findRoom(store, meta.roomId), user.id)
+      const blob = uploadBlobs.get(id)
+      if (!blob) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Mock: file chỉ có ở tab đã upload' })
+      return blob
+    },
   }
 
   const transport: ChatTransport = {
@@ -264,10 +368,39 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       const user = currentUser()
       const store = load()
 
+      if (type === 'message:edit' || type === 'message:delete' || type === 'message:react') {
+        const { messageId, content, emoji, active } = payload as { messageId: string; content?: string; emoji?: string; active?: boolean }
+        const message = findMessage(store, messageId)
+        requireMember(findRoom(store, message.roomId), user.id)
+        if (type !== 'message:react' && message.sender.id !== user.id) {
+          throw new ApiError(403, { code: 'forbidden', message: 'Only the author may edit or delete' })
+        }
+        if (message.deletedAt && type !== 'message:delete') throw invalid('messageId', 'Message was deleted')
+        if (type === 'message:edit') {
+          const text = (content ?? '').trim()
+          if (!text || utf8Bytes(text) > 2048) throw invalid('content', 'Use 1–2048 UTF-8 bytes')
+          message.content = text
+          message.editedAt = new Date().toISOString()
+        } else if (type === 'message:delete') {
+          message.content = ''
+          message.deletedAt ??= new Date().toISOString()
+          message.reactions = []
+          message.attachment = null
+        } else {
+          if (!emoji || !(REACTION_EMOJIS as readonly string[]).includes(emoji)) throw invalid('emoji', 'Unsupported reaction')
+          const others = (message.reactions ?? []).filter((r) => !(r.userId === user.id && r.emoji === emoji))
+          // active=true thêm, false bỏ: gửi lại không bị đảo trạng thái.
+          message.reactions = active ? [...others, { userId: user.id, emoji }] : others
+        }
+        save(store)
+        const updated = withReceipts(store, message)
+        setTimeout(() => emit({ type, payload: updated, ts: new Date().toISOString() }), 0)
+        return updated as never
+      }
+
       if (type === 'message:delivered' || type === 'message:seen') {
         const { messageId } = payload as { messageId: string }
-        const message = Object.values(store.messages).flat().find((m) => m.id === messageId)
-        if (!message) throw invalid('messageId', 'Message not found')
+        const message = findMessage(store, messageId)
         requireMember(findRoom(store, message.roomId), user.id)
         const r = store.receipts?.[messageId]
         if (!r?.recipients.includes(user.id)) {
@@ -302,13 +435,21 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       }
 
       // message:send
-      const { content, clientMsgId } = payload as { roomId: string; content: string; clientMsgId: string }
+      const { content, clientMsgId, mentions = [], uploadId } = payload as {
+        roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string
+      }
       requireMember(room, user.id)
       const text = content.trim()
-      if (!text || utf8Bytes(text) > 2048) throw invalid('content', 'Nội dung cần 1–2048 byte')
+      if ((!text && !uploadId) || utf8Bytes(text) > 2048) throw invalid('content', 'Nội dung cần 1–2048 byte')
       const list = (store.messages[room.id] ??= [])
       const existing = list.find((m) => m.clientMsgId === clientMsgId && m.sender.id === user.id)
       if (existing) return withReceipts(store, existing) as never
+      if (mentions.length > 20 || new Set(mentions).size !== mentions.length) throw invalid('mentions', 'At most 20 distinct member IDs')
+      for (const id of mentions) requireMember(room, id)
+      const upload = uploadId ? store.uploads?.[uploadId] : undefined
+      if (uploadId && (!upload || upload.ownerId !== user.id || upload.roomId !== room.id || upload.messageId)) {
+        throw invalid('uploadId', 'Upload must be unused, owned by sender and belong to this room')
+      }
       const message: Message = {
         id: uuid(),
         roomId: room.id,
@@ -316,11 +457,21 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         sender: { id: user.id, displayName: user.displayName },
         content: text,
         createdAt: new Date().toISOString(),
+        reactions: [],
+        attachment: upload && uploadId
+          ? { id: uploadId, filename: upload.filename, mediaType: upload.mediaType, size: upload.size, url: `/api/uploads/${uploadId}` }
+          : null,
       }
+      if (upload) upload.messageId = message.id
       list.push(message)
       room.lastMessageAt = message.createdAt
       // Người nhận = thành viên lúc gửi, trừ người gửi (vào sau không thành người nhận).
       ;(store.receipts ??= {})[message.id] = { recipients: room.members.filter((id) => id !== user.id), delivered: [], seen: [] }
+      // Thông báo như BE: DM cho người còn lại; kênh cho người được @mention (trừ chính mình).
+      for (const recipient of room.members.filter((id) => id !== user.id)) {
+        const kind = room.type === 'dm' ? 'dm' : mentions.includes(recipient) ? 'mention' : null
+        if (kind) notify(store, recipient, { type: kind, roomId: room.id, messageId: message.id, content: text })
+      }
       save(store)
       const saved = withReceipts(store, message)
       // Ack trước, rồi mới broadcast (đúng thứ tự trong contract).
@@ -334,6 +485,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     onConnected() {
       return () => {}
     },
+    isConnected: () => true,
   }
 
   return { api, transport }

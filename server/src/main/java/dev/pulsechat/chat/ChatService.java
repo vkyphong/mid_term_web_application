@@ -148,6 +148,13 @@ public class ChatService {
     private boolean member(String room, String user) {
         return db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=? AND user_id=?", Integer.class, room, user) > 0;
     }
+    /** Current members of a room, for choosing mention targets (F09). Requires membership. */
+    @Transactional(readOnly = true)
+    public List<UserSummary> members(String room, String user) {
+        room(room, user); requireMember(room, user);
+        return db.query("SELECT u.id,u.display_name,u.email FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? AND u.enabled=true ORDER BY u.display_name,u.id",
+            (rs, n) -> new UserSummary(rs.getString(1), rs.getString(2), rs.getString(3)), room);
+    }
     public void requireMember(String room, String user) { if (!member(room, user)) throw forbidden(); }
     public List<String> recipients(String room) { return db.query("SELECT user_id FROM room_members WHERE room_id=?",(rs,n)->rs.getString(1),room); }
     public Message message(String id, String user) {

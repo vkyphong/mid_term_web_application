@@ -135,7 +135,7 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
     await send(alice.page, secret)
     // Bob discovers a new DM from its first event, without reloading.
     await bob.page.getByRole('link', { name: alice.account.displayName, exact: true }).click()
-    await expect(bob.page.getByText(secret, { exact: true })).toBeVisible()
+    await expect(bob.page.locator('.message-list').getByText(secret, { exact: true })).toBeVisible()
     expect(carol.wire.events.some((e) => e.payload.roomId === dmId)).toBe(false)
 
     const forbidden = await carol.context.request.get(`/api/rooms/${dmId}/messages`, {
@@ -151,7 +151,7 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
       expect((await result.json()).id).toBe(dmId)
     }
     await bob.page.reload()
-    await expect(bob.page.getByText(secret, { exact: true })).toBeVisible()
+    await expect(bob.page.locator('.message-list').getByText(secret, { exact: true })).toBeVisible()
     // Recover a missed event when the browser connection goes offline and returns.
     await bob.context.setOffline(true)
     const missed = `reconnect-${crypto.randomUUID()}`

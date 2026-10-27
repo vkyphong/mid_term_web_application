@@ -27,11 +27,16 @@ Flyway tự áp dụng migration khi backend khởi động. MySQL và file uplo
 - **F06:** chấm online ở DM và mục **Đồng nghiệp** (online / "Hoạt động x phút trước"), cập nhật realtime qua `presence:update`; nhiều tab vẫn online cho tới khi đóng tab cuối.
 - **F07:** "… đang gõ…" theo phòng; gửi `typing:start` tối đa 2 giây/lần, `typing:stop` khi ngừng gõ 2,5 giây, khi gửi hoặc rời phòng; tự tắt sau 3 giây.
 - **F08:** DM hiện **Đã gửi → Đã nhận → Đã xem** dưới tin mới nhất của mình; kênh hiện số người đã nhận/đã xem trên tổng người nhận lúc gửi. "Đã xem" chỉ gửi khi tab đang hiển thị và tin nằm trong khung nhìn. Thiết kế F06–F08: [presence, typing and receipts](docs/features/presence-typing-receipts.md).
-- **F09 trở đi:** các phần còn lại trong backlog. F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit tương lai dùng memory một instance, mất state tạm khi restart.
+- **F09:** chuông thông báo có số chưa đọc, toast khi được @mention hoặc có tin riêng (không cần tải lại), bấm để mở đúng hội thoại; gõ `@` để chọn thành viên phòng; đã đọc đồng bộ giữa các tab. Thông báo `system` (F12) hiển thị không kèm link.
+- **F10:** tin gửi khi mất mạng được xếp hàng ("Chờ kết nối để gửi…") và gửi bù đúng thứ tự khi có mạng lại; mất ack thì gửi lại cùng `clientMsgId` nên không trùng; banner báo mất kết nối và số tin đang chờ.
+- **F11:** gửi quá 10 tin / 5 giây thì tự chờ rồi gửi tiếp; lỗi `forbidden`/`invalid_payload` hiện lý do dưới tin kèm "Thử lại"; nội dung luôn hiển thị dạng text (không chạy HTML/script).
+- **F14:** di chuột vào tin để thả cảm xúc (👍 ❤️ 😂 😮 😢 🎉), sửa hoặc xoá tin của mình; thay đổi hiện ngay ở mọi người trong phòng, tin đã xoá hiện "Tin nhắn đã bị xoá".
+- **F15:** nút 📎 gửi ảnh JPEG/PNG hoặc PDF ≤ 5 MB, có thanh tiến trình; ảnh hiển thị trực tiếp, PDF có nút tải; chỉ thành viên phòng tải được. Thiết kế F09–F15: [notifications](docs/features/notifications-mentions.md), [offline queue and limits](docs/features/offline-queue-limits.md), [message actions and files](docs/features/message-actions-files.md).
+- **F12, F13 trở đi:** các phần còn lại trong backlog (F12/F13 do TV3 phụ trách). F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit tương lai dùng memory một instance, mất state tạm khi restart.
 | Phần | Trạng thái triển khai |
 | --- | --- |
-| F01–F08 | Đã có frontend/backend và e2e trên backend thật |
-| F09–F15 | Đã có backend; frontend cần tích hợp theo API |
+| F01–F11, F14, F15 | Đã có frontend/backend và e2e trên backend thật |
+| F12, F13 | Đã có backend; frontend do TV3 tích hợp theo API |
 | F16 | Ngoài phạm vi đồ án; dùng một backend, không Redis/Nginx |
 | F17–F21 | Theo dõi riêng trong backlog |
 
