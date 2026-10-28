@@ -59,12 +59,12 @@ for (const protocol of ['poll', 'long-poll', 'sse', 'websocket']) {
     resource = new WebSocket(new URL('/lab/ws', base).href.replace('http:', 'ws:'))
     resource.addEventListener('message', e => queue.push(JSON.parse(e.data)))
     await new Promise((resolve,reject) => { resource.addEventListener('open',resolve,{once:true}); resource.addEventListener('error',reject,{once:true}) })
-    resource.send(JSON.stringify({ type: 'lab:auth', payload: { authorization: `Bearer ${accessToken}` } }))
+    resource.send(JSON.stringify({ type: 'lab:auth', payload: { authorization: `Bearer ${accessToken}` }, ts: new Date().toISOString() }))
     assert.equal((await queue.next()).type, 'lab:ready')
   }
   try {
     for (let i=0;i<count;i++) {
-      const frame = { type: 'lab:ping', payload: { id: String(i), text: 'x'.repeat(128) }, ts: new Date().toISOString() }
+      const frame = { type: 'lab:ping', payload: { id: String(i), text: 'x'.repeat(128) }, ts: new Date().toISOString(), correlationId: String(i) }
       const started = performance.now()
       let delivered
       if (protocol === 'websocket') {
@@ -79,6 +79,7 @@ for (const protocol of ['poll', 'long-poll', 'sse', 'websocket']) {
         delivered = await receive
       }
       assert.equal(delivered.type, 'lab:pong'); assert.deepEqual(delivered.payload, frame.payload)
+      assert.equal(delivered.correlationId, frame.correlationId)
       cursor = delivered.sequence; timings.push(performance.now()-started)
       await sleep(Math.max(0, intervalMs-(performance.now()-started)))
     }

@@ -108,6 +108,8 @@ export interface CreateRoomInput {
 
 /** Event client gửi lên và dữ liệu ack tương ứng. */
 export interface ClientEvents {
+  'whiteboard:segment': { payload: import('../whiteboard/types').SegmentInput; ack: import('../whiteboard/types').Segment }
+  'whiteboard:clear': { payload: import('../whiteboard/types').ClearInput; ack: import('../whiteboard/types').Cleared }
   'room:join': { payload: { roomId: string }; ack: Room }
   'room:leave': { payload: { roomId: string }; ack: { roomId: string } }
   'message:send': {
@@ -127,6 +129,7 @@ export type ClientEventType = keyof ClientEvents
 
 /** Event server đẩy xuống /user/queue/events, /presence, /typing. */
 export type ServerEvent =
+  | import('../whiteboard/types').BoardEvent
   | {
       type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react'
       payload: Message
@@ -138,6 +141,7 @@ export type ServerEvent =
   | { type: 'typing:start' | 'typing:stop'; payload: TypingPayload; ts: string }
 
 export const SERVER_EVENT_TYPES: ReadonlySet<string> = new Set([
+  'whiteboard:segment', 'whiteboard:cleared',
   'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react',
   'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read',
 ])

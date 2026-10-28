@@ -71,11 +71,15 @@ public class ChatService {
         return room(id, user);
     }
     public Room join(String id, String user) {
+        db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
+        lockRoom(id);
         requireChannel(id);
         if (!member(id, user)) db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", id, user);
         return room(id, user);
     }
     public void leave(String id, String user) {
+        db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
+        lockRoom(id);
         requireChannel(id);
         db.update("DELETE FROM room_members WHERE room_id=? AND user_id=?", id, user);
     }

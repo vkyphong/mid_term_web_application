@@ -1,0 +1,59 @@
+{
+  "verificationDate": "2026-10-28",
+  "harness": "scripts/smoke-lab.mjs; Node HTTP/1.1, sequential stop-and-wait",
+  "scope": "Independent CLI smoke run. Do not merge with browser timing distributions.",
+  "results": [
+    {
+      "protocol": "poll",
+      "samples": 20,
+      "intervalMs": 250,
+      "payloadTextBytes": 128,
+      "httpRequests": 40,
+      "httpHeaderBytesEstimate": 32850,
+      "wsFrameOverheadBytesEstimate": 0,
+      "wsHandshake": "not applicable",
+      "p50Ms": 116.21,
+      "p95Ms": 119.54,
+      "maxMs": 122.48
+    },
+    {
+      "protocol": "long-poll",
+      "samples": 20,
+      "intervalMs": 250,
+      "payloadTextBytes": 128,
+      "httpRequests": 40,
+      "httpHeaderBytesEstimate": 32950,
+      "wsFrameOverheadBytesEstimate": 0,
+      "wsHandshake": "not applicable",
+      "p50Ms": 14.73,
+      "p95Ms": 21.32,
+      "maxMs": 27.43
+    },
+    {
+      "protocol": "sse",
+      "samples": 20,
+      "intervalMs": 250,
+      "payloadTextBytes": 128,
+      "httpRequests": 21,
+      "httpHeaderBytesEstimate": 17670,
+      "wsFrameOverheadBytesEstimate": 0,
+      "wsHandshake": "not applicable",
+      "p50Ms": 13.59,
+      "p95Ms": 17.7,
+      "maxMs": 18.58
+    },
+    {
+      "protocol": "websocket",
+      "samples": 20,
+      "intervalMs": 250,
+      "payloadTextBytes": 128,
+      "httpRequests": 0,
+      "httpHeaderBytesEstimate": 0,
+      "wsFrameOverheadBytesEstimate": 240,
+      "wsHandshake": "one upgrade, excluded from HTTP byte estimate",
+      "p50Ms": 5.52,
+      "p95Ms": 9.78,
+      "maxMs": 9.9
+    }
+  ]
+}

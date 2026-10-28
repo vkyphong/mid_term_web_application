@@ -581,6 +581,17 @@
 
 /* Mobile: một cột, hiện danh sách phòng hoặc phòng đang mở */
 @media (max-width: 720px) {
+  .chat-header {
+    flex-wrap: wrap;
+  }
+
+  .chat-header-right {
+    margin-left: auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .chat-body {
     grid-template-columns: 1fr;
   }

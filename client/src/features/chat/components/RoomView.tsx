@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react'
+import { lazy, Suspense, useEffect, useState, useSyncExternalStore } from 'react'
 import { Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSession } from '../../auth/hooks'
@@ -25,6 +25,9 @@ import { chatKeys } from '../hooks'
 import { Avatar } from './Avatar'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
+import '../../whiteboard/whiteboard.css'
+
+const Whiteboard = lazy(() => import('../../whiteboard/Whiteboard').then((module) => ({ default: module.Whiteboard })))
 
 function JoinPrompt({ room }: { room: Room }) {
   const join = useJoinRoom()
@@ -88,6 +91,7 @@ function ConnectionBanner() {
 }
 
 function Conversation({ room }: { room: Room }) {
+  const [panel, setPanel] = useState<'chat' | 'whiteboard'>('chat')
   const { user } = useSession()
   const messages = useMessages(room.id, true)
   const older = useLoadOlder(room.id)
@@ -101,9 +105,9 @@ function Conversation({ room }: { room: Room }) {
 
   // F09: đang xem phòng này thì không bật toast cho thông báo của chính phòng này.
   useEffect(() => {
-    setActiveRoom(room.id)
+    setActiveRoom(panel === 'chat' ? room.id : null)
     return () => setActiveRoom(null)
-  }, [room.id])
+  }, [room.id, panel])
 
   const onSend = (content: string, options: SendOptions) => {
     typing.onSent()
@@ -136,6 +140,11 @@ function Conversation({ room }: { room: Room }) {
         )}
       </header>
       {leave.error && <FormAlert>{describeChatError(leave.error)}</FormAlert>}
+      <div className="room-tabs" role="tablist" aria-label="Nội dung phòng">
+        <button type="button" role="tab" id="room-chat-tab" aria-controls="room-chat-panel" aria-selected={panel === 'chat'} onClick={() => setPanel('chat')}>Trò chuyện</button>
+        <button type="button" role="tab" id="room-whiteboard-tab" aria-controls="room-whiteboard-panel" aria-selected={panel === 'whiteboard'} onClick={() => { typing.onSent(); setPanel('whiteboard') }}>Bảng trắng</button>
+      </div>
+      {panel === 'whiteboard' ? <div className="whiteboard-panel" id="room-whiteboard-panel" role="tabpanel" aria-labelledby="room-whiteboard-tab"><Suspense fallback={<p className="whiteboard-empty">Đang tải bảng trắng…</p>}><Whiteboard key={room.id} roomId={room.id} /></Suspense></div> : <div className="conversation-panel" id="room-chat-panel" role="tabpanel" aria-labelledby="room-chat-tab">
       <MessageList
         messages={messages.data}
         isPending={messages.isPending}
@@ -164,6 +173,7 @@ function Conversation({ room }: { room: Room }) {
         // Chỉ khoá khi lịch sử chưa từng tải xong (để chèn bản tạm); tải lại lỗi lúc offline vẫn cho gõ (F10).
         disabled={messages.data === undefined}
       />
+      </div>}
     </>
   )
 }

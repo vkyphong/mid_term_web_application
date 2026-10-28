@@ -9,6 +9,8 @@ export type ErrorCode =
 
 /** Lý do chi tiết cho REST auth (xem docs/api/auth.md). */
 export type ErrorReason =
+  | 'stale_board'
+  | 'board_full'
   | 'domain_not_allowed'
   | 'email_taken'
   | 'invalid_credentials'

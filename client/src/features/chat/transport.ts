@@ -18,6 +18,8 @@ export interface ChatTransport {
 }
 
 export const DESTINATIONS: Record<ClientEventType, string> = {
+  'whiteboard:segment': '/app/whiteboard.segment',
+  'whiteboard:clear': '/app/whiteboard.clear',
   'room:join': '/app/room.join',
   'room:leave': '/app/room.leave',
   'message:send': '/app/message.send',
@@ -103,6 +105,7 @@ export function createStompTransport(): ChatTransport {
     client.subscribe('/user/queue/presence', handleEvent)
     client.subscribe('/user/queue/typing', handleEvent)
     client.subscribe('/user/queue/notifications', handleEvent)
+    client.subscribe('/user/queue/whiteboard', handleEvent)
     for (const listener of connectedListeners) listener()
   }
 

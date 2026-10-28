@@ -37,6 +37,7 @@ Subscribe to `/user/queue/session`, then SEND `{}` to `/app/session/ping`. The s
 | `/app/message.delivered`, `/app/message.seen` | Current member and original recipient |
 | `/app/message.edit`, `/app/message.delete` | Current member and author |
 | `/app/message.react` | Current room membership |
+| `/app/whiteboard.segment`, `/app/whiteboard.clear` | Current room membership; [F19 contract](whiteboard.md) |
 | `/app/admin.kick`, `/app/admin.broadcast` | Enabled admin account |
 
 | SUBSCRIBE destination | Content |
@@ -48,6 +49,7 @@ Subscribe to `/user/queue/session`, then SEND `{}` to `/app/session/ping`. The s
 | `/user/queue/typing` | Typing events for room members |
 | `/user/queue/notifications` | The account's notifications and read-state updates |
 | `/user/queue/admin` | Admin-only statistics |
+| `/user/queue/whiteboard` | Persisted drawing segments and clears for current room members |
 
 Other SEND/SUBSCRIBE destinations are denied. UNSUBSCRIBE and DISCONNECT are allowed. Business permissions are checked by the corresponding service; admin destination permissions are also checked at the protocol boundary.
 

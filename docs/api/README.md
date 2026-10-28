@@ -9,6 +9,7 @@
 | [Chat](chat.md) | Room/message models, channels, DMs, history and message sending |
 | [Collaboration](collaboration.md) | Presence, typing, receipts, notifications, limits, admin, edits, reactions and uploads |
 | [Protocol Lab](lab.md) | Polling, long polling, SSE and raw WebSocket |
+| [Whiteboard](whiteboard.md) | Room-scoped F19 drawing, snapshots, generation/revision and private delivery |
 
 Contracts describe the implemented backend. Frontend integration of the F05–F15 additions is tracked separately. For commands to run the application and tests, see [operations](../operations.md) and [testing](../testing.md).
 

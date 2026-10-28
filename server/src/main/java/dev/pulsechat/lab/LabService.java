@@ -29,9 +29,13 @@ public class LabService {
     public Object ping(SessionPrincipal user,JsonNode frame){
         if(frame==null||!"lab:ping".equals(frame.path("type").asText())||!frame.path("payload").isObject()||!frame.path("payload").path("id").isTextual()||frame.path("payload").path("id").asText().length()>64||frame.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8).length>2048)
             throw ChatService.field("payload","lab:ping requires payload.id and a maximum 2048-byte envelope");
+        if(frame.has("correlationId")&&(!frame.path("correlationId").isTextual()||frame.path("correlationId").asText().isBlank()||frame.path("correlationId").asText().length()>64))
+            throw ChatService.field("correlationId","Use 1–64 characters");
         limits.check(user.sessionId(),"lab",20,1000);
         var state=state(user);synchronized(state){
-            var event=Map.<String,Object>of("type","lab:pong","payload",frame.path("payload"),"ts",Instant.now().toString(),"sequence",++state.sequence);
+            var event=new LinkedHashMap<String,Object>();
+            event.put("type","lab:pong");event.put("payload",frame.path("payload"));event.put("ts",Instant.now().toString());event.put("sequence",++state.sequence);
+            if(frame.has("correlationId"))event.put("correlationId",frame.path("correlationId").asText());
             state.history.addLast(event);while(state.history.size()>256)state.history.removeFirst();
             for(var waiter:List.copyOf(state.waiting)) {waiter.response.setResult(page(state,waiter.after));}state.waiting.clear();
             for(var stream:List.copyOf(state.streams))try{stream.send(SseEmitter.event().id(Long.toString(state.sequence)).name("lab:pong").data(event));}catch(IOException|IllegalStateException e){state.streams.remove(stream);stream.complete();}

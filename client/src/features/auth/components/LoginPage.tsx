@@ -13,7 +13,7 @@ const initialValues = { email: '', password: '' }
 export function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
-  const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const from = (location.state as { from?: string } | null)?.from
   const { sessionExpired, dismissSessionExpired } = useAuthContext()
   const login = useLogin()
 
@@ -37,7 +37,10 @@ export function LoginPage() {
       return
     }
     dismissSessionExpired()
-    login.mutate(parsed.data, { onSuccess: () => navigate(from, { replace: true }) })
+    login.mutate(parsed.data, { onSuccess: (res) => navigate(
+      typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : res.user.role === 'admin' ? '/admin' : '/',
+      { replace: true },
+    ) })
   }
 
   return (

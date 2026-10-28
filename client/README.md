@@ -35,6 +35,18 @@ Docker always builds with mock mode disabled. Channels, DMs, membership and mess
 
 ## Feature handoff and E2E
 
-F06–F08 (presence, typing, receipts) are integrated in `features/chat` (`presence.ts`, `typing.ts`, `receipts.ts`). F09–F11, F14 and F15 add `notifications.ts` and `components/NotificationCenter.tsx` (bell, toasts), `mentions.ts`, `outbox.ts` (ordered send queue, offline flush, lost-ack and rate-limit retries), `uploads.ts` and `components/AttachmentView.tsx`, and `components/MessageItem.tsx` (edit, delete, reactions). F12/F13 UI is owned by TV3; see the [collaboration](../docs/api/collaboration.md) and [Lab](../docs/api/lab.md) contracts.
+F06–F08 (presence, typing, receipts) are integrated in `features/chat` (`presence.ts`, `typing.ts`, `receipts.ts`). F09–F11, F14 and F15 add `notifications.ts` and `components/NotificationCenter.tsx` (bell, toasts), `mentions.ts`, `outbox.ts` (ordered send queue, offline flush, lost-ack and rate-limit retries), `uploads.ts` and `components/AttachmentView.tsx`, and `components/MessageItem.tsx` (edit, delete, reactions). F12 is integrated at `/admin`. F13 is integrated at `/lab` for authenticated users; see the [collaboration](../docs/api/collaboration.md) and [Lab](../docs/api/lab.md) contracts.
+
+## Protocol Lab (F13)
+
+`features/lab/runner.ts` drives the four real transports with a shared absolute send schedule, selected-path latency, bounded cleanup, and explicit request/header/body/frame counters. `measurements.ts` defines nearest-rank percentiles, workload validation, HTTP/1.1 estimates, RFC 6455 frame estimates, and an incremental SSE parser. `ProtocolLab.tsx` provides the configuration, charts, results, cancellation, and JSON export. Lab is loaded as a separate route chunk and requires a real backend; it does not use chat mocks or STOMP.
+
+Vite proxies both `/api/lab/*` and raw `/lab/ws` to `VITE_API_PROXY_TARGET`. The server's SPA route also supports direct reload at `/lab`. Read [the English measurement design](../docs/features/protocol-lab.md) before interpreting results, especially browser header visibility and the separation of WS handshake/payload/frame/TLS costs.
+
+## Collaborative whiteboard (F19)
+
+Joined rooms expose Chat and Whiteboard tabs. The lazily loaded `features/whiteboard/Whiteboard.tsx` renders normalized pointer strokes on a fixed logical Canvas. `model.ts` defines deterministic revision merging and independent paths; `session.ts` coordinates snapshot recovery, a bounded 32-operation outbox, 200 ms pacing, same-ID retry, clear generation and authorization failures. All events use the existing chat transport and `/user/queue/whiteboard`; mock mode explicitly requires the real backend.
+
+Persistence and command bounds are described in the [F19 contract](../docs/api/whiteboard.md). Run `npm test -- src/features/whiteboard` for the local model/session tests or the real-browser `whiteboard.e2e.ts` scenario documented in [testing](../docs/testing.md).
 
 See [browser E2E](../docs/testing.md#browser-e2e) for requirements, commands, pacing and latency definitions. Unit tests use mocks; E2E requires the real backend.
