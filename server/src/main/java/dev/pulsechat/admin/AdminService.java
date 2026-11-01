@@ -19,6 +19,34 @@ public class AdminService {
     public AdminService(JdbcTemplate db,ConnectionRegistry connections,RealtimeEvents events,NotificationService notifications){this.db=db;this.connections=connections;this.events=events;this.notifications=notifications;}
     public void requireAdmin(String user){if(db.queryForObject("SELECT COUNT(*) FROM users WHERE id=? AND role='admin' AND enabled=true",Integer.class,user)!=1)throw new ApiException(403,"forbidden",null,"Administrator role required");}
     public Object stats(String user){requireAdmin(user);return snapshot();}
+    public record AdminUser(String id,String email,String displayName,String role,boolean enabled,boolean online) {}
+    public record UserPage(List<AdminUser> users,int total,int page,int pageSize) {}
+    public record ChannelActivity(String id,String name,int members,int messagesLastMinute,String lastMessageAt) {}
+    public UserPage users(String admin,String search,int page){
+        requireAdmin(admin);
+        if(page<0||page>100000||search.length()>254)throw ChatService.field("search","Invalid search or page");
+        // Literal substring search: '%' and '_' in input are not SQL wildcards.
+        String pattern="%"+search.strip().toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%";
+        String where=" WHERE LOWER(email) LIKE ? ESCAPE '!' OR LOWER(display_name) LIKE ? ESCAPE '!'";
+        int total=db.queryForObject("SELECT COUNT(*) FROM users"+where,Integer.class,pattern,pattern);
+        var online=connections.onlineUsers();
+        var users=db.query("SELECT id,email,display_name,role,enabled FROM users"+where+" ORDER BY display_name,id LIMIT 20 OFFSET ?",
+            (rs,n)->new AdminUser(rs.getString("id"),rs.getString("email"),rs.getString("display_name"),rs.getString("role"),rs.getBoolean("enabled"),online.contains(rs.getString("id"))),pattern,pattern,page*20);
+        return new UserPage(users,total,page,20);
+    }
+    public Object channels(String admin){
+        requireAdmin(admin);
+        var cutoff=Timestamp.from(Instant.now().minusSeconds(60));
+        // Only public channel metadata; do not expose DM participants or message content.
+        var channels=db.query("""
+            SELECT r.id,r.name,r.last_message_at,
+              (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id=r.id) AS members,
+              (SELECT COUNT(*) FROM messages m WHERE m.room_id=r.id AND m.created_at>=?) AS recent_messages
+            FROM rooms r WHERE r.type='channel' AND r.last_message_at>=?
+            ORDER BY r.last_message_at DESC,r.id LIMIT 50
+            """,(rs,n)->new ChannelActivity(rs.getString("id"),rs.getString("name"),rs.getInt("members"),rs.getInt("recent_messages"),rs.getTimestamp("last_message_at").toInstant().toString()),cutoff,cutoff);
+        return Map.of("channels",channels);
+    }
     private Object snapshot(){return Map.of("connections",connections.authenticatedCount(),"onlineUsers",connections.onlineUsers().size(),
         "msgPerSec",db.queryForObject("SELECT COUNT(*) FROM messages WHERE created_at>=?",Integer.class,Timestamp.from(Instant.now().minusSeconds(1))),
         "activeRooms",db.queryForObject("SELECT COUNT(*) FROM rooms WHERE last_message_at>=?",Integer.class,Timestamp.from(Instant.now().minusSeconds(60))));}

@@ -23,8 +23,18 @@ export function ProtectedRoute() {
 
 /** Trang login/register: đã đăng nhập thì chuyển vào app. */
 export function GuestRoute() {
-  const { status } = useSession()
+  const { status, user } = useSession()
+  const location = useLocation()
+  const from = (location.state as { from?: string } | null)?.from
+  const destination = typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')
+    ? from : user?.role === 'admin' ? '/admin' : '/'
   if (status === 'loading') return <FullPageSpinner />
-  if (status === 'authenticated') return <Navigate to="/" replace />
+  if (status === 'authenticated') return <Navigate to={destination} replace />
+  return <Outlet />
+}
+
+export function AdminRoute() {
+  const { user } = useSession()
+  if (user?.role !== 'admin') return <Navigate to="/" replace />
   return <Outlet />
 }

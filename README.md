@@ -17,6 +17,31 @@ Script tạo `.env` chứa secret ngẫu nhiên nếu file chưa tồn tại. Tr
 
 Flyway tự áp dụng migration khi backend khởi động. MySQL và file upload được giữ trong hai Docker volume riêng.
 
+## Admin Live Dashboard
+
+Mở **http://localhost:8080/admin** và đăng nhập bằng tài khoản có role `admin`. Đăng nhập thông thường bằng tài khoản admin cũng tự chuyển đến dashboard; từ màn hình chat có liên kết **Admin Dashboard**. Tài khoản `user` không được truy cập trang và API quản trị.
+
+- Thống kê kết nối chat, người online, tin/giây và phòng hoạt động cập nhật mỗi giây qua STOMP; dùng REST mỗi 3 giây khi không nhận được thống kê realtime. Biểu đồ giữ tối đa 60 mẫu trong phút vừa qua, bắt đầu khi mở trang; dữ liệu cũ được đánh dấu khi mất kết nối.
+- Danh sách tài khoản có tìm kiếm, phân trang 20 tài khoản và cập nhật mỗi 5 giây. **Kick** đóng kết nối hiện tại, người dùng có thể kết nối lại. **Ban** khóa tài khoản, thu hồi phiên đăng nhập và đóng kết nối. Không tự kick/ban bản thân trên dashboard; chưa có nút mở khóa.
+- Kênh hoạt động: tối đa 50 kênh có tin trong 60 giây, số thành viên và số tin/phút; cập nhật mỗi 5 giây. Chỉ số **phòng hoạt động** bao gồm cả kênh và DM, danh sách kênh không hiển thị DM.
+- **Broadcast** lưu thông báo hệ thống cho tất cả tài khoản đang được kích hoạt, kể cả offline; người đang kết nối nhận thông báo realtime. Nội dung tối đa 2048 byte UTF-8. Kick, Ban và Broadcast đều có bước xác nhận.
+
+Đăng ký tạo tài khoản `user`; không có mật khẩu admin mặc định trong source. Xem [cấp quyền admin](docs/operations.md#tài-khoản-admin) để cấp quyền cho tài khoản đã đăng ký, rồi đăng nhập lại. Dashboard dùng backend thật, không hỗ trợ chế độ mock.
+
+## Protocol Lab (F13)
+
+Mở **http://localhost:8080/lab** sau khi đăng nhập, hoặc chọn **Protocol Lab** từ chat/dashboard. Tài khoản thường và admin đều truy cập được. Chọn **Tất cả 4 giao thức** để so sánh Polling, Long Polling, SSE và WebSocket thuần với cùng workload; mặc định 20 tin × 128 byte text, khoảng gửi 250 ms, polling 100 ms, khoảng 5 giây/giao thức cộng setup.
+
+Trang hiển thị p50/p95, biểu đồ theo từng tin, số HTTP request/response, header **ước lượng** và overhead frame WS riêng; có nút dừng và tải JSON chứa cấu hình/mẫu đo. Giữ tab ở phía trước; bài lỗi hoặc bị hủy không được đưa vào biểu đồ so sánh. Không dùng chế độ mock. Header không phải số byte bắt gói thực tế; byte handshake WS/TLS/TCP-IP không được cộng giả vào kết quả. Xem [phương pháp đo bằng tiếng Anh](docs/features/protocol-lab.md), [API](docs/api/lab.md) và [kiểm thử](docs/testing.md).
+
+## Bảng trắng cộng tác (F19)
+
+Vào một phòng đã tham gia và chọn tab **Bảng trắng**. Các thành viên có thể cùng vẽ bằng chuột/bút/chạm, chọn màu và độ dày. Nét đã được server xác nhận được lưu trong MySQL; tải lại hoặc kết nối lại sẽ lấy trạng thái mới nhất. **Xóa bảng** cần xác nhận, xóa cho cả phòng và không có hoàn tác. Chỉ thành viên hiện tại của phòng được đọc/vẽ/xóa/nhận nét mới.
+
+Client gom nét thành gói tối đa 48 điểm, gửi tối đa khoảng 5 gói/giây, giữ tối đa 32 gói chưa xác nhận; server có hạn mức vẽ riêng 8 gói/giây/socket, không dùng quota chat. Mỗi bảng tối đa 1000 đoạn, sau đó cần xóa để vẽ tiếp. Khi mất kết nối/đang đồng bộ, vẽ mới bị khóa; thao tác gửi lại giữ nguyên ID để không trùng. Rời bảng sẽ bỏ phần chưa gửi. Không hỗ trợ mock, layer hay undo cộng tác. Xem [contract](docs/api/whiteboard.md), [thiết kế F19/KP2](docs/features/whiteboard.md) và [bằng chứng](docs/evidence/f19/README.md).
+
+Lần chạy `docker compose up --build -d --wait` tiếp theo tự áp dụng migration V5 tạo hai bảng mới; không cần xóa volume hay tạo lại database.
+
 ## Phạm vi
 
 - **F01:** đăng ký/login, JWT 15 phút trong memory, refresh HttpOnly cookie 7 ngày, rotation/thu hồi, `/api/auth/me`.
@@ -32,13 +57,18 @@ Flyway tự áp dụng migration khi backend khởi động. MySQL và file uplo
 - **F11:** gửi quá 10 tin / 5 giây thì tự chờ rồi gửi tiếp; lỗi `forbidden`/`invalid_payload` hiện lý do dưới tin kèm "Thử lại"; nội dung luôn hiển thị dạng text (không chạy HTML/script).
 - **F14:** di chuột vào tin để thả cảm xúc (👍 ❤️ 😂 😮 😢 🎉), sửa hoặc xoá tin của mình; thay đổi hiện ngay ở mọi người trong phòng, tin đã xoá hiện "Tin nhắn đã bị xoá".
 - **F15:** nút 📎 gửi ảnh JPEG/PNG hoặc PDF ≤ 5 MB, có thanh tiến trình; ảnh hiển thị trực tiếp, PDF có nút tải; chỉ thành viên phòng tải được. Thiết kế F09–F15: [notifications](docs/features/notifications-mentions.md), [offline queue and limits](docs/features/offline-queue-limits.md), [message actions and files](docs/features/message-actions-files.md).
-- **F12, F13 trở đi:** các phần còn lại trong backlog (F12/F13 do TV3 phụ trách). F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit tương lai dùng memory một instance, mất state tạm khi restart.
+- **F12:** Admin Live Dashboard, thống kê realtime, tài khoản có tìm kiếm/phân trang, kênh hoạt động, kick/ban và broadcast với xác nhận.
+- **F13:** Protocol Lab có giao diện chạy cùng workload qua bốn giao thức, biểu đồ, p50/p95, request/header/frame accounting và JSON export.
+- **F19:** Bảng trắng theo phòng, vẽ đồng thời, lưu/khôi phục nét, quyền thành viên và xóa bảng có xác nhận; xem phạm vi và giới hạn ở trên.
+- **Các phần còn lại:** theo backlog. F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit dùng memory một instance, mất state tạm khi restart.
 | Phần | Trạng thái triển khai |
 | --- | --- |
 | F01–F11, F14, F15 | Đã có frontend/backend và e2e trên backend thật |
-| F12, F13 | Đã có backend; frontend do TV3 tích hợp theo API |
+| F12 | Đã tích hợp Admin Live Dashboard với backend thật; xem cách chạy ở trên |
+| F13 | Đã tích hợp Protocol Lab với backend; xem cách chạy và phạm vi đo ở trên |
 | F16 | Ngoài phạm vi đồ án; dùng một backend, không Redis/Nginx |
-| F17–F21 | Theo dõi riêng trong backlog |
+| F19 | Đã tích hợp bảng trắng; peer review/báo cáo và nghiệm thu tùy chọn theo backlog |
+| F17, F18, F20, F21 | Theo dõi riêng trong backlog |
 
 Trạng thái triển khai không thay thế review và nghiệm thu của nhóm. Xem [backlog](docs/backlog/README.md) để theo dõi từng chức năng.
 

@@ -15,6 +15,7 @@ export default defineConfig({
   use: {
     baseURL: 'http://localhost:8080',
     browserName: 'chromium',
+    channel: process.env.PLAYWRIGHT_CHANNEL || undefined,
     headless: true,
     trace: 'off',
     screenshot: 'off',

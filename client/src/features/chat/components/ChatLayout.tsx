@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { config } from '../../../config'
 import { useLogout, useSession } from '../../auth/hooks'
 import { RealtimeStatus } from '../../realtime/RealtimeStatus'
@@ -39,6 +39,8 @@ export function ChatLayout() {
           {config.appName}
         </div>
         <div className="chat-header-right">
+          <Link to="/lab">Protocol Lab</Link>
+          {user.role === 'admin' && <Link to="/admin">Admin Dashboard</Link>}
           <RealtimeStatus />
           <NotificationBell />
           <span className="chat-user">

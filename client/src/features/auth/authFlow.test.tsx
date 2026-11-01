@@ -16,6 +16,7 @@ vi.mock('./authApi', () => ({
   authApi: { register: vi.fn(), login: vi.fn(), refresh: vi.fn(), logout: vi.fn() },
 }))
 vi.mock('../realtime/RealtimeStatus', () => ({ RealtimeStatus: () => null }))
+vi.mock('../lab/ProtocolLab', () => ({ ProtocolLab: () => <h1>Protocol Lab</h1> }))
 vi.mock('../chat/chatApi', () => ({
   chatApi: { listRooms: vi.fn().mockResolvedValue([]) },
   chatTransport: { onEvent: () => () => {}, onConnected: () => () => {} },
@@ -168,6 +169,15 @@ describe('đăng ký', () => {
 })
 
 describe('đăng nhập / đăng xuất', () => {
+  it('trở lại Lab khi đăng nhập từ đường dẫn được bảo vệ', async () => {
+    api.login.mockResolvedValueOnce(authResponse)
+    const user = userEvent.setup()
+    renderApp('/lab')
+    await user.type(await screen.findByLabelText('Email'), companyEmail)
+    await user.type(screen.getByLabelText('Mật khẩu'), 'secret123')
+    await user.click(screen.getByRole('button', { name: 'Đăng nhập' }))
+    expect(await screen.findByRole('heading', { name: 'Protocol Lab' })).toBeInTheDocument()
+  })
   it('sai mật khẩu hiển thị lỗi', async () => {
     api.login.mockRejectedValueOnce(
       new ApiError(401, { code: 'unauthorized', reason: 'invalid_credentials' }),

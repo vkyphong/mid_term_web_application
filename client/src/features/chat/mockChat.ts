@@ -364,6 +364,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
 
   const transport: ChatTransport = {
     async request(type, payload) {
+      if (type === 'whiteboard:segment' || type === 'whiteboard:clear') throw new ApiError(400, { code: 'invalid_payload', message: 'Whiteboard requires the real backend' })
       await delay(60)
       const user = currentUser()
       const store = load()

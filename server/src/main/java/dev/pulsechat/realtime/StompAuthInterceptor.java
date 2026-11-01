@@ -25,9 +25,9 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         if (!(headers.getUser() instanceof SessionPrincipal principal))
             throw new ApiException(401, "unauthorized", "invalid_token", "CONNECT authentication required");
         auth.validate(principal);
-        if (command == StompCommand.SEND && !java.util.Set.of("/app/session/ping", "/app/room.join", "/app/room.leave", "/app/message.send", "/app/typing.start", "/app/typing.stop", "/app/message.delivered", "/app/message.seen", "/app/message.edit", "/app/message.delete", "/app/message.react", "/app/admin.kick", "/app/admin.broadcast").contains(headers.getDestination()))
+        if (command == StompCommand.SEND && !java.util.Set.of("/app/session/ping", "/app/room.join", "/app/room.leave", "/app/message.send", "/app/typing.start", "/app/typing.stop", "/app/message.delivered", "/app/message.seen", "/app/message.edit", "/app/message.delete", "/app/message.react", "/app/admin.kick", "/app/admin.broadcast", "/app/whiteboard.segment", "/app/whiteboard.clear").contains(headers.getDestination()))
             throw new ApiException(403, "forbidden", null, "Destination not allowed");
-        if (command == StompCommand.SUBSCRIBE && !java.util.Set.of("/user/queue/session", "/user/queue/acks", "/user/queue/events", "/user/queue/presence", "/user/queue/typing", "/user/queue/notifications", "/user/queue/admin").contains(headers.getDestination()))
+        if (command == StompCommand.SUBSCRIBE && !java.util.Set.of("/user/queue/session", "/user/queue/acks", "/user/queue/events", "/user/queue/presence", "/user/queue/typing", "/user/queue/notifications", "/user/queue/admin", "/user/queue/whiteboard").contains(headers.getDestination()))
             throw new ApiException(403, "forbidden", null, "Subscription not allowed");
         if("/user/queue/admin".equals(headers.getDestination()) || (headers.getDestination()!=null&&headers.getDestination().startsWith("/app/admin."))) admin.getObject().requireAdmin(principal.userId());
         if (command != StompCommand.SEND && command != StompCommand.SUBSCRIBE && command != StompCommand.UNSUBSCRIBE)

@@ -103,6 +103,40 @@ class CollaborationIntegrationTest {
         }
         assertThat(db.queryForObject("SELECT last_seen FROM users WHERE id=?",java.sql.Timestamp.class,a.id())).isNotNull();
     }
+    JsonNode searchAdminUsers(Account admin,int page)throws Exception{
+        return mapper.readTree(mvc.perform(get("/api/admin/users").param("search","Literal%_").param("page",String.valueOf(page))
+            .header("Authorization","Bearer "+admin.token())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+    }
+    @Test void adminListsSafeAccountFieldsAndRecentPublicChannels()throws Exception{
+        getJson("/api/admin/users",a,403);getJson("/api/admin/channels",a,403);
+        mvc.perform(get("/api/admin/users")).andExpect(status().isUnauthorized());
+        db.update("UPDATE users SET role='admin' WHERE id=?",c.id());
+        db.update("UPDATE users SET display_name='Literal%_Employee' WHERE id=?",a.id());
+        try(var socket=new Socket(a)){
+            var users=searchAdminUsers(c,0);
+            assertThat(users.path("total").asInt()).isEqualTo(1);
+            assertThat(users.at("/users/0/id").asText()).isEqualTo(a.id());
+            assertThat(users.at("/users/0/online").asBoolean()).isTrue();
+            assertThat(users.at("/users/0/enabled").asBoolean()).isTrue();
+            assertThat(users.at("/users/0").size()).isEqualTo(6);
+            assertThat(searchAdminUsers(c,1).path("users").size()).isZero();
+            getJson("/api/admin/users?page=-1",c,400);
+        }
+        var dm=chat.openDm(a.id(),new ChatDtos.OpenDm(b.id()));
+        chat.send(dm.id(),a.id(),"Private",UUID.randomUUID().toString());
+        chat.send(room,a.id(),"Public",UUID.randomUUID().toString());
+        var channels=getJson("/api/admin/channels",c,200).path("channels");
+        assertThat(channels.findValuesAsText("id")).contains(room).doesNotContain(dm.id());
+        JsonNode channel=null;for(var item:channels)if(item.path("id").asText().equals(room))channel=item;
+        assertThat(channel).isNotNull();assertThat(channel.path("messagesLastMinute").asInt()).isEqualTo(1);
+        assertThat(channel.path("members").asInt()).isEqualTo(2);
+        db.update("UPDATE rooms SET last_message_at=? WHERE id=?",java.sql.Timestamp.from(java.time.Instant.now().minusSeconds(120)),room);
+        assertThat(getJson("/api/admin/channels",c,200).path("channels").findValuesAsText("id")).doesNotContain(room);
+        postJson("/api/admin/users/"+a.id()+"/ban",c,Map.of(),200);
+        var banned=searchAdminUsers(c,0).at("/users/0");
+        assertThat(banned.path("enabled").asBoolean()).isFalse();assertThat(banned.path("online").asBoolean()).isFalse();
+        db.update("UPDATE users SET role='user' WHERE id=?",c.id());getJson("/api/admin/users",c,403);
+    }
     @Test void typingAndMessageActionsUsePrivateQueuesAndRateLimits()throws Exception{
         try(var sender=new Socket(a);var receiver=new Socket(b);var outsider=new Socket(c)){
             receiver.subscribe("typing");outsider.subscribe("typing");receiver.barrier();outsider.barrier();
@@ -145,14 +179,18 @@ class CollaborationIntegrationTest {
         }
     }
     @Test void labPollingUsesSessionScopedCursorAndValidatesPayload()throws Exception{
-        postJson("/api/lab/ping",a,Map.of("type","lab:ping","payload",Map.of("id","one","text","hello")),200);
+        var pong=postJson("/api/lab/ping",a,Map.of("type","lab:ping","payload",Map.of("id","one","text","hello"),"ts",java.time.Instant.now().toString(),"correlationId","correlation-one"),200);
+        assertThat(pong.path("correlationId").asText()).isEqualTo("correlation-one");
+        assertThat(pong.path("ts").asText()).isNotBlank();
         assertThat(getJson("/api/lab/poll",a,200).path("events").size()).isEqualTo(1);
         assertThat(getJson("/api/lab/poll",b,200).path("events").size()).isZero();
         assertThat(getJson("/api/lab/poll?after=1",a,200).path("events").size()).isZero();
         getJson("/api/lab/poll?after=-1",a,400);postJson("/api/lab/ping",a,Map.of("type","wrong"),400);
+        postJson("/api/lab/ping",a,Map.of("type","lab:ping","payload",Map.of("id","invalid"),"correlationId",42),400);
+        postJson("/api/lab/ping",a,Map.of("type","lab:ping","payload",Map.of("id","invalid"),"correlationId","x".repeat(65)),400);
         var pending=mvc.perform(get("/api/lab/long-poll?after=1").header("Authorization","Bearer "+a.token())).andExpect(request().asyncStarted()).andReturn();
-        postJson("/api/lab/ping",a,Map.of("type","lab:ping","payload",Map.of("id","two")),200);
-        mvc.perform(asyncDispatch(pending)).andExpect(status().isOk()).andExpect(jsonPath("$.events[0].payload.id").value("two"));
+        postJson("/api/lab/ping",a,Map.of("type","lab:ping","payload",Map.of("id","two"),"correlationId","correlation-two"),200);
+        mvc.perform(asyncDispatch(pending)).andExpect(status().isOk()).andExpect(jsonPath("$.events[0].payload.id").value("two")).andExpect(jsonPath("$.events[0].correlationId").value("correlation-two"));
     }
     class Socket implements WebSocket.Listener,AutoCloseable{
         final CompletableFuture<Integer> closed=new CompletableFuture<>();

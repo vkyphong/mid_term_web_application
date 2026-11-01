@@ -30,7 +30,16 @@ docker compose -f compose.yml -f compose.workbench.yml up -d
 
 Kết nối `127.0.0.1:3307`, dùng database/user từ `.env` và `MYSQL_PASSWORD`. Cổng chỉ mở trên loopback máy chủ; client LAN truy cập qua API. Khi cần giữ cổng Workbench ở các lệnh `up` tiếp theo, tiếp tục dùng cả hai file Compose.
 
-Tài khoản đăng ký mặc định có role `user`. Để dùng API admin, người vận hành chỉnh `users.role` của đúng tài khoản đã đăng ký thành `admin` trong MySQL. Đăng nhập/refresh lại để frontend nhận role mới. Quyền backend luôn được kiểm tra theo database.
+## Tài khoản admin
+
+Tài khoản đăng ký mặc định có role `user`. Để dùng dashboard `/admin`, đăng ký tài khoản qua web rồi cấp quyền cho đúng email trong MySQL Workbench:
+
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'admin@dqgm.dev' AND enabled = TRUE;
+SELECT email, role, enabled FROM users WHERE email = 'admin@dqgm.dev';
+```
+
+Đăng xuất rồi đăng nhập lại để frontend nhận role mới và tự chuyển đến `/admin`. Quyền backend luôn được kiểm tra theo database. Mật khẩu do người vận hành chọn khi đăng ký; không lưu mật khẩu dạng rõ trong source, SQL hoặc tài liệu. Ban không xóa tài khoản; nếu cần mở khóa, người vận hành cập nhật `enabled = TRUE` cho đúng tài khoản trong database. Các phiên đã thu hồi vẫn không dùng lại được, người dùng cần đăng nhập mới.
 
 ## Truy cập từ hai máy
 
@@ -58,7 +67,7 @@ docker compose down
 
 ## Thêm bảng bằng Flyway
 
-Migration nằm trong `server/src/main/resources/db/migration/`. Tạo file kế tiếp, ví dụ `V5__create_example.sql`, rồi bổ sung code truy cập bảng. Thêm entity nếu feature dùng JPA; các feature dùng JDBC không cần entity JPA.
+Migration nằm trong `server/src/main/resources/db/migration/`. V5 tạo `whiteboards` và `whiteboard_segments` cho F19. Tạo file kế tiếp, ví dụ `V6__create_example.sql`, rồi bổ sung code truy cập bảng. Thêm entity nếu feature dùng JPA; các feature dùng JDBC không cần entity JPA.
 
 ```powershell
 docker compose up --build -d --wait

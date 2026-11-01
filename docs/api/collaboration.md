@@ -48,6 +48,8 @@ Only enabled accounts with database role `admin` can access admin APIs, commands
 | REST | Body / response |
 | --- | --- |
 | `GET /api/admin/stats` | `{connections,onlineUsers,msgPerSec,activeRooms}` |
+| `GET /api/admin/users?search=&page=0` | `{users:[{id,email,displayName,role,enabled,online}],total,page,pageSize:20}`; includes banned accounts; literal case-insensitive name/email substring, search ≤254 characters, page 0–100000 |
+| `GET /api/admin/channels` | `{channels:[{id,name,members,messagesLastMinute,lastMessageAt}]}`; latest 50 public channels with messages in the last 60 seconds, excluding DMs |
 | `POST /api/admin/users/{id}/kick` | Empty body → 200 |
 | `POST /api/admin/users/{id}/ban` | Empty body → 200 |
 | `POST /api/admin/broadcast` | `{content}` → `{recipients}` |

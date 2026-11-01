@@ -279,6 +279,9 @@ export function useChatEvents() {
 
     const offEvent = chatTransport.onEvent((event) => {
       switch (event.type) {
+        case 'whiteboard:segment':
+        case 'whiteboard:cleared':
+          return // The mounted whiteboard consumes its own private events.
         case 'presence:update':
           return applyPresence(queryClient, event.payload)
         case 'typing:start':
