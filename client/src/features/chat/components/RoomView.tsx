@@ -16,7 +16,7 @@ import {
   type SendOptions,
 } from '../hooks'
 import { setActiveRoom } from '../notifications'
-import { markRoomRead } from '../unread'
+import { markViewed } from '../unread'
 import { onOutboxChange, outboxSize } from '../outbox'
 import { useRealtimeStatus } from '../../realtime/RealtimeContext'
 import { describePresence, usePresence } from '../presence'
@@ -81,8 +81,6 @@ function subscribeOnline(listener: () => void) {
   }
 }
 
-const EPOCH = new Date(0).toISOString()
-
 function subscribeVisibility(listener: () => void) {
   document.addEventListener('visibilitychange', listener)
   return () => document.removeEventListener('visibilitychange', listener)
@@ -124,11 +122,13 @@ function Conversation({ room }: { room: Room }) {
     return () => setActiveRoom(null)
   }, [room.id, panel])
 
-  // Đang xem (tab hiển thị) thì xoá số tin chưa đọc; mốc lấy theo giờ server của tin cuối.
+  // Đang xem (tab hiển thị) thì số tin chưa đọc về 0, kể cả khi danh sách phòng vừa tải lại từ server
+  // trước khi receipts "đã xem" kịp gửi lên.
+  const queryClient = useQueryClient()
   const visible = useSyncExternalStore(subscribeVisibility, () => document.visibilityState === 'visible')
   useEffect(() => {
-    if (panel === 'chat' && visible) markRoomRead(room.id, room.lastMessageAt ?? EPOCH)
-  }, [room.id, room.lastMessageAt, panel, visible])
+    if (panel === 'chat' && visible) markViewed(queryClient, room.id, room.lastMessageAt)
+  }, [queryClient, room.id, room.lastMessageAt, room.unreadCount, panel, visible])
 
   const onSend = (content: string, options: SendOptions) => {
     typing.onSent()

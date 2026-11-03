@@ -65,6 +65,32 @@ class GroupManagementIntegrationTest {
         return mapper.readTree(result.getResponse().getContentAsString());
     }
 
+    @Test void unreadCountFollowsSeenReceiptsAndOwnReplies() throws Exception {
+        String room = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        java.util.function.Supplier<Integer> unread = () -> chat.listRooms(peer.id()).stream()
+            .filter(r -> r.id().equals(room)).findFirst().orElseThrow().unreadCount();
+        var first = chat.send(room, owner.id(), "một", UUID.randomUUID().toString()).message();
+        chat.send(room, owner.id(), "hai", UUID.randomUUID().toString());
+        var third = chat.send(room, owner.id(), "ba", UUID.randomUUID().toString()).message();
+        assertThat(unread.get()).isEqualTo(3);
+        assertThat(chat.listRooms(owner.id()).stream().filter(r -> r.id().equals(room)).findFirst().orElseThrow().unreadCount()).isZero();
+        actions.change(peer.id(), first.id(), "seen", null, "", false);
+        assertThat(unread.get()).isEqualTo(2);
+        actions.change(owner.id(), third.id(), "delete", null, "", false);
+        assertThat(unread.get()).isEqualTo(1);
+        // Trả lời trong phòng nghĩa là đã đọc tới đó.
+        chat.send(room, peer.id(), "đã đọc", UUID.randomUUID().toString());
+        assertThat(unread.get()).isZero();
+        chat.send(room, owner.id(), "bốn", UUID.randomUUID().toString());
+        JsonNode listed = null;
+        for (JsonNode r : get("/api/rooms", peer, 200).path("rooms")) if (r.path("id").asText().equals(room)) listed = r;
+        assertThat(listed).isNotNull();
+        assertThat(listed.path("unreadCount").asInt()).isEqualTo(1);
+        // Người ngoài chưa tham gia kênh: không đếm.
+        assertThat(chat.listRooms(outsider.id()).stream().filter(r -> r.id().equals(room)).findFirst().orElseThrow().unreadCount()).isZero();
+    }
+
     @Test void membersCanAddEmployeesIdempotentlyButOutsidersCannot() throws Exception {
         String room = room(); String path = "/api/rooms/" + room + "/members";
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(path)).andExpect(status().isUnauthorized());

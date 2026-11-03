@@ -4,9 +4,9 @@ import { config } from '../../../config'
 import { useLogout, useSession } from '../../auth/hooks'
 import { RealtimeStatus } from '../../realtime/RealtimeStatus'
 import { NotificationBell, ToastHost } from './NotificationCenter'
-import { useChatEvents, useUnreadSync } from '../hooks'
+import { useChatEvents, useRooms } from '../hooks'
 import { setSoundMuted, unlockSound, useSoundMuted } from '../sound'
-import { useUnreadRooms } from '../unread'
+import { countUnreadRooms } from '../unread'
 import '../chat.css'
 import { Avatar } from './Avatar'
 import { RoomView } from './RoomView'
@@ -47,8 +47,7 @@ export function ChatLayout() {
   const { user } = useSession()
   const logout = useLogout()
   useChatEvents()
-  useUnreadSync()
-  const unreadRooms = useUnreadRooms()
+  const unreadRooms = countUnreadRooms(useRooms().data)
   useEffect(() => {
     document.title = unreadRooms > 0 ? `(${unreadRooms}) ${config.appName}` : config.appName
     return () => {

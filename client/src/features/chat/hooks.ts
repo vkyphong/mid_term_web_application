@@ -18,7 +18,7 @@ import {
 } from './notifications'
 import { enqueue, pump, resetOutbox, setOutboxSink, type OutboxItem } from './outbox'
 import { playMessageSound, unlockSound } from './sound'
-import { applyLatestPage, markRoomRead, noteUnread, roomsToReconcile, startUnread } from './unread'
+import { bumpUnread, markViewed, resetUnread, withViewed } from './unread'
 import type { ChatMessage, ClientEvents, CreateRoomInput, Message, Room, Upload } from './types'
 
 export const chatKeys = {
@@ -59,7 +59,7 @@ function applyMessage(queryClient: QueryClient, message: ChatMessage) {
 export function useRooms() {
   return useQuery({
     queryKey: chatKeys.rooms,
-    queryFn: () => chatApi.listRooms(),
+    queryFn: async () => withViewed(await chatApi.listRooms()),
     staleTime: 30_000,
     // Số thành viên / phòng mới do người khác tạo không có event riêng → làm mới khi quay lại tab.
     refetchOnWindowFocus: true,
@@ -326,7 +326,6 @@ export function useChatEvents() {
         ),
     })
 
-    const stopUnread = selfId ? startUnread(selfId) : () => {}
     // Trình duyệt chỉ cho phát âm thanh sau tương tác đầu tiên của người dùng.
     window.addEventListener('pointerdown', unlockSound)
     window.addEventListener('keydown', unlockSound)
@@ -344,6 +343,8 @@ export function useChatEvents() {
           return
         case 'notification:new': {
           const n = event.payload
+          // Tin nhắn riêng hiện bằng số đỏ cạnh tên + âm báo, không đưa vào chuông.
+          if (n.type === 'dm') return
           if (applyNotification(queryClient, n) && !n.readAt && !isViewingRoom(n.roomId)) {
             pushToast({ id: n.id, notificationId: n.id, title: describeNotification(n), body: n.content, roomId: n.roomId })
           }
@@ -370,8 +371,8 @@ export function useChatEvents() {
         if (selfId) markDelivered(message, selfId)
         // Đếm tin chưa đọc + âm báo cho tin của người khác ở phòng không đang xem.
         if (message.sender.id !== selfId) {
-          if (isViewingRoom(message.roomId)) markRoomRead(message.roomId, message.createdAt)
-          else if (noteUnread(message)) playMessageSound(message.id)
+          if (isViewingRoom(message.roomId)) markViewed(queryClient, message.roomId, message.createdAt)
+          else if (bumpUnread(queryClient, message)) playMessageSound(message.id)
         }
         // Tin đến thì người đó hết "đang gõ".
         applyTyping({ roomId: message.roomId, userId: message.sender.id, typing: false, ttlMs: 0 })
@@ -391,7 +392,7 @@ export function useChatEvents() {
       window.removeEventListener('online', pump)
       window.removeEventListener('pointerdown', unlockSound)
       window.removeEventListener('keydown', unlockSound)
-      stopUnread()
+      resetUnread()
       offEvent()
       offConnected()
       setOutboxSink(null)
@@ -403,27 +404,3 @@ export function useChatEvents() {
     }
   }, [queryClient, selfId])
 }
-
-/**
- * Tin đến khi app đóng / mất kết nối không có event: phòng có tin mới hơn mốc đã đọc thì tải trang
- * tin mới nhất để đếm. Mỗi giá trị lastMessageAt của một phòng chỉ tải một lần.
- */
-export function useUnreadSync() {
-  const rooms = useRooms()
-  const { user } = useSession()
-  const selfId = user?.id
-  useEffect(() => {
-    if (!rooms.data || !selfId) return
-    for (const room of roomsToReconcile(rooms.data)) {
-      if (isViewingRoom(room.id)) continue
-      const key = `${room.id}@${room.lastMessageAt}`
-      if (reconciled.has(key)) continue
-      reconciled.add(key)
-      chatApi
-        .listMessages(room.id)
-        .then((page) => applyLatestPage(room.id, page.messages, selfId))
-        .catch(() => reconciled.delete(key))
-    }
-  }, [rooms.data, selfId])
-}
-const reconciled = new Set<string>()

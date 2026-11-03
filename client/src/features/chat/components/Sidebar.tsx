@@ -10,14 +10,14 @@ import { CreateChannelDialog } from './CreateChannelDialog'
 import { NewDirectMessageDialog } from './NewDirectMessageDialog'
 import { PeopleSection } from './PeopleSection'
 import { usePresence } from '../presence'
-import { formatUnread, useUnreadCount } from '../unread'
+import { formatUnread } from '../unread'
 
 type Dialog = 'create' | 'browse' | 'dm' | null
 
 const byRecent = (a: Room, b: Room) => compareTimestamps(b.lastMessageAt ?? '', a.lastMessageAt ?? '')
 
 function RoomLink({ room, online }: { room: Room; online?: boolean }) {
-  const unread = useUnreadCount(room.id)
+  const unread = room.unreadCount ?? 0
   const unreadId = useId()
   return (
     <NavLink

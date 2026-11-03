@@ -12,7 +12,7 @@ import type { Message, Room, ServerEvent } from './types'
 vi.mock('./chatApi', () => ({
   chatApi: {
     listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn(),
-    listMembers: vi.fn(), addMember: vi.fn(),
+    listMembers: vi.fn(), addMember: vi.fn(), listNotifications: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -67,6 +67,7 @@ beforeEach(() => {
   api.getPresence.mockResolvedValue([])
   api.searchUsers.mockResolvedValue([])
   api.listMembers.mockResolvedValue([])
+  api.listNotifications.mockResolvedValue({ notifications: [], nextCursor: null, unreadCount: 0 })
   transport.onEvent.mockImplementation((listener) => {
     emit = listener
     return () => {}
@@ -300,13 +301,13 @@ describe('số tin chưa đọc', () => {
     act(() => emit({ type: 'message:new', payload: dmMessage(1), ts: '' }))
     act(() => emit({ type: 'message:new', payload: dmMessage(1), ts: '' })) // sự kiện lặp không đếm thêm
     const badge = () => dmLink.querySelector('.unread-badge')
+    await waitFor(() => expect(dmLink).toHaveAccessibleDescription('1 tin chưa đọc'))
     expect(dmLink).toHaveAccessibleName('Phong')
-    expect(dmLink).toHaveAccessibleDescription('1 tin chưa đọc')
     expect(badge()).toHaveTextContent('1')
     expect(document.title).toBe('(1) Tập Đoàn M Chat')
 
     for (const i of [2, 3, 4, 5, 6]) act(() => emit({ type: 'message:new', payload: dmMessage(i), ts: '' }))
-    expect(dmLink).toHaveAccessibleDescription('6 tin chưa đọc')
+    await waitFor(() => expect(dmLink).toHaveAccessibleDescription('6 tin chưa đọc'))
     expect(badge()).toHaveTextContent('5+')
 
     // Tin ở phòng đang xem không bị đếm.
@@ -317,6 +318,28 @@ describe('số tin chưa đọc', () => {
     await waitFor(() => expect(badge()).toBeNull())
     expect(dmLink).not.toHaveAttribute('aria-describedby')
     expect(document.title).toBe('Tập Đoàn M Chat')
+  })
+
+  it('số chưa đọc lấy từ server khi tải danh sách phòng (tin đến lúc offline / thiết bị khác)', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, unreadCount: 2 }, hr, { ...dm, unreadCount: 7 }])
+    renderChat()
+    const nav = screen.getByRole('navigation', { name: 'Danh sách phòng' })
+    const engLink = await within(nav).findByRole('link', { name: /Engineering/ })
+    expect(engLink.querySelector('.unread-badge')).toHaveTextContent('2')
+    expect(within(nav).getByRole('link', { name: /Phong/ }).querySelector('.unread-badge')).toHaveTextContent('5+')
+    expect(document.title).toBe('(2) Tập Đoàn M Chat')
+  })
+
+  it('tin nhắn riêng không vào chuông và không bật toast; @nhắc tên vẫn vào chuông', async () => {
+    renderChat()
+    expect(await screen.findByRole('link', { name: /Engineering/ })).toBeInTheDocument()
+    await waitFor(() => expect(api.listNotifications).toHaveBeenCalled())
+    const dmNote = { id: 'n1', type: 'dm' as const, roomId: dm.id, content: 'Tin riêng', createdAt: '2026-10-21T09:00:00Z', readAt: null }
+    act(() => emit({ type: 'notification:new', payload: dmNote, ts: '' }))
+    act(() => emit({ type: 'notification:new', payload: { ...dmNote, id: 'n2', type: 'mention', roomId: eng.id, content: '@Thành Đạt xem nhé' }, ts: '' }))
+    expect(await screen.findByText('Bạn được nhắc đến')).toBeInTheDocument()
+    expect(screen.queryByText('Tin nhắn riêng mới')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^Thông báo/ })).toHaveAccessibleName('Thông báo, 1 chưa đọc')
   })
 
   it('nút loa bật/tắt âm thanh thông báo', async () => {

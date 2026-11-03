@@ -93,14 +93,16 @@ test('F09: @mention chọn từ thành viên, toast + badge không cần reload,
     await expect(bell(bobHome)).toHaveAccessibleName('Thông báo')
     await expect(bell(bobTab2)).toHaveAccessibleName('Thông báo')
 
-    // DM → thông báo "Tin nhắn riêng mới" trong danh sách chuông.
+    // DM → không vào chuông; hiện số đỏ cạnh tên người gửi trong danh sách tin nhắn riêng.
     const dm = await (await alice.context.request.post('/api/dms', { data: { userId: bob.id }, headers: { Authorization: `Bearer ${alice.token}` } })).json()
     await a.goto(`/rooms/${dm.id}`)
     await send(a, 'Tin riêng cho Bob')
-    await expect(bell(bobTab2)).toHaveAccessibleName('Thông báo, 1 chưa đọc')
-    await bell(bobTab2).click()
-    await bobTab2.getByRole('region', { name: 'Danh sách thông báo' }).getByRole('button', { name: /Tin nhắn riêng mới/ }).click()
+    const dmLink = bobTab2.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${dm.id}"]`)
+    await expect(dmLink.locator('.unread-badge')).toHaveText('1')
+    await expect(bell(bobTab2)).toHaveAccessibleName('Thông báo')
+    await dmLink.click()
     await expect(bobTab2).toHaveURL(new RegExp(`/rooms/${dm.id}$`))
+    await expect(dmLink.locator('.unread-badge')).toHaveCount(0)
     await expect(bobTab2.locator('.message-list').getByText('Tin riêng cho Bob')).toBeVisible()
     await expect(bell(carolHome)).toHaveAccessibleName('Thông báo')
   } finally {

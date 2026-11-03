@@ -1,143 +1,65 @@
-import { useSyncExternalStore } from 'react'
+import type { QueryClient } from '@tanstack/react-query'
 import { compareTimestamps } from './messages'
 import type { Message, Room } from './types'
 
 /**
- * Số tin chưa đọc theo phòng. BE không có API đếm chưa đọc, nên client lưu mốc "đã đọc" của từng
- * phòng (localStorage, theo user, đồng bộ giữa các tab) và đếm tin của người khác sau mốc đó.
+ * Số tin chưa đọc theo phòng. Server tính `Room.unreadCount` từ receipts "đã xem" (đúng trên mọi
+ * thiết bị, kể cả tin đến khi offline); client chỉ cộng thêm khi có tin realtime và đặt về 0 khi
+ * đang xem phòng, cho tới lần tải danh sách phòng kế tiếp.
  */
 
-/** Hiển thị tối đa "5+" như yêu cầu. */
+/** Hiển thị tối đa "5+" như Zalo. */
 export const UNREAD_CAP = 5
 
 export function formatUnread(count: number): string {
   return count >= UNREAD_CAP ? `${UNREAD_CAP}+` : String(count)
 }
 
-interface UnreadState {
-  /** roomId → mốc đã đọc (ISO). */
-  readAt: Record<string, string>
-  /** roomId → ID các tin chưa đọc (đếm theo ID nên tin trùng / sự kiện lặp không làm tăng số). */
-  unread: Record<string, string[]>
-}
+const ROOMS_KEY = ['chat', 'rooms'] as const
+/** ID tin đã cộng, để sự kiện lặp không làm tăng số. */
+const counted = new Set<string>()
+/** roomId → lastMessageAt lúc mình đang xem phòng (giờ server). */
+const viewedUpTo = new Map<string, string>()
 
-const emptyState = (): UnreadState => ({ readAt: {}, unread: {} })
-let userId: string | null = null
-let state: UnreadState = emptyState()
-const listeners = new Set<() => void>()
-const storageKey = (id: string) => `pulsechat:unread:${id}`
-
-function read(id: string): UnreadState {
-  try {
-    const raw = localStorage.getItem(storageKey(id))
-    if (raw) return { ...emptyState(), ...(JSON.parse(raw) as UnreadState) }
-  } catch {
-    /* dữ liệu hỏng hoặc không có localStorage → bắt đầu lại */
-  }
-  return emptyState()
-}
-
-function commit(next: UnreadState) {
-  state = next
-  if (userId) {
-    try {
-      localStorage.setItem(storageKey(userId), JSON.stringify(next))
-    } catch {
-      /* hết chỗ / chế độ riêng tư: vẫn chạy trong bộ nhớ */
-    }
-  }
-  listeners.forEach((l) => l())
-}
-
-function onStorage(e: StorageEvent) {
-  if (!userId || e.key !== storageKey(userId)) return
-  state = read(userId)
-  listeners.forEach((l) => l())
-}
-
-/** Gắn với user đang đăng nhập; trả về hàm huỷ. */
-export function startUnread(id: string) {
-  userId = id
-  state = read(id)
-  listeners.forEach((l) => l())
-  window.addEventListener('storage', onStorage)
-  return () => {
-    window.removeEventListener('storage', onStorage)
-    userId = null
-    state = emptyState()
-    listeners.forEach((l) => l())
-  }
+function setRoom(queryClient: QueryClient, roomId: string, update: (room: Room) => Room) {
+  queryClient.setQueryData<Room[]>(ROOMS_KEY, (rooms) => rooms?.map((r) => (r.id === roomId ? update(r) : r)))
 }
 
 /** Tin mới của người khác ở phòng không đang xem. Trả về true nếu là tin chưa từng đếm. */
-export function noteUnread(message: Message): boolean {
-  const readAt = state.readAt[message.roomId]
-  if (readAt && compareTimestamps(message.createdAt, readAt) <= 0) return false
-  const ids = state.unread[message.roomId] ?? []
-  if (ids.includes(message.id)) return false
-  commit({ ...state, unread: { ...state.unread, [message.roomId]: [...ids, message.id] } })
+export function bumpUnread(queryClient: QueryClient, message: Message): boolean {
+  if (counted.has(message.id)) return false
+  counted.add(message.id)
+  setRoom(queryClient, message.roomId, (r) => ({ ...r, unreadCount: (r.unreadCount ?? 0) + 1 }))
   return true
 }
 
-/** Đang xem phòng → mọi tin tới thời điểm `at` coi như đã đọc. */
-export function markRoomRead(roomId: string, at: string = new Date().toISOString()) {
-  const prev = state.readAt[roomId]
-  const hasUnread = (state.unread[roomId]?.length ?? 0) > 0
-  if (!hasUnread && prev && compareTimestamps(prev, at) >= 0) return
-  const { [roomId]: _cleared, ...unread } = state.unread
-  void _cleared
-  commit({ readAt: { ...state.readAt, [roomId]: prev && compareTimestamps(prev, at) > 0 ? prev : at }, unread })
-}
-
 /**
- * Sau khi tải danh sách phòng: phòng chưa có mốc (lần đầu dùng tính năng) lấy mốc là tin cuối,
- * tránh bật số cho toàn bộ lịch sử cũ. Trả về các phòng có tin mới hơn mốc cần tải để đếm.
+ * Đang xem phòng tới tin `lastMessageAt` → về 0. Server cập nhật theo receipts "đã xem", nhưng
+ * receipts gửi lần lượt 250 ms/tin, nên nhớ mốc này để lần tải lại kế tiếp không hiện lại số cũ.
  */
-export function roomsToReconcile(rooms: readonly Room[]): Room[] {
-  const readAt = { ...state.readAt }
-  let changed = false
-  const stale: Room[] = []
-  for (const room of rooms) {
-    if (room.type === 'channel' && !room.joined) continue
-    if (!room.lastMessageAt) continue
-    const mark = readAt[room.id]
-    if (!mark) {
-      readAt[room.id] = room.lastMessageAt
-      changed = true
-    } else if (compareTimestamps(room.lastMessageAt, mark) > 0) {
-      stale.push(room)
-    }
+export function markViewed(queryClient: QueryClient, roomId: string, lastMessageAt: string | null) {
+  if (lastMessageAt) {
+    const prev = viewedUpTo.get(roomId)
+    if (!prev || compareTimestamps(prev, lastMessageAt) < 0) viewedUpTo.set(roomId, lastMessageAt)
   }
-  if (changed) commit({ ...state, readAt })
-  return stale
+  setRoom(queryClient, roomId, (r) => (r.unreadCount ? { ...r, unreadCount: 0 } : r))
 }
 
-/** Đếm tin của người khác sau mốc đã đọc trong trang tin mới nhất (đủ vì chỉ hiển thị tới 5+). */
-export function applyLatestPage(roomId: string, messages: readonly Message[], selfId: string) {
-  const mark = state.readAt[roomId]
-  const ids = messages
-    .filter((m) => m.sender.id !== selfId && !m.deletedAt && (!mark || compareTimestamps(m.createdAt, mark) > 0))
-    .map((m) => m.id)
-  const merged = [...new Set([...(state.unread[roomId] ?? []), ...ids])]
-  if (merged.length === (state.unread[roomId]?.length ?? 0)) return
-  commit({ ...state, unread: { ...state.unread, [roomId]: merged } })
+/** Áp lên danh sách phòng vừa tải: phòng chưa có tin mới kể từ lúc xem thì không còn chưa đọc. */
+export function withViewed(rooms: Room[]): Room[] {
+  return rooms.map((r) => {
+    const viewed = viewedUpTo.get(r.id)
+    const stale = viewed && r.unreadCount && (!r.lastMessageAt || compareTimestamps(r.lastMessageAt, viewed) <= 0)
+    return stale ? { ...r, unreadCount: 0 } : r
+  })
 }
 
 export function resetUnread() {
-  state = emptyState()
-  listeners.forEach((l) => l())
+  counted.clear()
+  viewedUpTo.clear()
 }
 
-function subscribe(listener: () => void) {
-  listeners.add(listener)
-  return () => listeners.delete(listener)
-}
-
-export function useUnreadCount(roomId: string): number {
-  return useSyncExternalStore(subscribe, () => state.unread[roomId]?.length ?? 0)
-}
-
-/** Tổng số phòng có tin chưa đọc (cho tiêu đề tab). */
-export function useUnreadRooms(): number {
-  return useSyncExternalStore(subscribe, () => Object.values(state.unread).filter((ids) => ids.length > 0).length)
+/** Số phòng có tin chưa đọc (cho tiêu đề tab). */
+export function countUnreadRooms(rooms: readonly Room[] | undefined): number {
+  return rooms?.filter((r) => (r.unreadCount ?? 0) > 0).length ?? 0
 }

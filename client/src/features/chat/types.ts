@@ -24,6 +24,8 @@ export interface Room {
   lastMessageAt: string | null
   /** Group đã lưu trữ: chỉ đọc lịch sử, không gửi tin / tham gia / thêm thành viên / upload. */
   archived?: boolean
+  /** Số tin của người khác chưa xem (server tính theo receipts). */
+  unreadCount?: number
 }
 
 export interface Message {

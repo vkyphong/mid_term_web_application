@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { chatApi } from '../chatApi'
 import { chatKeys } from '../hooks'
+import { withViewed } from '../unread'
 import {
   describeNotification,
   dismissToast,
@@ -35,7 +36,7 @@ function useOpenNotification() {
       // Gọi thẳng REST thay vì refetch qua cache: refetch có thể bị huỷ khi message:new của chính
       // phòng mới đó làm danh sách phòng tải lại cùng lúc.
       const rooms = await chatApi.listRooms().catch(() => undefined)
-      if (rooms) queryClient.setQueryData<Room[]>(chatKeys.rooms, rooms)
+      if (rooms) queryClient.setQueryData<Room[]>(chatKeys.rooms, withViewed(rooms))
       room = find(rooms)
     }
     if (room && (room.joined || room.type === 'dm')) navigate(`/rooms/${n.roomId}`)
@@ -48,7 +49,9 @@ export function NotificationBell() {
   const open = useOpenNotification()
   const [expanded, setExpanded] = useState(false)
   const root = useRef<HTMLDivElement>(null)
-  const unread = notifications.data?.unreadCount ?? 0
+  // Chuông chỉ dành cho @nhắc tên và thông báo hệ thống; tin nhắn đến hiện bằng số đỏ cạnh tên phòng.
+  const items = notifications.data?.notifications.filter((n) => n.type !== 'dm')
+  const unread = items?.filter((n) => !n.readAt).length ?? 0
 
   useEffect(() => {
     if (!expanded) return
@@ -78,9 +81,9 @@ export function NotificationBell() {
         <div className="notification-panel" role="region" aria-label="Danh sách thông báo">
           <h2>Thông báo</h2>
           {notifications.isPending && <p className="muted small">Đang tải…</p>}
-          {notifications.data?.notifications.length === 0 && <p className="muted small">Chưa có thông báo.</p>}
+          {items?.length === 0 && <p className="muted small">Chưa có thông báo.</p>}
           <ul>
-            {notifications.data?.notifications.map((n) => (
+            {items?.map((n) => (
               <li key={n.id}>
                 <button
                   type="button"

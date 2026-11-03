@@ -250,18 +250,26 @@ test('tin chưa đọc: vòng tròn đỏ đếm tới 5+, còn sau khi tải l�
         return original.call(this)
       }
     })
-    const b = await open(bob, `/rooms/${otherRoom}`)
-    await b.locator('.composer textarea').click() // tương tác đầu tiên để trình duyệt cho phát âm thanh
+    // Tin 1 gửi khi Bob chưa mở app: số chưa đọc lấy từ server.
     const a = await open(alice, `/rooms/${roomId}`)
-    const link = b.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"]`)
-
     await box(a).fill('Tin 1')
     await a.keyboard.press('Enter')
+    await expect(bubble(a, 'Tin 1')).toBeVisible()
+
+    const b = await open(bob, `/rooms/${otherRoom}`)
+    const link = b.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"]`)
     await expect(link.locator('.unread-badge')).toHaveText('1')
     await expect(b).toHaveTitle('(1) Tập Đoàn M Chat')
-    await expect.poll(() => b.evaluate(() => (window as unknown as { __chimes: number }).__chimes)).toBeGreaterThan(0)
+    await b.locator('.composer textarea').click() // tương tác đầu tiên để trình duyệt cho phát âm thanh
 
-    for (const i of [2, 3, 4, 5, 6]) {
+    await box(a).fill('Tin 2')
+    await a.keyboard.press('Enter')
+    await expect(link.locator('.unread-badge')).toHaveText('2')
+    await expect.poll(() => b.evaluate(() => (window as unknown as { __chimes: number }).__chimes)).toBeGreaterThan(0)
+    // Tin nhắn không vào chuông.
+    await expect(b.getByRole('button', { name: /^Thông báo/ })).toHaveAccessibleName('Thông báo')
+
+    for (const i of [3, 4, 5, 6]) {
       await box(a).fill(`Tin ${i}`)
       await a.keyboard.press('Enter')
     }
@@ -275,6 +283,15 @@ test('tin chưa đọc: vòng tròn đỏ đếm tới 5+, còn sau khi tải l�
     await expect(bubble(b, 'Tin 6')).toBeVisible()
     await expect(link.locator('.unread-badge')).toHaveCount(0)
     await expect(b).toHaveTitle('Tập Đoàn M Chat')
+    // Receipts "đã xem" lên server (lần lượt 250 ms/tin) → tải lại vẫn không còn số.
+    await expect.poll(async () => {
+      const rooms = (await (await bob.context.request.get('/api/rooms', { headers: auth(bob) })).json()).rooms
+      return rooms.find((r: { id: string }) => r.id === roomId).unreadCount
+    }).toBe(0)
+    await b.goto(`/rooms/${otherRoom}`)
+    await expect(b.getByText('Đã kết nối', { exact: true })).toBeVisible()
+    await expect(link).toBeVisible()
+    await expect(link.locator('.unread-badge')).toHaveCount(0)
   } finally {
     await Promise.all([alice.context.close(), bob.context.close()])
   }

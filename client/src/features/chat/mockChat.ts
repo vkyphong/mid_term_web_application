@@ -128,7 +128,23 @@ function toRoom(room: StoredRoom, userId: string): Room {
     peer,
     lastMessageAt: room.lastMessageAt,
     archived: Boolean(room.archived),
+    unreadCount: room.members.includes(userId) ? unreadCount(room.id, userId) : 0,
   }
+}
+
+/** Như BE: tin của người khác chưa xem, mới hơn tin cuối mình đã xem hoặc đã gửi. */
+function unreadCount(roomId: string, userId: string): number {
+  const store = load()
+  const list = store.messages[roomId] ?? []
+  const receipt = (id: string) => store.receipts?.[id]
+  let mark = ''
+  for (const m of list) {
+    if (m.sender.id === userId || receipt(m.id)?.seen.includes(userId)) mark = m.createdAt > mark ? m.createdAt : mark
+  }
+  return list.filter((m) => {
+    const r = receipt(m.id)
+    return !m.deletedAt && m.createdAt > mark && Boolean(r?.recipients.includes(userId)) && !r?.seen.includes(userId)
+  }).length
 }
 
 function findRoom(store: Store, roomId: string): StoredRoom {

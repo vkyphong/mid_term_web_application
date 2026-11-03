@@ -222,9 +222,22 @@ public class ChatService {
                     (row, i) -> new UserSummary(row.getString(1), row.getString(2), row.getString(3)), id, user);
             }
             return new Room(id, type, peer == null ? rs.getString("name") : peer.displayName(), rs.getString("description"),
-                db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"), rs.getBoolean("archived"));
+                db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"), rs.getBoolean("archived"),
+                joined ? unreadCount(id, user) : 0);
         }, id);
         if (rooms.isEmpty()) throw notFound(); return rooms.getFirst();
+    }
+    /**
+     * Tin chưa đọc: tin của người khác (chưa xoá, mình chưa xem) mới hơn tin cuối cùng mình đã xem
+     * hoặc đã gửi trong phòng. Dựa trên message_receipts nên đúng trên mọi thiết bị.
+     */
+    private int unreadCount(String room, String user) {
+        return db.queryForObject("""
+            SELECT COUNT(*) FROM messages m JOIN message_receipts r ON r.message_id=m.id AND r.user_id=?
+            WHERE m.room_id=? AND m.deleted_at IS NULL AND r.seen_at IS NULL AND m.created_at > COALESCE(
+              (SELECT MAX(m2.created_at) FROM messages m2 LEFT JOIN message_receipts r2 ON r2.message_id=m2.id AND r2.user_id=?
+               WHERE m2.room_id=? AND (m2.sender_id=? OR r2.seen_at IS NOT NULL)), ?)
+            """, Integer.class, user, room, user, room, user, Timestamp.from(Instant.EPOCH));
     }
     private static Instant instant(ResultSet rs, String column) throws SQLException {
         Timestamp value = rs.getTimestamp(column); return value == null ? null : value.toInstant();
