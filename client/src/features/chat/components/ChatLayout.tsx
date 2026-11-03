@@ -1,13 +1,36 @@
+import { useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { config } from '../../../config'
 import { useLogout, useSession } from '../../auth/hooks'
 import { RealtimeStatus } from '../../realtime/RealtimeStatus'
 import { NotificationBell, ToastHost } from './NotificationCenter'
-import { useChatEvents } from '../hooks'
+import { useChatEvents, useUnreadSync } from '../hooks'
+import { setSoundMuted, unlockSound, useSoundMuted } from '../sound'
+import { useUnreadRooms } from '../unread'
 import '../chat.css'
 import { Avatar } from './Avatar'
 import { RoomView } from './RoomView'
 import { Sidebar } from './Sidebar'
+
+/** Bật/tắt âm báo tin nhắn mới (lưu theo trình duyệt). */
+function SoundToggle() {
+  const muted = useSoundMuted()
+  return (
+    <button
+      type="button"
+      className="icon-btn sound-toggle"
+      aria-pressed={!muted}
+      aria-label={muted ? 'Bật âm thanh thông báo' : 'Tắt âm thanh thông báo'}
+      title={muted ? 'Bật âm thanh thông báo' : 'Tắt âm thanh thông báo'}
+      onClick={() => {
+        unlockSound()
+        setSoundMuted(!muted)
+      }}
+    >
+      {muted ? '🔇' : '🔊'}
+    </button>
+  )
+}
 
 function Welcome({ name }: { name: string }) {
   return (
@@ -24,6 +47,14 @@ export function ChatLayout() {
   const { user } = useSession()
   const logout = useLogout()
   useChatEvents()
+  useUnreadSync()
+  const unreadRooms = useUnreadRooms()
+  useEffect(() => {
+    document.title = unreadRooms > 0 ? `(${unreadRooms}) ${config.appName}` : config.appName
+    return () => {
+      document.title = config.appName
+    }
+  }, [unreadRooms])
 
   if (!user) return null
 
@@ -42,6 +73,7 @@ export function ChatLayout() {
           <Link to="/lab">Protocol Lab</Link>
           {user.role === 'admin' && <Link to="/admin">Admin Dashboard</Link>}
           <RealtimeStatus />
+          <SoundToggle />
           <NotificationBell />
           <span className="chat-user">
             <Avatar name={user.displayName} size="sm" />

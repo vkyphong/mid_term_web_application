@@ -1305,3 +1305,33 @@
     display: none;
   }
 }
+
+/* ---------- Số tin chưa đọc (vòng tròn đỏ, tối đa 5+) ---------- */
+.unread-badge {
+  flex: none;
+  margin-left: auto;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 20px;
+  text-align: center;
+  color: #fff;
+  background: #e53935;
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--surface);
+}
+
+.archived-badge--sm + .unread-badge {
+  margin-left: 4px;
+}
+
+.room-link--unread .room-link-name {
+  font-weight: 700;
+  color: var(--text);
+}
+
+.sound-toggle {
+  font-size: 1.05rem;
+}

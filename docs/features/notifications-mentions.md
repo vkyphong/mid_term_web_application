@@ -16,6 +16,12 @@ Notifications are persisted by the server and pushed on the private queue `/user
 
 A bell in the header shows the unread count and a panel with recent notifications. A toast appears for each new unread notification unless its room is the one currently open in a visible tab. Opening a notification marks it read and navigates to its room only if the reader still belongs to it; a newly created direct message that is not yet in the cached room list triggers a direct REST lookup first. System notifications from F12 have no room and are shown without a link.
 
+## Unread counts and sound
+
+Every room in the sidebar shows a red circle with the number of unread messages from other people, written as *5+* from five messages upwards, and the room name turns bold. The tab title shows how many rooms have unread messages. The server has no unread-count API, so the client keeps a per-room read mark (the server timestamp of the last message seen) and the IDs of unread messages in `localStorage` per user, which the `storage` event keeps in sync between tabs. Counting IDs rather than events means that repeated `message:new` events cannot inflate the number. Messages that arrive while the app is closed are counted after the next start: for each room whose `lastMessageAt` is newer than its read mark, the client loads the latest page of 30 messages, which is enough for a display capped at *5+*. Opening a room in a visible tab clears its count. A room without a read mark, for example on first use, takes its last message as the mark so old history does not show up as unread.
+
+A new message from someone else in a room that is not on screen plays a short two-tone chime generated with the Web Audio API, so no audio file is shipped. Browsers allow audio only after the user has interacted with the page, so the audio context is opened on the first click or key press. When several tabs are open, only one plays the sound: a visible tab plays immediately, hidden tabs wait 150 ms and skip a message ID that has already been played. A speaker button in the header mutes or unmutes the sound for that browser.
+
 ## Verification
 
 Measured on 27 October 2026 with `client/e2e/collaboration.e2e.ts` against the Docker backend, three users in independent browser contexts:

@@ -225,3 +225,48 @@ test('nhóm bị admin lưu trữ: vẫn đọc lịch sử, không còn ô so�
     await Promise.all([alice.context.close(), bob.context.close(), admin.close()])
   }
 })
+
+test('tin chưa đọc: vòng tròn đỏ đếm tới 5+, còn sau khi tải lại, mất khi mở phòng; có âm báo', async ({ browser }) => {
+  const [alice, bob] = await Promise.all([account(browser, 'alice'), account(browser, 'bob')])
+  try {
+    const roomId = await channelWith(alice, bob)
+    const otherRoom = await channelWith(bob)
+    // Đếm số lần phát âm báo (mỗi tiếng "ting" tạo 2 oscillator).
+    await bob.context.addInitScript(() => {
+      const w = window as unknown as { __chimes: number }
+      w.__chimes = 0
+      const original = AudioContext.prototype.createOscillator
+      AudioContext.prototype.createOscillator = function (this: AudioContext) {
+        w.__chimes++
+        return original.call(this)
+      }
+    })
+    const b = await open(bob, `/rooms/${otherRoom}`)
+    await b.locator('.composer textarea').click() // tương tác đầu tiên để trình duyệt cho phát âm thanh
+    const a = await open(alice, `/rooms/${roomId}`)
+    const link = b.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"]`)
+
+    await box(a).fill('Tin 1')
+    await a.keyboard.press('Enter')
+    await expect(link.locator('.unread-badge')).toHaveText('1')
+    await expect(b).toHaveTitle('(1) Tập Đoàn M Chat')
+    await expect.poll(() => b.evaluate(() => (window as unknown as { __chimes: number }).__chimes)).toBeGreaterThan(0)
+
+    for (const i of [2, 3, 4, 5, 6]) {
+      await box(a).fill(`Tin ${i}`)
+      await a.keyboard.press('Enter')
+    }
+    await expect(link.locator('.unread-badge')).toHaveText('5+')
+    await expect(link.locator('.unread-badge')).toHaveCSS('background-color', 'rgb(229, 57, 53)')
+
+    await b.reload()
+    await expect(link.locator('.unread-badge')).toHaveText('5+')
+
+    await link.click()
+    await expect(bubble(b, 'Tin 6')).toBeVisible()
+    await expect(link.locator('.unread-badge')).toHaveCount(0)
+    await expect(b).toHaveTitle('Tập Đoàn M Chat')
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close()])
+  }
+})

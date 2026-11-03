@@ -16,6 +16,7 @@ import {
   type SendOptions,
 } from '../hooks'
 import { setActiveRoom } from '../notifications'
+import { markRoomRead } from '../unread'
 import { onOutboxChange, outboxSize } from '../outbox'
 import { useRealtimeStatus } from '../../realtime/RealtimeContext'
 import { describePresence, usePresence } from '../presence'
@@ -80,6 +81,13 @@ function subscribeOnline(listener: () => void) {
   }
 }
 
+const EPOCH = new Date(0).toISOString()
+
+function subscribeVisibility(listener: () => void) {
+  document.addEventListener('visibilitychange', listener)
+  return () => document.removeEventListener('visibilitychange', listener)
+}
+
 function ConnectionBanner() {
   const { state } = useRealtimeStatus()
   const queued = useSyncExternalStore(onOutboxChange, outboxSize)
@@ -115,6 +123,12 @@ function Conversation({ room }: { room: Room }) {
     setActiveRoom(panel === 'chat' ? room.id : null)
     return () => setActiveRoom(null)
   }, [room.id, panel])
+
+  // Đang xem (tab hiển thị) thì xoá số tin chưa đọc; mốc lấy theo giờ server của tin cuối.
+  const visible = useSyncExternalStore(subscribeVisibility, () => document.visibilityState === 'visible')
+  useEffect(() => {
+    if (panel === 'chat' && visible) markRoomRead(room.id, room.lastMessageAt ?? EPOCH)
+  }, [room.id, room.lastMessageAt, panel, visible])
 
   const onSend = (content: string, options: SendOptions) => {
     typing.onSent()

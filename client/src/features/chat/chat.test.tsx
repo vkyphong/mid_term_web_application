@@ -61,6 +61,7 @@ function renderChat(path = '/') {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  localStorage.clear()
   api.listRooms.mockResolvedValue([eng, hr, dm])
   api.listMessages.mockResolvedValue({ messages: [message('m1', 'Chào cả nhóm')], nextCursor: null })
   api.getPresence.mockResolvedValue([])
@@ -267,6 +268,47 @@ describe('tin nhắn', () => {
     await user.type(box, 'dòng 1{Shift>}{Enter}{/Shift}dòng 2')
     expect(transport.request).not.toHaveBeenCalled()
     expect(box).toHaveValue('   dòng 1\ndòng 2')
+  })
+})
+
+describe('số tin chưa đọc', () => {
+  it('tin đến phòng khác hiện vòng tròn đỏ có số, từ 5 tin là "5+", mở phòng thì mất', async () => {
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    expect(await screen.findByText('Chào cả nhóm')).toBeInTheDocument()
+    const nav = screen.getByRole('navigation', { name: 'Danh sách phòng' })
+    const dmLink = within(nav).getByRole('link', { name: /Phong/ })
+    const dmMessage = (i: number) =>
+      message(`d${i}`, `Tin riêng ${i}`, { roomId: dm.id, createdAt: `2026-10-21T09:0${i}:00.000Z` })
+
+    act(() => emit({ type: 'message:new', payload: dmMessage(1), ts: '' }))
+    act(() => emit({ type: 'message:new', payload: dmMessage(1), ts: '' })) // sự kiện lặp không đếm thêm
+    const badge = () => dmLink.querySelector('.unread-badge')
+    expect(dmLink).toHaveAccessibleName('Phong')
+    expect(dmLink).toHaveAccessibleDescription('1 tin chưa đọc')
+    expect(badge()).toHaveTextContent('1')
+    expect(document.title).toBe('(1) Tập Đoàn M Chat')
+
+    for (const i of [2, 3, 4, 5, 6]) act(() => emit({ type: 'message:new', payload: dmMessage(i), ts: '' }))
+    expect(dmLink).toHaveAccessibleDescription('6 tin chưa đọc')
+    expect(badge()).toHaveTextContent('5+')
+
+    // Tin ở phòng đang xem không bị đếm.
+    act(() => emit({ type: 'message:new', payload: message('e1', 'Ở phòng đang mở', { createdAt: '2026-10-21T09:10:00.000Z' }), ts: '' }))
+    expect(within(nav).getByRole('link', { name: /Engineering/ }).querySelector('.unread-badge')).toBeNull()
+
+    await user.click(dmLink)
+    await waitFor(() => expect(badge()).toBeNull())
+    expect(dmLink).not.toHaveAttribute('aria-describedby')
+    expect(document.title).toBe('Tập Đoàn M Chat')
+  })
+
+  it('nút loa bật/tắt âm thanh thông báo', async () => {
+    const user = userEvent.setup()
+    renderChat()
+    await user.click(screen.getByRole('button', { name: 'Tắt âm thanh thông báo' }))
+    expect(screen.getByRole('button', { name: 'Bật âm thanh thông báo' })).toHaveAttribute('aria-pressed', 'false')
+    expect(localStorage.getItem('pulsechat:sound-muted')).toBe('1')
   })
 })
 
