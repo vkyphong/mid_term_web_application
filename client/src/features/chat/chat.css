@@ -1099,3 +1099,209 @@
     border-top-color: #5a4518;
   }
 }
+
+/* ---------- Thanh công cụ soạn tin (kiểu Zalo), thành viên nhóm, nhóm lưu trữ ---------- */
+.composer-toolbar {
+  position: relative;
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.composer-tool,
+.composer-quick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 34px;
+  padding: 0;
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.composer-tool:hover:not(:disabled),
+.composer-tool[aria-pressed='true'] {
+  color: var(--primary);
+  background: var(--bg);
+}
+
+.composer-tool:focus-visible,
+.composer-quick:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.composer-tool:disabled,
+.composer-quick:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.composer-hint {
+  margin-left: auto;
+  padding-left: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.composer-row {
+  flex-basis: 100%;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+
+.composer-quick {
+  flex: none;
+  width: 42px;
+  height: 42px;
+  color: #e2a03f;
+}
+
+.composer-quick:hover:not(:disabled) {
+  background: var(--bg);
+}
+
+.emoji-panel {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: repeat(8, 36px);
+  gap: 2px;
+  max-width: calc(100vw - 32px);
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.emoji-option {
+  width: 36px;
+  height: 36px;
+  font-size: 1.3rem;
+  line-height: 1;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.emoji-option:hover,
+.emoji-option:focus-visible {
+  outline: none;
+  background: var(--bg);
+}
+
+.mention-all-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  font-weight: 700;
+  color: var(--primary-text);
+  background: var(--primary);
+  border-radius: 50%;
+}
+
+.member-fieldset {
+  min-width: 0;
+  margin: 0 0 16px;
+  padding: 0;
+  border: none;
+}
+
+.member-fieldset legend {
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+
+.member-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+
+.member-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 2px 2px 4px;
+  font-size: 0.85rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.member-results {
+  max-height: 240px;
+  margin-bottom: 12px;
+  overflow-y: auto;
+}
+
+.member-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
+  accent-color: var(--primary);
+}
+
+.member-option--existing {
+  cursor: default;
+  opacity: 0.65;
+}
+
+.archived-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  vertical-align: middle;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.archived-badge--sm {
+  margin-left: auto;
+  font-size: 0.68rem;
+}
+
+.archived-notice {
+  margin: 0;
+  padding: 12px 16px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+}
+
+.composer-archived {
+  margin: 12px 16px;
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  .composer-hint,
+  /* Màn hẹp: dùng nút trên thanh công cụ soạn tin, nhường chỗ cho tên phòng. */
+  .room-add-members {
+    display: none;
+  }
+}

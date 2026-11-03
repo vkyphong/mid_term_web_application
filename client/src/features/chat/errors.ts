@@ -5,6 +5,8 @@ export function describeChatError(err: unknown): string {
   if (!(err instanceof ApiError)) return 'Đã có lỗi xảy ra, vui lòng thử lại.'
   if (err.reason === 'room_name_taken') return 'Tên kênh đã tồn tại.'
   if (err.reason === 'not_found') return 'Không tìm thấy phòng.'
+  if (err.reason === 'room_archived') return 'Nhóm đã được lưu trữ, chỉ xem được lịch sử.'
+  if (err.reason === 'file_too_large') return 'Tệp vượt quá giới hạn 5 MB.'
   if (err.details.length) return err.details[0].message
   switch (err.code) {
     case 'network_error':

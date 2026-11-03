@@ -3,10 +3,17 @@ import { chatApi } from './chatApi'
 import { describeChatError } from './errors'
 import type { Upload } from './types'
 
-/** F15: giới hạn theo contract (BE kiểm tra lại chữ ký file). */
+/** F15: giới hạn theo docs/api/groups-members-files.md (BE kiểm tra lại chữ ký/cấu trúc file). */
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
-export const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'application/pdf'] as const
-export const ACCEPT_ATTR = ACCEPTED_TYPES.join(',')
+export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
+/**
+ * Kiểm tra theo đuôi file chứ không theo `file.type`: trình duyệt trên Windows báo CSV là
+ * application/vnd.ms-excel và ZIP là application/x-zip-compressed; BE tự xác định MIME.
+ */
+export const ACCEPTED_EXTENSIONS = [...IMAGE_EXTENSIONS, '.pdf', '.txt', '.csv', '.docx', '.xlsx', '.pptx', '.zip'] as const
+export const ACCEPT_ATTR = ACCEPTED_EXTENSIONS.join(',')
+export const IMAGE_ACCEPT_ATTR = IMAGE_EXTENSIONS.join(',')
+export const ACCEPTED_LABEL = 'ảnh JPG/PNG, PDF, TXT, CSV, Word, Excel, PowerPoint hoặc ZIP'
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -14,12 +21,34 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024).toFixed(2)} MB`
 }
 
+const extensionOf = (name: string) => {
+  const dot = name.lastIndexOf('.')
+  return dot < 0 ? '' : name.slice(dot).toLowerCase()
+}
+
 /** Kiểm tra trước khi upload để báo lỗi sớm; null = hợp lệ. */
-export function validateFile(file: File): string | null {
+export function validateFile(file: File, imagesOnly = false): string | null {
   if (file.size === 0) return 'Tệp rỗng.'
   if (file.size > MAX_UPLOAD_BYTES) return `Tệp ${formatBytes(file.size)} vượt quá giới hạn 5 MB.`
-  if (!(ACCEPTED_TYPES as readonly string[]).includes(file.type)) return 'Chỉ hỗ trợ ảnh JPEG, PNG hoặc tệp PDF.'
+  const allowed: readonly string[] = imagesOnly ? IMAGE_EXTENSIONS : ACCEPTED_EXTENSIONS
+  if (!allowed.includes(extensionOf(file.name))) {
+    return imagesOnly ? 'Chỉ gửi được ảnh JPG hoặc PNG.' : `Chỉ hỗ trợ ${ACCEPTED_LABEL}.`
+  }
   return null
+}
+
+export type FileKind = 'image' | 'pdf' | 'word' | 'excel' | 'powerpoint' | 'archive' | 'text'
+
+/** Loại file để chọn biểu tượng; ưu tiên MIME do BE xác định. */
+export function fileKind(filename: string, mediaType: string): FileKind {
+  if (mediaType.startsWith('image/')) return 'image'
+  const ext = extensionOf(filename)
+  if (mediaType === 'application/pdf' || ext === '.pdf') return 'pdf'
+  if (mediaType.includes('wordprocessingml') || ext === '.docx') return 'word'
+  if (mediaType.includes('spreadsheetml') || ext === '.xlsx' || ext === '.csv') return 'excel'
+  if (mediaType.includes('presentationml') || ext === '.pptx') return 'powerpoint'
+  if (mediaType === 'application/zip' || ext === '.zip') return 'archive'
+  return 'text'
 }
 
 export type UploadState =
@@ -34,9 +63,9 @@ export function useFileUpload(roomId: string) {
   const abort = useRef<AbortController | null>(null)
 
   const start = useCallback(
-    (file: File) => {
+    (file: File, imagesOnly = false) => {
       abort.current?.abort()
-      const invalid = validateFile(file)
+      const invalid = validateFile(file, imagesOnly)
       if (invalid) return setState({ status: 'error', file, error: invalid })
       const controller = new AbortController()
       abort.current = controller

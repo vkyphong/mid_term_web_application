@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { filterMentionCandidates, insertMention, mentionQueryAt, resolveMentions, splitMentions } from './mentions'
+import { MENTION_ALL, filterMentionCandidates, insertMention, mentionQueryAt, resolveMentions, splitMentions } from './mentions'
 
 const phong = { id: 'u2', displayName: 'Vòng Phong', email: 'phong@dqgm.dev' }
 const an = { id: 'u3', displayName: 'Nguyễn An', email: 'an@dqgm.dev' }
@@ -39,5 +39,34 @@ describe('F09 mention', () => {
       { text: ' <b>x</b>' },
     ])
     expect(splitMentions('không có ai', members)).toEqual([{ text: 'không có ai' }])
+  })
+
+  it('bỏ tài khoản bị khoá khỏi gợi ý', () => {
+    const locked = { id: 'u4', displayName: 'Phạm Khoá', email: 'k@dqgm.dev', enabled: false }
+    expect(filterMentionCandidates([...members, locked], 'pham', 'u1')).toEqual([])
+    expect(filterMentionCandidates([...members, locked], '', 'u1')).toEqual([phong, an])
+  })
+
+  it('"@All" chỉ có trong kênh, đứng đầu và khớp "all" / "tất cả"', () => {
+    expect(filterMentionCandidates(members, '', 'u1', true)).toEqual([MENTION_ALL, phong, an])
+    expect(filterMentionCandidates(members, 'al', 'u1', true)).toEqual([MENTION_ALL])
+    expect(filterMentionCandidates(members, 'tất', 'u1', true)).toEqual([MENTION_ALL])
+    expect(filterMentionCandidates(members, 'phong', 'u1', true)).toEqual([phong])
+    expect(filterMentionCandidates([me], '', 'u1', true)).toEqual([])
+  })
+
+  it('"@All" gửi ID mọi thành viên đang hoạt động trừ người gửi, tối đa 20, người chọn riêng xếp trước', () => {
+    const locked = { id: 'u4', displayName: 'Phạm Khoá', email: 'k@dqgm.dev', enabled: false }
+    expect(resolveMentions('@All họp nhé', [MENTION_ALL], [...members, locked], 'u1')).toEqual(['u2', 'u3'])
+    expect(resolveMentions('đã xoá', [MENTION_ALL], members, 'u1')).toEqual([])
+    const many = Array.from({ length: 30 }, (_, i) => ({ id: `x${i}`, displayName: `Người ${i}`, email: '' }))
+    const ids = resolveMentions('@Nguyễn An @All', [MENTION_ALL, an], [...many, an], 'u1')
+    expect(ids).toHaveLength(20)
+    expect(ids[0]).toBe('u3')
+  })
+
+  it('tô "@All" khi được bật', () => {
+    expect(splitMentions('@All họp', members, true)).toEqual([{ text: '@All', mention: MENTION_ALL }, { text: ' họp' }])
+    expect(splitMentions('@All họp', members)).toEqual([{ text: '@All họp' }])
   })
 })

@@ -10,7 +10,10 @@ import { ChatLayout } from './components/ChatLayout'
 import type { Message, Room, ServerEvent } from './types'
 
 vi.mock('./chatApi', () => ({
-  chatApi: { listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn() },
+  chatApi: {
+    listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn(),
+    listMembers: vi.fn(), addMember: vi.fn(),
+  },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
 vi.mock('../auth/authApi', () => ({ authApi: { logout: vi.fn() } }))
@@ -62,6 +65,7 @@ beforeEach(() => {
   api.listMessages.mockResolvedValue({ messages: [message('m1', 'Chào cả nhóm')], nextCursor: null })
   api.getPresence.mockResolvedValue([])
   api.searchUsers.mockResolvedValue([])
+  api.listMembers.mockResolvedValue([])
   transport.onEvent.mockImplementation((listener) => {
     emit = listener
     return () => {}
@@ -125,6 +129,65 @@ describe('danh sách phòng (F03/F04)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Tạo kênh' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Dự án Alpha' })).toBeInTheDocument()
     expect(api.createRoom).toHaveBeenLastCalledWith({ name: 'Dự án Alpha', description: undefined })
+  })
+})
+
+describe('nhóm: thêm thành viên và lưu trữ', () => {
+  const an = { id: 'u3', email: 'an@dqgm.dev', displayName: 'Nguyễn An' }
+
+  it('tạo kênh kèm thành viên: tạo xong thêm lần lượt từng người rồi mở kênh', async () => {
+    api.searchUsers.mockResolvedValue([phong, an])
+    const created = channel('r-new', 'Dự án Beta', true, { memberCount: 1 })
+    api.createRoom.mockResolvedValueOnce(created)
+    api.addMember.mockResolvedValueOnce({ ...created, memberCount: 2 }).mockResolvedValueOnce({ ...created, memberCount: 3 })
+    const user = userEvent.setup()
+    renderChat()
+    await user.click(screen.getByRole('button', { name: 'Tạo kênh' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Tạo kênh mới' })
+    await user.type(within(dialog).getByLabelText('Tên kênh'), 'Dự án Beta')
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Phong/ }))
+    await user.click(within(dialog).getByRole('checkbox', { name: /Nguyễn An/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo kênh với 2 thành viên' }))
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dự án Beta' })).toBeInTheDocument()
+    expect(api.addMember.mock.calls).toEqual([[created.id, phong.id], [created.id, an.id]])
+    expect(screen.getByText('3 thành viên')).toBeInTheDocument()
+  })
+
+  it('thêm thành viên vào kênh đang mở; người đã trong nhóm không chọn được', async () => {
+    api.listMembers.mockResolvedValue([{ ...me, enabled: true }, { ...phong, enabled: true }])
+    api.searchUsers.mockResolvedValue([phong, an])
+    api.addMember.mockResolvedValueOnce({ ...eng, memberCount: 4 })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    // Có hai nút: trên đầu phòng và trên thanh công cụ soạn tin.
+    expect(await screen.findAllByRole('button', { name: 'Thêm thành viên' })).toHaveLength(2)
+    await user.click(screen.getAllByRole('button', { name: 'Thêm thành viên' })[0])
+    const dialog = await screen.findByRole('dialog', { name: 'Thêm thành viên vào #Engineering' })
+    expect(await within(dialog).findByRole('checkbox', { name: /Phong/ })).toBeDisabled()
+    await user.click(within(dialog).getByRole('checkbox', { name: /Nguyễn An/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Thêm 1 người' }))
+
+    expect(api.addMember).toHaveBeenCalledWith(eng.id, an.id)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(screen.getByText('4 thành viên')).toBeInTheDocument()
+  })
+
+  it('kênh đã lưu trữ: xem được lịch sử nhưng không có ô soạn tin hay nút thêm người', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, archived: true }])
+    renderChat(`/rooms/${eng.id}`)
+    expect(await screen.findByText('Chào cả nhóm')).toBeInTheDocument()
+    expect(screen.getByText('Đã lưu trữ')).toBeInTheDocument()
+    expect(screen.getByText(/Nhóm đã được lưu trữ/)).toBeInTheDocument()
+    expect(screen.queryByLabelText('Nội dung tin nhắn')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Thêm thành viên' })).not.toBeInTheDocument()
+  })
+
+  it('kênh lưu trữ chưa tham gia thì không có nút tham gia', async () => {
+    api.listRooms.mockResolvedValue([{ ...hr, archived: true }])
+    renderChat(`/rooms/${hr.id}`)
+    expect(await screen.findByText('Kênh đã được lưu trữ nên không thể tham gia.')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Tham gia kênh' })).not.toBeInTheDocument()
   })
 })
 
@@ -221,7 +284,7 @@ describe('tin nhắn riêng (F04)', () => {
 
     expect(api.openDm).toHaveBeenCalledWith(phong.id)
     expect(await screen.findByRole('heading', { level: 1, name: 'Phong' })).toBeInTheDocument()
-    expect(screen.getByLabelText('Nội dung tin nhắn')).toHaveAttribute('placeholder', 'Nhắn cho Phong')
+    expect(screen.getByLabelText('Nội dung tin nhắn')).toHaveAttribute('placeholder', 'Nhập tin nhắn tới Phong')
     expect(screen.queryByRole('button', { name: 'Rời kênh' })).not.toBeInTheDocument()
   })
 })

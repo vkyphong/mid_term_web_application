@@ -5,6 +5,8 @@ import { FormAlert } from '../../auth/components/FormAlert'
 import { TextField } from '../../auth/components/TextField'
 import { describeChatError } from '../errors'
 import { useCreateRoom } from '../hooks'
+import type { UserSummary } from '../types'
+import { MemberPicker } from './MemberPicker'
 import { Modal } from './Modal'
 
 export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
@@ -12,6 +14,7 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
   const createRoom = useCreateRoom()
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [members, setMembers] = useState<UserSummary[]>([])
   const [nameError, setNameError] = useState<string>()
 
   const serverError = createRoom.error
@@ -28,9 +31,9 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
       return
     }
     createRoom.mutate(
-      { name: trimmed, description: description.trim() || undefined },
+      { name: trimmed, description: description.trim() || undefined, memberIds: members.map((m) => m.id) },
       {
-        onSuccess: (room) => {
+        onSuccess: ({ room }) => {
           onClose()
           navigate(`/rooms/${room.id}`)
         },
@@ -63,8 +66,16 @@ export function CreateChannelDialog({ onClose }: { onClose: () => void }) {
           maxLength={200}
           onChange={(e) => setDescription(e.target.value)}
         />
+        <fieldset className="member-fieldset">
+          <legend>Thêm thành viên (không bắt buộc)</legend>
+          <MemberPicker selected={members} onChange={setMembers} disabled={createRoom.isPending} />
+        </fieldset>
         <button type="submit" className="btn-primary" disabled={createRoom.isPending}>
-          {createRoom.isPending ? 'Đang tạo…' : 'Tạo kênh'}
+          {createRoom.isPending
+            ? 'Đang tạo…'
+            : members.length > 0
+              ? `Tạo kênh với ${members.length} thành viên`
+              : 'Tạo kênh'}
         </button>
       </form>
     </Modal>

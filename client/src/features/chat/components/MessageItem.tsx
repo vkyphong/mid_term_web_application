@@ -1,5 +1,5 @@
 import { useState, type KeyboardEvent } from 'react'
-import { splitMentions } from '../mentions'
+import { MENTION_ALL, splitMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { REACTION_EMOJIS, type ChatMessage, type UserSummary } from '../types'
 import { AttachmentView } from './AttachmentView'
@@ -17,6 +17,8 @@ interface MessageItemProps {
   head: boolean
   selfId: string
   members: readonly UserSummary[]
+  /** Kênh: tô "@All" (nhắc cả nhóm). */
+  mentionAll?: boolean
   receipt: { label: string; detail: string } | null
   showReceipt: boolean
   trackSeen: boolean
@@ -27,12 +29,16 @@ interface MessageItemProps {
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 
 /** F09: tô "@Tên"; nội dung luôn render dạng text (React tự escape), không dùng HTML (F11). */
-function MessageText({ content, members, selfId }: { content: string; members: readonly UserSummary[]; selfId: string }) {
+function MessageText(props: { content: string; members: readonly UserSummary[]; selfId: string; mentionAll?: boolean }) {
+  const { content, members, selfId, mentionAll } = props
   return (
     <>
-      {splitMentions(content, members).map((part, i) =>
+      {splitMentions(content, members, mentionAll).map((part, i) =>
         part.mention ? (
-          <span key={i} className={`mention${part.mention.id === selfId ? ' mention--me' : ''}`}>
+          <span
+            key={i}
+            className={`mention${part.mention.id === selfId || part.mention.id === MENTION_ALL.id ? ' mention--me' : ''}`}
+          >
             {part.text}
           </span>
         ) : (
@@ -56,7 +62,7 @@ function groupReactions(message: ChatMessage, selfId: string) {
 }
 
 export function MessageItem(props: MessageItemProps) {
-  const { message: m, own, head, selfId, members, receipt, showReceipt, trackSeen, onRetry, actions } = props
+  const { message: m, own, head, selfId, members, mentionAll, receipt, showReceipt, trackSeen, onRetry, actions } = props
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(m.content)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -142,7 +148,7 @@ export function MessageItem(props: MessageItemProps) {
           ) : (
             (m.content || !m.attachment) && (
               <p className="message-content message-bubble">
-                <MessageText content={m.content} members={members} selfId={selfId} />
+                <MessageText content={m.content} members={members} selfId={selfId} mentionAll={mentionAll} />
                 {m.editedAt && <span className="message-edited"> (đã sửa)</span>}
               </p>
             )

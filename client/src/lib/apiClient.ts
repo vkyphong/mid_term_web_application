@@ -123,7 +123,10 @@ export function authUpload<T>(path: string, form: FormData, onProgress?: (ratio:
           }
           if (xhr.status >= 200 && xhr.status < 300) return resolve(body as T)
           const error = (body as { error?: ConstructorParameters<typeof ApiError>[1] } | undefined)?.error
-          reject(new ApiError(xhr.status, error ?? { code: xhr.status === 413 ? 'invalid_payload' : 'unknown', message: xhr.statusText }))
+          reject(new ApiError(xhr.status, error ??
+              (xhr.status === 413
+                ? { code: 'invalid_payload', reason: 'file_too_large', message: xhr.statusText }
+                : { code: 'unknown', message: xhr.statusText })))
         }
         xhr.onerror = () => reject(new ApiError(0, { code: 'network_error', message: 'Network error' }))
         xhr.onabort = () => reject(new ApiError(0, { code: 'network_error', message: 'Upload cancelled' }))

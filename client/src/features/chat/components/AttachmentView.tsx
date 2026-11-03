@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { chatApi } from '../chatApi'
 import { describeChatError } from '../errors'
-import { formatBytes } from '../uploads'
+import { fileKind, formatBytes, type FileKind } from '../uploads'
 import type { Attachment } from '../types'
 
 /**
@@ -25,6 +25,16 @@ function useBlobUrl(attachment: Attachment, enabled: boolean) {
     return () => URL.revokeObjectURL(objectUrl)
   }, [blob.data])
   return { url, error: blob.error, isPending: enabled && blob.isPending }
+}
+
+const FILE_ICONS: Record<FileKind, string> = {
+  image: '🖼️',
+  pdf: '📕',
+  word: '📘',
+  excel: '📗',
+  powerpoint: '📙',
+  archive: '🗜️',
+  text: '📄',
 }
 
 async function download(attachment: Attachment) {
@@ -61,7 +71,7 @@ export function AttachmentView({ attachment, pending }: { attachment: Attachment
         )
       )}
       <button type="button" className="attachment-file" onClick={onDownload} disabled={pending}>
-        <span aria-hidden="true">{isImage ? '🖼️' : '📄'}</span>
+        <span aria-hidden="true">{FILE_ICONS[fileKind(attachment.filename, attachment.mediaType)]}</span>
         <span className="attachment-name">{attachment.filename}</span>
         <span className="attachment-size">{formatBytes(attachment.size)}</span>
         <span className="sr-only">Tải xuống</span>

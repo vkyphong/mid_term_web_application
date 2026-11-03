@@ -31,6 +31,7 @@ interface StoredRoom {
   description: string | null
   members: string[]
   lastMessageAt: string | null
+  archived?: boolean
 }
 
 interface StoredReceipts {
@@ -59,7 +60,19 @@ interface Store {
 /** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho 5 MiB). */
 const uploadBlobs = new Map<string, Blob>()
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
-const UPLOAD_TYPES = ['image/jpeg', 'image/png', 'application/pdf']
+/** Đuôi file BE chấp nhận → MIME (BE tự xác định MIME, không tin trình duyệt). */
+const UPLOAD_TYPES: Record<string, string> = {
+  '.jpg': 'image/jpeg',
+  '.jpeg': 'image/jpeg',
+  '.png': 'image/png',
+  '.pdf': 'application/pdf',
+  '.txt': 'text/plain',
+  '.csv': 'text/csv',
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  '.zip': 'application/zip',
+}
 
 /** Gói event gửi qua BroadcastChannel; `to` = chỉ giao cho đúng user đó (thông báo). */
 interface Envelope {
@@ -114,6 +127,7 @@ function toRoom(room: StoredRoom, userId: string): Room {
     joined: room.members.includes(userId),
     peer,
     lastMessageAt: room.lastMessageAt,
+    archived: Boolean(room.archived),
   }
 }
 
@@ -125,6 +139,11 @@ function findRoom(store: Store, roomId: string): StoredRoom {
 
 function requireMember(room: StoredRoom, userId: string) {
   if (!room.members.includes(userId)) throw new ApiError(403, { code: 'forbidden', message: 'Not a member' })
+}
+
+/** Group lưu trữ chặn gửi tin, join, thêm thành viên, upload (như BE). */
+function requireWritable(room: StoredRoom) {
+  if (room.archived) throw new ApiError(409, { code: 'invalid_payload', reason: 'room_archived', message: 'Room is archived' })
 }
 
 /** Gắn số đếm receipts (như BE) vào tin. */
@@ -301,7 +320,24 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       const room = findRoom(load(), roomId)
       requireMember(room, user.id)
       const users = listMockUsers()
-      return room.members.map((id) => users.find((u) => u.id === id)).filter((u): u is UserSummary => Boolean(u))
+      return room.members
+        .map((id) => users.find((u) => u.id === id))
+        .filter((u): u is UserSummary => Boolean(u))
+        .map((u) => ({ ...u, enabled: true }))
+    },
+
+    async addMember(roomId, userId) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      requireMember(room, user.id)
+      if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
+      requireWritable(room)
+      if (!listMockUsers().some((u) => u.id === userId)) throw invalid('userId', 'Người dùng không tồn tại')
+      if (!room.members.includes(userId)) room.members.push(userId)
+      save(store)
+      return toRoom(room, user.id)
     },
 
     async listNotifications(before) {
@@ -334,18 +370,21 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     async uploadFile(roomId, file, onProgress) {
       const user = currentUser()
       const store = load()
-      requireMember(findRoom(store, roomId), user.id)
+      const room = findRoom(store, roomId)
+      requireMember(room, user.id)
+      requireWritable(room)
       if (file.size < 1 || file.size > MAX_UPLOAD_BYTES) throw invalid('file', 'File must contain 1–5242880 bytes')
-      if (!UPLOAD_TYPES.includes(file.type)) throw invalid('file', 'Only JPEG, PNG and PDF signatures are accepted')
+      const mediaType = UPLOAD_TYPES[file.name.slice(file.name.lastIndexOf('.')).toLowerCase()]
+      if (!mediaType) throw invalid('file', 'Unsupported file type')
       for (const step of [0.25, 0.5, 0.75, 1]) {
         await delay(80)
         onProgress?.(step)
       }
       const id = uuid()
       uploadBlobs.set(id, file)
-      ;(store.uploads ??= {})[id] = { roomId, ownerId: user.id, filename: file.name, mediaType: file.type, size: file.size, messageId: null }
+      ;(store.uploads ??= {})[id] = { roomId, ownerId: user.id, filename: file.name, mediaType, size: file.size, messageId: null }
       save(store)
-      return { id, roomId, filename: file.name, mediaType: file.type, size: file.size, url: `/api/uploads/${id}` }
+      return { id, roomId, filename: file.name, mediaType, size: file.size, url: `/api/uploads/${id}` }
     },
 
     async downloadFile(url) {
@@ -427,6 +466,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
 
       if (type === 'room:join' || type === 'room:leave') {
         if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
+        if (type === 'room:join') requireWritable(room)
         room.members =
           type === 'room:join'
             ? [...new Set([...room.members, user.id])]
@@ -440,6 +480,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string
       }
       requireMember(room, user.id)
+      requireWritable(room)
       const text = content.trim()
       if ((!text && !uploadId) || utf8Bytes(text) > 2048) throw invalid('content', 'Nội dung cần 1–2048 byte')
       const list = (store.messages[room.id] ??= [])

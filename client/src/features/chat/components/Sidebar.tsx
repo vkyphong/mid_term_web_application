@@ -20,6 +20,7 @@ function RoomLink({ room, online }: { room: Room; online?: boolean }) {
     <NavLink to={`/rooms/${room.id}`} className={({ isActive }) => `room-link${isActive ? ' room-link--active' : ''}`}>
       {room.type === 'dm' ? <Avatar name={room.name} size="sm" online={online ?? false} /> : <span className="room-hash">#</span>}
       <span className="room-link-name">{room.name}</span>
+      {room.archived && <span className="archived-badge archived-badge--sm">Lưu trữ</span>}
     </NavLink>
   )
 }

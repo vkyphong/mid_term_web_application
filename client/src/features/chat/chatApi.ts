@@ -2,7 +2,7 @@ import { config } from '../../config'
 import { authBlob, authRequest, authUpload } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreateRoomInput, MessagePage, NotificationPage, Presence, Room, Upload, UserSummary } from './types'
+import type { CreateRoomInput, MessagePage, NotificationPage, Presence, Room, RoomMember, Upload, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -15,12 +15,14 @@ export interface ChatApi {
   listMessages(roomId: string, before?: string): Promise<MessagePage>
   /** F06: snapshot online/lastSeen của mọi user. */
   getPresence(): Promise<Presence[]>
-  /** F09: thành viên hiện tại của phòng (để chọn @mention). */
-  listMembers(roomId: string): Promise<UserSummary[]>
+  /** F09: thành viên hiện tại của phòng (để chọn @mention), gồm cả tài khoản bị khoá. */
+  listMembers(roomId: string): Promise<RoomMember[]>
+  /** Thêm một nhân viên đang hoạt động vào kênh; thêm lại người đã có vẫn thành công. */
+  addMember(roomId: string, userId: string): Promise<Room>
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
   listNotifications(before?: string): Promise<NotificationPage>
   markNotificationRead(id: string): Promise<void>
-  /** F15: upload một file (JPEG/PNG/PDF ≤ 5 MiB) vào phòng. */
+  /** F15: upload một file (ảnh, PDF, văn bản, Office, ZIP ≤ 5 MiB) vào phòng. */
   uploadFile(roomId: string, file: File, onProgress?: (ratio: number) => void, signal?: AbortSignal): Promise<Upload>
   /** F15: tải file đính kèm (cần đăng nhập và là thành viên phòng). */
   downloadFile(url: string): Promise<Blob>
@@ -41,7 +43,9 @@ export const httpChatApi: ChatApi = {
   },
   getPresence: async () => (await authRequest<{ users: Presence[] }>('/api/presence')).users,
   listMembers: async (roomId) =>
-    (await authRequest<{ members: UserSummary[] }>(`/api/rooms/${encodeURIComponent(roomId)}/members`)).members,
+    (await authRequest<{ members: RoomMember[] }>(`/api/rooms/${encodeURIComponent(roomId)}/members`)).members,
+  addMember: (roomId, userId) =>
+    authRequest(`/api/rooms/${encodeURIComponent(roomId)}/members`, { method: 'POST', body: { userId } }),
   listNotifications: (before) => {
     const params = new URLSearchParams({ limit: '30' })
     if (before) params.set('before', before)

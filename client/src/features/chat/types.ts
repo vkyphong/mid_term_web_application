@@ -6,6 +6,11 @@ export interface UserSummary {
   email: string
 }
 
+/** Thành viên phòng (GET /api/rooms/{id}/members); gồm cả tài khoản bị khoá. */
+export interface RoomMember extends UserSummary {
+  enabled?: boolean
+}
+
 export type RoomType = 'channel' | 'dm'
 
 export interface Room {
@@ -17,6 +22,8 @@ export interface Room {
   joined: boolean
   peer: UserSummary | null
   lastMessageAt: string | null
+  /** Group đã lưu trữ: chỉ đọc lịch sử, không gửi tin / tham gia / thêm thành viên / upload. */
+  archived?: boolean
 }
 
 export interface Message {

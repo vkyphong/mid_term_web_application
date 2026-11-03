@@ -22,6 +22,7 @@ import { describePresence, usePresence } from '../presence'
 import { describeTyping, useTypingSender, useTypingUsers } from '../typing'
 import type { ChatMessage, Room, UserSummary } from '../types'
 import { chatKeys } from '../hooks'
+import { AddMembersDialog } from './AddMembersDialog'
 import { Avatar } from './Avatar'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
@@ -37,9 +38,13 @@ function JoinPrompt({ room }: { room: Room }) {
       {room.description && <p className="muted">{room.description}</p>}
       <p className="muted">{room.memberCount} thành viên · Bạn chưa tham gia kênh này.</p>
       {join.error && <FormAlert>{describeChatError(join.error)}</FormAlert>}
-      <button type="button" className="btn-primary btn-inline" disabled={join.isPending} onClick={() => join.mutate(room.id)}>
-        {join.isPending ? 'Đang tham gia…' : 'Tham gia kênh'}
-      </button>
+      {room.archived ? (
+        <p className="archived-notice">Kênh đã được lưu trữ nên không thể tham gia.</p>
+      ) : (
+        <button type="button" className="btn-primary btn-inline" disabled={join.isPending} onClick={() => join.mutate(room.id)}>
+          {join.isPending ? 'Đang tham gia…' : 'Tham gia kênh'}
+        </button>
+      )}
     </div>
   )
 }
@@ -92,6 +97,8 @@ function ConnectionBanner() {
 
 function Conversation({ room }: { room: Room }) {
   const [panel, setPanel] = useState<'chat' | 'whiteboard'>('chat')
+  const [adding, setAdding] = useState(false)
+  const canAddMembers = room.type === 'channel' && !room.archived
   const { user } = useSession()
   const messages = useMessages(room.id, true)
   const older = useLoadOlder(room.id)
@@ -126,13 +133,21 @@ function Conversation({ room }: { room: Room }) {
           <span className="room-hash room-hash--lg">#</span>
         )}
         <div className="room-title">
-          <h1>{room.name}</h1>
+          <h1>
+            {room.name}
+            {room.archived && <span className="archived-badge">Đã lưu trữ</span>}
+          </h1>
           <p className="muted small">
             {room.type === 'dm'
               ? [describePresence(peerPresence), room.peer?.email].filter(Boolean).join(' · ')
               : [room.description, `${room.memberCount} thành viên`].filter(Boolean).join(' · ')}
           </p>
         </div>
+        {canAddMembers && (
+          <button type="button" className="btn-secondary room-add-members" onClick={() => setAdding(true)}>
+            Thêm thành viên
+          </button>
+        )}
         {room.type === 'channel' && (
           <button type="button" className="btn-secondary" disabled={leave.isPending} onClick={() => leave.mutate(room.id)}>
             {leave.isPending ? 'Đang rời…' : 'Rời kênh'}
@@ -140,6 +155,7 @@ function Conversation({ room }: { room: Room }) {
         )}
       </header>
       {leave.error && <FormAlert>{describeChatError(leave.error)}</FormAlert>}
+      {adding && <AddMembersDialog room={room} onClose={() => setAdding(false)} />}
       <div className="room-tabs" role="tablist" aria-label="Nội dung phòng">
         <button type="button" role="tab" id="room-chat-tab" aria-controls="room-chat-panel" aria-selected={panel === 'chat'} onClick={() => setPanel('chat')}>Trò chuyện</button>
         <button type="button" role="tab" id="room-whiteboard-tab" aria-controls="room-whiteboard-panel" aria-selected={panel === 'whiteboard'} onClick={() => { typing.onSent(); setPanel('whiteboard') }}>Bảng trắng</button>
@@ -163,16 +179,24 @@ function Conversation({ room }: { room: Room }) {
       />
       <TypingIndicator room={room} messages={messages.data} selfId={user?.id} />
       <ConnectionBanner />
-      <Composer
-        roomId={room.id}
-        members={members.data}
-        selfId={user?.id}
-        placeholder={room.type === 'dm' ? `Nhắn cho ${room.name}` : `Nhắn vào #${room.name}`}
-        onSend={onSend}
-        onInput={typing.onInput}
-        // Chỉ khoá khi lịch sử chưa từng tải xong (để chèn bản tạm); tải lại lỗi lúc offline vẫn cho gõ (F10).
-        disabled={messages.data === undefined}
-      />
+      {room.archived ? (
+        <p className="archived-notice composer-archived" role="status">
+          Nhóm đã được lưu trữ. Bạn vẫn xem được lịch sử nhưng không thể gửi tin, gửi tệp hay thêm thành viên.
+        </p>
+      ) : (
+        <Composer
+          roomId={room.id}
+          members={members.data}
+          selfId={user?.id}
+          placeholder={room.type === 'dm' ? `Nhập tin nhắn tới ${room.name}` : `Nhập @, tin nhắn tới #${room.name}`}
+          onSend={onSend}
+          onInput={typing.onInput}
+          allowMentionAll={room.type === 'channel'}
+          onAddMembers={canAddMembers ? () => setAdding(true) : undefined}
+          // Chỉ khoá khi lịch sử chưa từng tải xong (để chèn bản tạm); tải lại lỗi lúc offline vẫn cho gõ (F10).
+          disabled={messages.data === undefined}
+        />
+      )}
       </div>}
     </>
   )

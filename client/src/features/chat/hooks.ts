@@ -64,11 +64,58 @@ export function useRooms() {
   })
 }
 
+/** Thêm lần lượt từng người (API nhận một userId mỗi lần); trả về phòng mới nhất và những người thêm lỗi. */
+async function addMembers(roomId: string, userIds: readonly string[]) {
+  let room: Room | null = null
+  const failed: { userId: string; error: unknown }[] = []
+  for (const userId of userIds) {
+    try {
+      room = await chatApi.addMember(roomId, userId)
+    } catch (error) {
+      failed.push({ userId, error })
+    }
+  }
+  return { room, failed }
+}
+
+export interface CreateGroupInput extends CreateRoomInput {
+  memberIds?: string[]
+}
+
+/** Tạo kênh rồi thêm thành viên đã chọn (giống tạo nhóm Zalo). Lỗi thêm người không huỷ kênh đã tạo. */
 export function useCreateRoom() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (input: CreateRoomInput) => chatApi.createRoom(input),
-    onSuccess: (room) => upsertRoom(queryClient, room),
+    mutationFn: async ({ memberIds = [], ...input }: CreateGroupInput) => {
+      const created = await chatApi.createRoom(input)
+      const { room, failed } = await addMembers(created.id, memberIds)
+      return { room: room ?? created, failed }
+    },
+    onSuccess: ({ room, failed }) => {
+      upsertRoom(queryClient, room)
+      if (failed.length) {
+        pushToast({
+          id: `add-${room.id}`,
+          title: `Chưa thêm được ${failed.length} người vào #${room.name}`,
+          body: describeChatError(failed[0].error),
+          tone: 'error',
+        })
+      }
+    },
+  })
+}
+
+/** Thêm người vào kênh đang mở; thành công một phần vẫn cập nhật số thành viên. */
+export function useAddMembers(roomId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (userIds: string[]) => {
+      const result = await addMembers(roomId, userIds)
+      if (result.room) upsertRoom(queryClient, result.room)
+      if (result.failed.length === userIds.length) throw result.failed[0].error
+      return result
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: chatKeys.members(roomId) }),
   })
 }
 

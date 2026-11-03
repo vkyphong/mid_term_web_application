@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
+import { useDebounced } from '../../../lib/useDebounced'
 import { useNavigate } from 'react-router-dom'
 import { FormAlert } from '../../auth/components/FormAlert'
 import { TextField } from '../../auth/components/TextField'
@@ -6,15 +7,6 @@ import { describeChatError } from '../errors'
 import { useOpenDm, useUserSearch } from '../hooks'
 import { Avatar } from './Avatar'
 import { Modal } from './Modal'
-
-function useDebounced<T>(value: T, ms = 250): T {
-  const [debounced, setDebounced] = useState(value)
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(value), ms)
-    return () => clearTimeout(timer)
-  }, [value, ms])
-  return debounced
-}
 
 export function NewDirectMessageDialog({ onClose }: { onClose: () => void }) {
   const navigate = useNavigate()

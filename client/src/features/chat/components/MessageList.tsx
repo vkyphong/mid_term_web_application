@@ -168,6 +168,7 @@ export function MessageList({
               head={startsGroup(messages[i - 1], m)}
               selfId={currentUserId}
               members={members}
+              mentionAll={roomType === 'channel'}
               receipt={own && !m.status ? describeReceipt(m, roomType) : null}
               showReceipt={m.id === lastOwnId}
               trackSeen={needsReceipt(m, 'seen', currentUserId)}
