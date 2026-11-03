@@ -28,6 +28,18 @@ Response POST dùng model `Room` hiện có, bổ sung `archived: boolean` và `
 
 Để tìm nhân viên trước khi thêm: `GET /api/users?search=<name-or-email>&limit=20` là API tìm kiếm hiện có. Danh sách **thành viên group** ở trên không bị giới hạn bởi tham số `limit` của API tìm nhân viên.
 
+### Tên nhóm, biệt danh, ảnh nhóm
+
+| Method | Endpoint | Body | Thành công | Quyền |
+| --- | --- | --- | --- | --- |
+| PATCH | `/api/rooms/{id}` | `{ "name": "Tên mới" }` | `200 Room` | Thành viên kênh chưa lưu trữ; tên 2–40 ký tự, trùng → 409 `room_name_taken` |
+| PUT | `/api/rooms/{id}/nickname` | `{ "nickname": "Biệt danh" }` | `200 Room` | Thành viên DM; tối đa 40 ký tự, chuỗi rỗng = bỏ biệt danh; kênh → 400 |
+| POST | `/api/rooms/{id}/avatar` | multipart `file` (JPEG/PNG ≤ 2 MiB, kiểm tra chữ ký và decode ảnh) | `200 Room` | Thành viên kênh chưa lưu trữ |
+| DELETE | `/api/rooms/{id}/avatar` | — | `200 Room` | Như trên |
+| GET | `/api/rooms/{id}/avatar` | — | ảnh, `nosniff`, `Content-Security-Policy: sandbox` | Thành viên; chưa có ảnh → 404 |
+
+`Room` bổ sung `nickname` (DM: biệt danh mình đặt cho người kia, khi có thì `name` là biệt danh và tên thật nằm ở `peer.displayName`; người kia không thấy), `avatarUrl` (kênh có ảnh: `/api/rooms/{id}/avatar?v=<thời điểm đổi>`, ngược lại `null`) và `previewMembers` (kênh đã tham gia: tối đa 3 thành viên, người khác trước mình, để ghép avatar mặc định). Đổi tên hoặc ảnh nhóm gửi `room:updated` tới mọi thành viên trên `/user/queue/events`, mỗi người nhận `Room` nhìn từ phía mình; đổi biệt danh chỉ gửi cho chính người đặt. Ảnh nhóm lưu trong thư mục upload, mục `room-avatars/<room-id>`; Flyway V8 thêm `rooms.avatar_media_type`, `rooms.avatar_updated_at` và bảng `room_nicknames`.
+
 ## 2. Gửi file
 
 Luồng gửi vẫn dùng upload HTTP trước, sau đó gửi tin bằng STOMP:
