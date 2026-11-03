@@ -32,15 +32,21 @@ public class ChatService {
             (rs, n) -> rs.getString(1), user).stream().map(id -> room(id, user)).toList();
     }
     public Room createRoom(String user, CreateRoom input) {
-        String name = input == null || input.name() == null ? "" : input.name().trim();
-        if (name.length() < 2 || name.length() > 40) throw field("name", "Channel name must contain 2–40 characters");
-        String description = input.description() == null ? null : input.description().trim();
-        if (description != null && description.length() > 200) throw field("description", "Description must contain at most 200 characters");
+        input = validateRoom(input);
+        String name = input.name();
+        String description = input.description();
         String id = UUID.randomUUID().toString();
         // The unique index arbitrates concurrent requests; the controller maps duplicate keys.
         db.update("INSERT INTO rooms(id,type,name,name_key,description) VALUES (?,'channel',?,?,?)", id, name, name.toLowerCase(Locale.ROOT), description);
         db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", id, user);
         return room(id, user);
+    }
+    public static CreateRoom validateRoom(CreateRoom input) {
+        String name = input == null || input.name() == null ? "" : input.name().trim();
+        if (name.length() < 2 || name.length() > 40) throw field("name", "Channel name must contain 2–40 characters");
+        String description = input.description() == null ? null : input.description().trim();
+        if (description != null && description.length() > 200) throw field("description", "Description must contain at most 200 characters");
+        return new CreateRoom(name, description);
     }
     @Transactional(readOnly = true)
     public List<UserSummary> searchUsers(String user, String search, int limit) {
@@ -74,6 +80,7 @@ public class ChatService {
         db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockRoom(id);
         requireChannel(id);
+        requireWritable(id);
         if (!member(id, user)) db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", id, user);
         return room(id, user);
     }
@@ -89,6 +96,7 @@ public class ChatService {
     public Delivery send(String room, String user, String content, String clientMsgId, String uploadId, List<String> mentions) {
         db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockRoom(room); requireMember(room, user);
+        requireWritable(room);
         if (content == null || (content.trim().isEmpty() && uploadId == null) || content.trim().getBytes(StandardCharsets.UTF_8).length > 2048)
             throw field("content", "Message must contain 1–2048 UTF-8 bytes");
         if (clientMsgId == null || !clientMsgId.matches("[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}"))
@@ -152,12 +160,35 @@ public class ChatService {
     private boolean member(String room, String user) {
         return db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=? AND user_id=?", Integer.class, room, user) > 0;
     }
-    /** Current members of a room, for choosing mention targets (F09). Requires membership. */
+    /** Includes disabled accounts so the list agrees with memberCount. Requires membership. */
     @Transactional(readOnly = true)
-    public List<UserSummary> members(String room, String user) {
+    public List<RoomMember> members(String room, String user) {
         room(room, user); requireMember(room, user);
-        return db.query("SELECT u.id,u.display_name,u.email FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? AND u.enabled=true ORDER BY u.display_name,u.id",
-            (rs, n) -> new UserSummary(rs.getString(1), rs.getString(2), rs.getString(3)), room);
+        return memberList(room);
+    }
+    public List<RoomMember> memberList(String room) {
+        return db.query("SELECT u.id,u.display_name,u.email,u.enabled FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? ORDER BY u.display_name,u.id",
+            (rs, n) -> new RoomMember(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBoolean(4)), room);
+    }
+    public Room addMember(String room, String actor, AddMember input) {
+        String target = input == null ? null : input.userId();
+        lockEnabledUser(target);
+        requireChannel(room); requireMember(room, actor); requireWritable(room);
+        insertMember(room, target);
+        return room(room, actor);
+    }
+    public void lockEnabledUser(String user) {
+        if (user == null || user.isBlank() || user.length() > 36) throw field("userId", "Employee ID required");
+        var users = db.query("SELECT enabled FROM users WHERE id=? FOR UPDATE", (rs, n) -> rs.getBoolean(1), user);
+        if (users.isEmpty() || !users.getFirst()) throw field("userId", "Enabled employee not found");
+    }
+    public void insertMember(String room, String user) {
+        if (!member(room, user)) db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", room, user);
+    }
+    public void requireWritable(String room) {
+        var archived = db.query("SELECT archived FROM rooms WHERE id=?", (rs, n) -> rs.getBoolean(1), room);
+        if (archived.isEmpty()) throw notFound();
+        if (archived.getFirst()) throw new ApiException(409, "invalid_payload", "room_archived", "Group is archived");
     }
     public void requireMember(String room, String user) { if (!member(room, user)) throw forbidden(); }
     public List<String> recipients(String room) { return db.query("SELECT user_id FROM room_members WHERE room_id=?",(rs,n)->rs.getString(1),room); }
@@ -185,7 +216,7 @@ public class ChatService {
                     (row, i) -> new UserSummary(row.getString(1), row.getString(2), row.getString(3)), id, user);
             }
             return new Room(id, type, peer == null ? rs.getString("name") : peer.displayName(), rs.getString("description"),
-                db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"));
+                db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"), rs.getBoolean("archived"));
         }, id);
         if (rooms.isEmpty()) throw notFound(); return rooms.getFirst();
     }

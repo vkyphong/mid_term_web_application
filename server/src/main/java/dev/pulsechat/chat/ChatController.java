@@ -35,6 +35,10 @@ public class ChatController {
     public Object members(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
         return Map.of("members", chat.members(id, user.userId()));
     }
+    @PostMapping("/rooms/{id}/members")
+    public Room addMember(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody AddMember input) {
+        return chat.addMember(id, user.userId(), input);
+    }
     @GetMapping("/rooms/{id}/messages")
     public MessagePage messages(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id,
                                @RequestParam(defaultValue = "30") int limit, @RequestParam(required = false) String before) {

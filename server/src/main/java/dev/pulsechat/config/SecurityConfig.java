@@ -35,11 +35,11 @@ public class SecurityConfig {
             .addFilterBefore(new ApiSecurityFilter(auth, properties, mapper), UsernamePasswordAuthenticationFilter.class)
             .build();
     }
-    @Bean CorsConfigurationSource cors(AppProperties properties) {
+    @Bean CorsConfigurationSource corsConfigurationSource(AppProperties properties) {
         var source = new UrlBasedCorsConfigurationSource();
         var configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(properties.allowedOrigins());
-        configuration.setAllowedMethods(List.of("GET", "POST", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Content-Type", "Authorization"));
         configuration.setAllowCredentials(true);
         source.registerCorsConfiguration("/api/**", configuration); return source;
