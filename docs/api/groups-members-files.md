@@ -24,7 +24,7 @@ GET trả **toàn bộ** thành viên, bao gồm tài khoản bị khóa với `
 
 POST chỉ thêm tài khoản tồn tại và đang hoạt động. Gửi lại cùng người đã có trong kênh thành công và không tăng số thành viên. Các request thêm đồng thời được serialize bằng khóa user/room và ràng buộc khóa chính `(room_id, user_id)`. Mọi thành viên hiện tại được phép thêm người; hệ thống chưa có vai trò chủ group/moderator riêng. Không thể thêm người thứ ba vào DM.
 
-Response POST dùng model `Room` hiện có, bổ sung `archived: boolean`. GET `/api/rooms` cũng bổ sung trường này cho mọi room; DM có `archived: false`. Sau khi thay đổi thành viên, frontend gọi lại danh sách room và thành viên để cập nhật cache. Những API mới này không phát một loại STOMP event thành viên mới.
+Response POST dùng model `Room` hiện có, bổ sung `archived: boolean`. GET `/api/rooms` cũng bổ sung trường này cho mọi room; DM có `archived: false`. Sau khi thay đổi thành viên, frontend gọi lại danh sách room và thành viên để cập nhật cache. Khi một người **thực sự mới** được thêm (qua API này hoặc API admin), sau khi transaction commit backend gửi cho riêng người đó event `room:added` trên `/user/queue/events`, payload là `Room` nhìn từ phía người được thêm (`joined: true`). Frontend dùng event này để hiện nhóm trong danh sách ngay và báo *Bạn đã được thêm vào nhóm*, không cần tải lại trang. Thêm lại người đã có trong nhóm không phát event.
 
 Để tìm nhân viên trước khi thêm: `GET /api/users?search=<name-or-email>&limit=20` là API tìm kiếm hiện có. Danh sách **thành viên group** ở trên không bị giới hạn bởi tham số `limit` của API tìm nhân viên.
 

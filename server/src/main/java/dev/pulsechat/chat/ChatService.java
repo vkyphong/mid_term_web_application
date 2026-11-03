@@ -19,7 +19,10 @@ import static dev.pulsechat.chat.ChatDtos.*;
 public class ChatService {
     private final JdbcTemplate db;
     private final dev.pulsechat.notification.NotificationService notifications;
-    public ChatService(JdbcTemplate db, dev.pulsechat.notification.NotificationService notifications) { this.db = db; this.notifications = notifications; }
+    private final dev.pulsechat.realtime.RealtimeEvents events;
+    public ChatService(JdbcTemplate db, dev.pulsechat.notification.NotificationService notifications, dev.pulsechat.realtime.RealtimeEvents events) {
+        this.db = db; this.notifications = notifications; this.events = events;
+    }
     private static final String MESSAGE_SELECT = "SELECT m.*, u.display_name FROM messages m JOIN users u ON u.id=m.sender_id ";
     private final RowMapper<Message> MESSAGE = (rs, n) -> new Message(rs.getString("id"), rs.getString("room_id"),
         rs.getString("client_msg_id"), new Sender(rs.getString("sender_id"), rs.getString("display_name")),
@@ -183,7 +186,10 @@ public class ChatService {
         if (users.isEmpty() || !users.getFirst()) throw field("userId", "Enabled employee not found");
     }
     public void insertMember(String room, String user) {
-        if (!member(room, user)) db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", room, user);
+        if (member(room, user)) return;
+        db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", room, user);
+        // Người được thêm thấy nhóm ngay, không cần tải lại (gửi sau khi transaction commit).
+        events.send(List.of(user), "/queue/events", "room:added", room(room, user));
     }
     public void requireWritable(String room) {
         var archived = db.query("SELECT archived FROM rooms WHERE id=?", (rs, n) -> rs.getBoolean(1), room);

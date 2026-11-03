@@ -90,6 +90,9 @@ test('tạo nhóm kèm thành viên, @All báo cả nhóm, thêm người từ t
   const [alice, bob, carol, dan] = await Promise.all(['alice', 'bob', 'carol', 'dan'].map((l) => account(browser, l)))
   try {
     const a = await open(alice, '/')
+    // Bob, Carol, Dan mở app sẵn từ trước: nhóm phải tự hiện khi họ được thêm, không cần tải lại.
+    const [bobHome, carolHome, danHome] = await Promise.all([open(bob, '/'), open(carol, '/'), open(dan, '/')])
+    const sidebarLink = (page: Page) => page.getByRole('navigation', { name: 'Danh sách phòng' }).getByRole('link', { name })
     const name = `Nhóm ${crypto.randomUUID().slice(0, 6)}`
 
     // Tạo kênh và chọn sẵn Bob, Carol như tạo nhóm trên Zalo.
@@ -108,8 +111,11 @@ test('tạo nhóm kèm thành viên, @All báo cả nhóm, thêm người từ t
     // Bob đã ở trong nhóm, không cần bấm tham gia.
     const bobRooms = await bob.context.request.get('/api/rooms', { headers: auth(bob) })
     expect((await bobRooms.json()).rooms.find((r: { id: string }) => r.id === roomId)).toMatchObject({ joined: true, memberCount: 3 })
-    const bobHome = await open(bob, '/')
-    const carolHome = await open(carol, '/')
+    for (const page of [bobHome, carolHome]) {
+      await expect(sidebarLink(page)).toBeVisible()
+      await expect(page.locator('.toast', { hasText: 'Bạn đã được thêm vào nhóm' })).toContainText(`#${name}`)
+    }
+    await expect(sidebarLink(danHome)).toHaveCount(0)
 
     // Nút @ trên thanh công cụ → @All đứng đầu → gửi: mọi thành viên khác nhận thông báo.
     await expect(box(a)).toBeEnabled()
@@ -142,8 +148,11 @@ test('tạo nhóm kèm thành viên, @All báo cả nhóm, thêm người từ t
     await expect(add).toHaveCount(0)
     await expect(a.locator('.room-title p')).toHaveText('4 thành viên')
 
-    // Dan mở phòng thấy lịch sử và nhận 👍 gửi nhanh realtime.
-    const d = await open(dan, `/rooms/${roomId}`)
+    // Dan thấy nhóm ngay; bấm thông báo mở nhóm, thấy lịch sử và nhận 👍 gửi nhanh realtime.
+    await expect(sidebarLink(danHome)).toBeVisible()
+    await danHome.locator('.toast', { hasText: 'Bạn đã được thêm vào nhóm' }).getByRole('button').first().click()
+    const d = danHome
+    await expect(d).toHaveURL(new RegExp(`/rooms/${roomId}$`))
     await expect(bubble(d, 'Họp lúc 9h')).toBeVisible()
     await a.getByRole('button', { name: 'Gửi nhanh 👍' }).click()
     await expect(d.locator('.message-list .message-content', { hasText: /^👍$/ })).toBeVisible()

@@ -271,6 +271,22 @@ describe('tin nhắn', () => {
   })
 })
 
+describe('được thêm vào nhóm', () => {
+  it('room:added: nhóm hiện ngay trong danh sách kèm thông báo, bấm thông báo mở nhóm', async () => {
+    const user = userEvent.setup()
+    renderChat()
+    const nav = screen.getByRole('navigation', { name: 'Danh sách phòng' })
+    expect(await within(nav).findByRole('link', { name: /Engineering/ })).toBeInTheDocument()
+    const added = channel('r-added', 'Dự án Gamma', true, { memberCount: 3 })
+
+    act(() => emit({ type: 'room:added', payload: added, ts: '' }))
+    expect(await within(nav).findByRole('link', { name: /Dự án Gamma/ })).toBeInTheDocument()
+    expect(api.listRooms).toHaveBeenCalledTimes(1) // không cần tải lại danh sách
+    await user.click(screen.getByRole('button', { name: /Bạn đã được thêm vào nhóm/ }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dự án Gamma' })).toBeInTheDocument()
+  })
+})
+
 describe('số tin chưa đọc', () => {
   it('tin đến phòng khác hiện vòng tròn đỏ có số, từ 5 tin là "5+", mở phòng thì mất', async () => {
     const user = userEvent.setup()

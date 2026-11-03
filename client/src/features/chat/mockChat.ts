@@ -335,8 +335,10 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
       requireWritable(room)
       if (!listMockUsers().some((u) => u.id === userId)) throw invalid('userId', 'Người dùng không tồn tại')
-      if (!room.members.includes(userId)) room.members.push(userId)
+      const added = !room.members.includes(userId)
+      if (added) room.members.push(userId)
       save(store)
+      if (added) emit({ type: 'room:added', payload: toRoom(room, userId), ts: new Date().toISOString() }, userId)
       return toRoom(room, user.id)
     },
 

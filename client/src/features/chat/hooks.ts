@@ -351,6 +351,16 @@ export function useChatEvents() {
         }
         case 'notification:read':
           return applyNotificationRead(queryClient, event.payload.id)
+        case 'room:added': {
+          const room = event.payload
+          const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.find((r) => r.id === room.id)
+          upsertRoom(queryClient, room)
+          void queryClient.invalidateQueries({ queryKey: chatKeys.members(room.id) })
+          if (!known?.joined) {
+            pushToast({ id: `added-${room.id}`, title: 'Bạn đã được thêm vào nhóm', body: `#${room.name}`, roomId: room.id })
+          }
+          return
+        }
       }
       const message: Message = event.payload
       const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.some((r) => r.id === message.roomId)

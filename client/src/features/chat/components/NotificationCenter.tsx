@@ -103,9 +103,11 @@ export function NotificationBell() {
 export function ToastHost() {
   const toasts = useToasts()
   const open = useOpenNotification()
+  const navigate = useNavigate()
   const click = (t: Toast) => {
     dismissToast(t.id)
     if (t.notificationId) void open({ id: t.notificationId, roomId: t.roomId, readAt: null })
+    else if (t.roomId) navigate(`/rooms/${t.roomId}`)
   }
   return (
     <div className="toast-host" aria-live="polite">
