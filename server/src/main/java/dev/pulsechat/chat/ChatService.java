@@ -191,6 +191,45 @@ public class ChatService {
         // Người được thêm thấy nhóm ngay, không cần tải lại (gửi sau khi transaction commit).
         events.send(List.of(user), "/queue/events", "room:added", room(room, user));
     }
+    /** Đổi tên / ảnh nhóm: thành viên của kênh đang mở (chưa lưu trữ). */
+    public void requireGroupEditor(String room, String user) {
+        requireChannel(room); requireMember(room, user); requireWritable(room);
+    }
+    public Room renameRoom(String room, String actor, RenameRoom input) {
+        String name = validateRoom(new CreateRoom(input == null ? null : input.name(), null)).name();
+        requireGroupEditor(room, actor);
+        db.update("UPDATE rooms SET name=?, name_key=? WHERE id=?", name, name.toLowerCase(Locale.ROOT), room);
+        broadcastRoom(room);
+        return room(room, actor);
+    }
+    /** Biệt danh cho người còn lại trong DM; chuỗi rỗng = bỏ biệt danh. Chỉ người đặt thấy. */
+    public Room setNickname(String room, String actor, SetNickname input) {
+        requireMember(room, actor);
+        if (!"dm".equals(lockRoom(room))) throw field("nickname", "Nicknames are only available in direct messages");
+        String nickname = input == null || input.nickname() == null ? "" : input.nickname().trim();
+        if (nickname.length() > 40 || nickname.codePoints().anyMatch(Character::isISOControl)) throw field("nickname", "Nickname must contain at most 40 characters");
+        db.update("DELETE FROM room_nicknames WHERE room_id=? AND user_id=?", room, actor);
+        if (!nickname.isEmpty()) db.update("INSERT INTO room_nicknames(room_id,user_id,nickname) VALUES (?,?,?)", room, actor, nickname);
+        Room updated = room(room, actor);
+        events.send(List.of(actor), "/queue/events", "room:updated", updated);
+        return updated;
+    }
+    /** Ghi nhận ảnh nhóm mới (null = xoá); file do controller lưu. */
+    public Room setAvatar(String room, String actor, String mediaType) {
+        db.update("UPDATE rooms SET avatar_media_type=?, avatar_updated_at=? WHERE id=?", mediaType,
+            mediaType == null ? null : Timestamp.from(Instant.now()), room);
+        broadcastRoom(room);
+        return room(room, actor);
+    }
+    public String avatarType(String room, String user) {
+        requireMember(room, user);
+        return db.query("SELECT avatar_media_type FROM rooms WHERE id=? AND type='channel'", (rs, n) -> rs.getString(1), room)
+            .stream().filter(Objects::nonNull).findFirst().orElseThrow(ChatService::notFound);
+    }
+    /** Mỗi thành viên nhận Room nhìn từ phía mình (tên, số chưa đọc...). */
+    private void broadcastRoom(String room) {
+        for (String member : recipients(room)) events.send(List.of(member), "/queue/events", "room:updated", room(room, member));
+    }
     public void requireWritable(String room) {
         var archived = db.query("SELECT archived FROM rooms WHERE id=?", (rs, n) -> rs.getBoolean(1), room);
         if (archived.isEmpty()) throw notFound();
@@ -216,14 +255,26 @@ public class ChatService {
         var rooms = db.query("SELECT * FROM rooms WHERE id=?", (rs, n) -> {
             boolean joined = member(id, user); String type = rs.getString("type");
             UserSummary peer = null;
+            String nickname = null;
+            List<UserSummary> preview = List.of();
             if (type.equals("dm")) {
                 if (!joined) throw forbidden();
                 peer = db.queryForObject("SELECT u.id,u.display_name,u.email FROM users u JOIN room_members m ON u.id=m.user_id WHERE m.room_id=? AND u.id<>?",
                     (row, i) -> new UserSummary(row.getString(1), row.getString(2), row.getString(3)), id, user);
+                nickname = db.query("SELECT nickname FROM room_nicknames WHERE room_id=? AND user_id=?", (row, i) -> row.getString(1), id, user)
+                    .stream().findFirst().orElse(null);
+            } else if (joined) {
+                // Avatar mặc định của nhóm: tối đa 3 thành viên, ưu tiên người khác trước mình.
+                preview = db.query("SELECT u.id,u.display_name,u.email FROM users u JOIN room_members m ON u.id=m.user_id WHERE m.room_id=? "
+                    + "ORDER BY CASE WHEN u.id=? THEN 1 ELSE 0 END, u.display_name, u.id LIMIT 3",
+                    (row, i) -> new UserSummary(row.getString(1), row.getString(2), row.getString(3)), id, user);
             }
-            return new Room(id, type, peer == null ? rs.getString("name") : peer.displayName(), rs.getString("description"),
+            Instant avatarAt = instant(rs, "avatar_updated_at");
+            String avatarUrl = type.equals("channel") && avatarAt != null ? "/api/rooms/" + id + "/avatar?v=" + avatarAt.toEpochMilli() : null;
+            String displayName = peer == null ? rs.getString("name") : nickname != null ? nickname : peer.displayName();
+            return new Room(id, type, displayName, rs.getString("description"),
                 db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"), rs.getBoolean("archived"),
-                joined ? unreadCount(id, user) : 0);
+                joined ? unreadCount(id, user) : 0, nickname, avatarUrl, preview);
         }, id);
         if (rooms.isEmpty()) throw notFound(); return rooms.getFirst();
     }

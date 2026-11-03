@@ -13,6 +13,7 @@ vi.mock('./chatApi', () => ({
   chatApi: {
     listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn(),
     listMembers: vi.fn(), addMember: vi.fn(), listNotifications: vi.fn(),
+    renameRoom: vi.fn(), setNickname: vi.fn(), uploadRoomAvatar: vi.fn(), removeRoomAvatar: vi.fn(), downloadFile: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -269,6 +270,92 @@ describe('tin nhắn', () => {
     await user.type(box, 'dòng 1{Shift>}{Enter}{/Shift}dòng 2')
     expect(transport.request).not.toHaveBeenCalled()
     expect(box).toHaveValue('   dòng 1\ndòng 2')
+  })
+})
+
+describe('tên nhóm, biệt danh, ảnh nhóm', () => {
+  const an = { id: 'u3', email: 'an@dqgm.dev', displayName: 'Nguyễn An' }
+
+  it('avatar nhóm mặc định ghép 2–3 thành viên thay cho dấu #', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, previewMembers: [phong, an, me] }, dm])
+    const { container } = renderChat(`/rooms/${eng.id}`)
+    const nav = screen.getByRole('navigation', { name: 'Danh sách phòng' })
+    const link = await within(nav).findByRole('link', { name: /Engineering/ })
+    expect(link.querySelectorAll('.group-avatar--n3 .avatar')).toHaveLength(3)
+    expect([...link.querySelectorAll('.group-avatar .avatar')].map((a) => a.textContent)).toEqual(['PH', 'NA', 'TĐ'])
+    expect(container.querySelector('.room-hash')).toBeNull()
+  })
+
+  it('thành viên đổi tên nhóm; báo tên trùng; room:updated cập nhật tên cho người khác', async () => {
+    api.renameRoom
+      .mockRejectedValueOnce(new ApiError(409, { code: 'invalid_payload', reason: 'room_name_taken' }))
+      .mockResolvedValueOnce({ ...eng, name: 'Kỹ thuật' })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: 'Đổi tên nhóm' }))
+    const dialog = screen.getByRole('dialog', { name: 'Đổi tên nhóm' })
+    await user.clear(within(dialog).getByLabelText('Tên nhóm'))
+    await user.type(within(dialog).getByLabelText('Tên nhóm'), 'HR')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu' }))
+    expect(await within(dialog).findByText('Tên kênh đã tồn tại.')).toBeInTheDocument()
+
+    await user.clear(within(dialog).getByLabelText('Tên nhóm'))
+    await user.type(within(dialog).getByLabelText('Tên nhóm'), 'Kỹ thuật')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Kỹ thuật' })).toBeInTheDocument()
+    expect(api.renameRoom).toHaveBeenLastCalledWith(eng.id, 'Kỹ thuật')
+
+    act(() => emit({ type: 'room:updated', payload: { ...eng, name: 'Kỹ thuật 2' }, ts: '' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Kỹ thuật 2' })).toBeInTheDocument()
+  })
+
+  it('tin nhắn riêng: đặt biệt danh, hiện tên thật bên dưới, xoá biệt danh', async () => {
+    api.setNickname.mockResolvedValueOnce({ ...dm, name: 'Anh Phong', nickname: 'Anh Phong' }).mockResolvedValueOnce(dm)
+    const user = userEvent.setup()
+    renderChat(`/rooms/${dm.id}`)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Phong' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Đổi tên nhóm' })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Đổi biệt danh' }))
+    const dialog = screen.getByRole('dialog', { name: 'Đổi biệt danh' })
+    expect(within(dialog).getByText('Biệt danh của Phong chỉ hiện với bạn.')).toBeInTheDocument()
+    await user.type(within(dialog).getByLabelText('Biệt danh'), '  Anh Phong ')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu' }))
+    expect(api.setNickname).toHaveBeenLastCalledWith(dm.id, 'Anh Phong')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Anh Phong' })).toBeInTheDocument()
+    expect(screen.getByText(/Tên thật: Phong/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Đổi biệt danh' }))
+    await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Xoá biệt danh' }))
+    expect(api.setNickname).toHaveBeenLastCalledWith(dm.id, '')
+    expect(await screen.findByRole('heading', { level: 1, name: 'Phong' })).toBeInTheDocument()
+  })
+
+  it('đổi ảnh nhóm: chặn file không phải ảnh, tải ảnh lên và hiện ảnh thay avatar ghép', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, previewMembers: [phong, me] }])
+    api.uploadRoomAvatar.mockResolvedValueOnce({ ...eng, previewMembers: [phong, me], avatarUrl: '/api/rooms/r-eng/avatar?v=1' })
+    api.downloadFile.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+    const user = userEvent.setup({ applyAccept: false })
+    const { container } = renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: 'Đổi ảnh nhóm' }))
+    const dialog = screen.getByRole('dialog', { name: 'Ảnh nhóm' })
+    await user.upload(within(dialog).getByTestId('group-avatar-input'), new File(['x'], 'a.pdf'))
+    expect(within(dialog).getByText('Chỉ dùng được ảnh JPG hoặc PNG.')).toBeInTheDocument()
+    expect(api.uploadRoomAvatar).not.toHaveBeenCalled()
+
+    const file = new File(['png'], 'nhom.png', { type: 'image/png' })
+    await user.upload(within(dialog).getByTestId('group-avatar-input'), file)
+    expect(api.uploadRoomAvatar).toHaveBeenCalledWith(eng.id, file)
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    await waitFor(() => expect(container.querySelector('.room-header .group-avatar-image')).not.toBeNull())
+    expect(api.downloadFile).toHaveBeenCalledWith('/api/rooms/r-eng/avatar?v=1')
+  })
+
+  it('kênh lưu trữ: không đổi tên / ảnh được', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, archived: true }])
+    renderChat(`/rooms/${eng.id}`)
+    expect(await screen.findByText('Đã lưu trữ')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Đổi tên nhóm' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Đổi ảnh nhóm' })).not.toBeInTheDocument()
   })
 })
 

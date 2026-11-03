@@ -107,6 +107,17 @@ export function useCreateRoom() {
   })
 }
 
+/** Đổi tên nhóm / biệt danh / ảnh nhóm: kết quả là Room mới, ghi thẳng vào cache. */
+function useRoomUpdate<T>(run: (input: T) => Promise<Room>) {
+  const queryClient = useQueryClient()
+  return useMutation({ mutationFn: run, onSuccess: (room) => upsertRoom(queryClient, withViewed([room])[0]) })
+}
+
+export const useRenameRoom = (roomId: string) => useRoomUpdate((name: string) => chatApi.renameRoom(roomId, name))
+export const useSetNickname = (roomId: string) => useRoomUpdate((nickname: string) => chatApi.setNickname(roomId, nickname))
+export const useUploadRoomAvatar = (roomId: string) => useRoomUpdate((file: File) => chatApi.uploadRoomAvatar(roomId, file))
+export const useRemoveRoomAvatar = (roomId: string) => useRoomUpdate(() => chatApi.removeRoomAvatar(roomId))
+
 /** Thêm người vào kênh đang mở; thành công một phần vẫn cập nhật số thành viên. */
 export function useAddMembers(roomId: string) {
   const queryClient = useQueryClient()
@@ -352,6 +363,9 @@ export function useChatEvents() {
         }
         case 'notification:read':
           return applyNotificationRead(queryClient, event.payload.id)
+        case 'room:updated':
+          upsertRoom(queryClient, withViewed([event.payload])[0])
+          return
         case 'room:added': {
           const room = event.payload
           const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.find((r) => r.id === room.id)

@@ -65,6 +65,74 @@ class GroupManagementIntegrationTest {
         return mapper.readTree(result.getResponse().getContentAsString());
     }
 
+    private static byte[] png() throws Exception {
+        var out = new ByteArrayOutputStream();
+        javax.imageio.ImageIO.write(new java.awt.image.BufferedImage(4, 4, java.awt.image.BufferedImage.TYPE_INT_RGB), "png", out);
+        return out.toByteArray();
+    }
+    private JsonNode avatar(String room, Account actor, String name, byte[] bytes, int status) throws Exception {
+        var result = mvc.perform(multipart("/api/rooms/" + room + "/avatar").file(new MockMultipartFile("file", name, "application/octet-stream", bytes))
+            .header("Authorization", "Bearer " + actor.token())).andExpect(status().is(status)).andReturn();
+        return mapper.readTree(result.getResponse().getContentAsString());
+    }
+    private ChatDtos.Room listed(String room, Account actor) {
+        return chat.listRooms(actor.id()).stream().filter(r -> r.id().equals(room)).findFirst().orElseThrow();
+    }
+
+    @Test void membersRenameGroupsButNotDmsOutsidersOrArchivedGroups() throws Exception {
+        String room = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        String renamed = "Đổi tên " + UUID.randomUUID().toString().substring(0, 8);
+        assertThat(call(HttpMethod.PATCH, "/api/rooms/" + room, peer, Map.of("name", "  " + renamed + " "), 200).path("name").asText()).isEqualTo(renamed);
+        assertThat(listed(room, owner).name()).isEqualTo(renamed);
+        call(HttpMethod.PATCH, "/api/rooms/" + room, outsider, Map.of("name", "Người ngoài"), 403);
+        call(HttpMethod.PATCH, "/api/rooms/" + room, owner, Map.of("name", "x"), 400);
+        String other = room();
+        call(HttpMethod.PATCH, "/api/rooms/" + other, owner, Map.of("name", renamed.toUpperCase()), 409);
+        String dm = chat.openDm(owner.id(), new ChatDtos.OpenDm(outsider.id())).id();
+        call(HttpMethod.PATCH, "/api/rooms/" + dm, owner, Map.of("name", "Không được"), 403);
+        post("/api/admin/groups/" + room + "/archive", admin, Map.of("archived", true), 200);
+        call(HttpMethod.PATCH, "/api/rooms/" + room, owner, Map.of("name", "Sau lưu trữ"), 409);
+    }
+
+    @Test void dmNicknamesArePrivateToTheirAuthor() throws Exception {
+        Account a = account(), b = account();
+        String dm = chat.openDm(a.id(), new ChatDtos.OpenDm(b.id())).id();
+        assertThat(call(HttpMethod.PUT, "/api/rooms/" + dm + "/nickname", a, Map.of("nickname", " Bạn thân "), 200).path("name").asText()).isEqualTo("Bạn thân");
+        assertThat(listed(dm, a).nickname()).isEqualTo("Bạn thân");
+        assertThat(listed(dm, a).peer().displayName()).isEqualTo("Group Employee");
+        assertThat(listed(dm, b).name()).isEqualTo("Group Employee");
+        assertThat(listed(dm, b).nickname()).isNull();
+        call(HttpMethod.PUT, "/api/rooms/" + dm + "/nickname", a, Map.of("nickname", ""), 200);
+        assertThat(listed(dm, a).nickname()).isNull();
+        call(HttpMethod.PUT, "/api/rooms/" + dm + "/nickname", a, Map.of("nickname", "x".repeat(41)), 400);
+        call(HttpMethod.PUT, "/api/rooms/" + dm + "/nickname", outsider, Map.of("nickname", "Lạ"), 403);
+        call(HttpMethod.PUT, "/api/rooms/" + room() + "/nickname", owner, Map.of("nickname", "Kênh"), 400);
+    }
+
+    @Test void groupAvatarsDefaultToMemberPreviewAndCanBeReplacedByMembers() throws Exception {
+        String room = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        var before = listed(room, owner);
+        assertThat(before.avatarUrl()).isNull();
+        assertThat(before.previewMembers()).extracting(ChatDtos.UserSummary::id).containsExactly(peer.id(), owner.id());
+        assertThat(listed(room, outsider).previewMembers()).isEmpty();
+
+        String url = avatar(room, peer, "nhom.png", png(), 200).path("avatarUrl").asText();
+        assertThat(url).startsWith("/api/rooms/" + room + "/avatar?v=");
+        assertThat(listed(room, owner).avatarUrl()).isEqualTo(url);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).header("Authorization", "Bearer " + owner.token()))
+            .andExpect(status().isOk()).andExpect(header().string("Content-Type", "image/png")).andExpect(header().string("X-Content-Type-Options", "nosniff"));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).header("Authorization", "Bearer " + outsider.token())).andExpect(status().isForbidden());
+        avatar(room, outsider, "nhom.png", png(), 403);
+        avatar(room, owner, "nhom.pdf", "%PDF-1.4".getBytes(StandardCharsets.UTF_8), 400);
+        avatar(room, owner, "gia.png", "not an image".getBytes(StandardCharsets.UTF_8), 400);
+
+        call(HttpMethod.DELETE, "/api/rooms/" + room + "/avatar", owner, null, 200);
+        assertThat(listed(room, owner).avatarUrl()).isNull();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/rooms/" + room + "/avatar").header("Authorization", "Bearer " + owner.token())).andExpect(status().isNotFound());
+    }
+
     @Test void unreadCountFollowsSeenReceiptsAndOwnReplies() throws Exception {
         String room = room();
         post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);

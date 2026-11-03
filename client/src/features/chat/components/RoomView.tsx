@@ -24,7 +24,8 @@ import { describeTyping, useTypingSender, useTypingUsers } from '../typing'
 import type { ChatMessage, Room, UserSummary } from '../types'
 import { chatKeys } from '../hooks'
 import { AddMembersDialog } from './AddMembersDialog'
-import { Avatar } from './Avatar'
+import { RoomAvatar } from './RoomAvatar'
+import { GroupAvatarDialog, NicknameDialog, RenameGroupDialog } from './RoomSettingsDialogs'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
 import '../../whiteboard/whiteboard.css'
@@ -104,6 +105,8 @@ function ConnectionBanner() {
 function Conversation({ room }: { room: Room }) {
   const [panel, setPanel] = useState<'chat' | 'whiteboard'>('chat')
   const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<'name' | 'nickname' | 'avatar' | null>(null)
+  const closeEditing = () => setEditing(null)
   const canAddMembers = room.type === 'channel' && !room.archived
   const { user } = useSession()
   const messages = useMessages(room.id, true)
@@ -142,18 +145,38 @@ function Conversation({ room }: { room: Room }) {
           ←
         </Link>
         {room.type === 'dm' ? (
-          <Avatar name={room.name} online={peerPresence?.online ?? false} />
+          <RoomAvatar room={room} online={peerPresence?.online ?? false} />
+        ) : canAddMembers ? (
+          <button type="button" className="room-avatar-btn" aria-label="Đổi ảnh nhóm" title="Đổi ảnh nhóm" onClick={() => setEditing('avatar')}>
+            <RoomAvatar room={room} />
+            <span className="room-avatar-camera" aria-hidden="true">📷</span>
+          </button>
         ) : (
-          <span className="room-hash room-hash--lg">#</span>
+          <RoomAvatar room={room} />
         )}
         <div className="room-title">
-          <h1>
-            {room.name}
-            {room.archived && <span className="archived-badge">Đã lưu trữ</span>}
-          </h1>
+          <div className="room-title-row">
+            <h1>
+              {room.name}
+              {room.archived && <span className="archived-badge">Đã lưu trữ</span>}
+            </h1>
+            {(room.type === 'dm' || canAddMembers) && (
+              <button
+                type="button"
+                className="icon-btn room-rename"
+                aria-label={room.type === 'dm' ? 'Đổi biệt danh' : 'Đổi tên nhóm'}
+                title={room.type === 'dm' ? 'Đổi biệt danh' : 'Đổi tên nhóm'}
+                onClick={() => setEditing(room.type === 'dm' ? 'nickname' : 'name')}
+              >
+                ✏️
+              </button>
+            )}
+          </div>
           <p className="muted small">
             {room.type === 'dm'
-              ? [describePresence(peerPresence), room.peer?.email].filter(Boolean).join(' · ')
+              ? [room.nickname && room.peer ? `Tên thật: ${room.peer.displayName}` : null, describePresence(peerPresence), room.peer?.email]
+                  .filter(Boolean)
+                  .join(' · ')
               : [room.description, `${room.memberCount} thành viên`].filter(Boolean).join(' · ')}
           </p>
         </div>
@@ -170,6 +193,9 @@ function Conversation({ room }: { room: Room }) {
       </header>
       {leave.error && <FormAlert>{describeChatError(leave.error)}</FormAlert>}
       {adding && <AddMembersDialog room={room} onClose={() => setAdding(false)} />}
+      {editing === 'name' && <RenameGroupDialog room={room} onClose={closeEditing} />}
+      {editing === 'nickname' && <NicknameDialog room={room} onClose={closeEditing} />}
+      {editing === 'avatar' && <GroupAvatarDialog room={room} onClose={closeEditing} />}
       <div className="room-tabs" role="tablist" aria-label="Nội dung phòng">
         <button type="button" role="tab" id="room-chat-tab" aria-controls="room-chat-panel" aria-selected={panel === 'chat'} onClick={() => setPanel('chat')}>Trò chuyện</button>
         <button type="button" role="tab" id="room-whiteboard-tab" aria-controls="room-whiteboard-panel" aria-selected={panel === 'whiteboard'} onClick={() => { typing.onSent(); setPanel('whiteboard') }}>Bảng trắng</button>

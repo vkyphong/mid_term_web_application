@@ -4,7 +4,7 @@ import { describeChatError } from '../errors'
 import { useRooms } from '../hooks'
 import { compareTimestamps } from '../messages'
 import type { Room } from '../types'
-import { Avatar } from './Avatar'
+import { RoomAvatar } from './RoomAvatar'
 import { BrowseChannelsDialog } from './BrowseChannelsDialog'
 import { CreateChannelDialog } from './CreateChannelDialog'
 import { NewDirectMessageDialog } from './NewDirectMessageDialog'
@@ -26,7 +26,7 @@ function RoomLink({ room, online }: { room: Room; online?: boolean }) {
       aria-describedby={unread > 0 ? unreadId : undefined}
       className={({ isActive }) => `room-link${isActive ? ' room-link--active' : ''}${unread ? ' room-link--unread' : ''}`}
     >
-      {room.type === 'dm' ? <Avatar name={room.name} size="sm" online={online ?? false} /> : <span className="room-hash">#</span>}
+      <RoomAvatar room={room} size="sm" online={room.type === 'dm' ? (online ?? false) : undefined} />
       <span className="room-link-name">{room.name}</span>
       {room.archived && <span className="archived-badge archived-badge--sm">Lưu trữ</span>}
       {unread > 0 && (

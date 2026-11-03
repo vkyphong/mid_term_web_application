@@ -1335,3 +1335,138 @@
 .sound-toggle {
   font-size: 1.05rem;
 }
+
+/* ---------- Avatar nhóm: ảnh đã đặt hoặc ghép 2–3 thành viên (thay dấu #) ---------- */
+.group-avatar {
+  position: relative;
+  flex: none;
+  display: inline-block;
+  border-radius: 50%;
+}
+
+.group-avatar--sm { width: 24px; height: 24px; }
+.group-avatar--md { width: 38px; height: 38px; }
+.group-avatar--lg { width: 72px; height: 72px; }
+
+.group-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.group-avatar .avatar {
+  position: absolute;
+  width: 62%;
+  height: 62%;
+  font-size: 0.5em;
+  box-shadow: 0 0 0 1.5px var(--surface);
+}
+
+.group-avatar--sm { font-size: 0.62rem; }
+.group-avatar--md { font-size: 0.9rem; }
+.group-avatar--lg { font-size: 1.6rem; }
+
+.group-avatar--n1 .avatar {
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  font-size: 0.75em;
+  box-shadow: none;
+}
+
+.group-avatar--n2 .avatar:nth-child(1) { top: 0; left: 0; }
+.group-avatar--n2 .avatar:nth-child(2) { right: 0; bottom: 0; }
+
+.group-avatar--n3 .avatar { width: 56%; height: 56%; }
+.group-avatar--n3 .avatar:nth-child(1) { top: 0; left: 0; }
+.group-avatar--n3 .avatar:nth-child(2) { top: 0; right: 0; }
+.group-avatar--n3 .avatar:nth-child(3) { bottom: 0; left: 22%; }
+
+.room-avatar-btn {
+  position: relative;
+  flex: none;
+  padding: 0;
+  line-height: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.room-avatar-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.room-avatar-camera {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.6rem;
+  line-height: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.room-avatar-btn:hover .room-avatar-camera,
+.room-avatar-btn:focus-visible .room-avatar-camera {
+  opacity: 1;
+}
+
+.room-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.room-title-row h1 {
+  min-width: 0;
+}
+
+.room-rename {
+  flex: none;
+  font-size: 0.85rem;
+  opacity: 0.6;
+}
+
+.room-rename:hover,
+.room-rename:focus-visible {
+  opacity: 1;
+}
+
+.group-avatar-preview {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.group-avatar-preview p {
+  margin: 0;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dialog-actions .btn-primary,
+.dialog-actions .btn-secondary {
+  width: auto;
+}
+
+@media (hover: none) {
+  .room-avatar-camera {
+    opacity: 1;
+  }
+}

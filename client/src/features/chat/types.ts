@@ -26,6 +26,12 @@ export interface Room {
   archived?: boolean
   /** Số tin của người khác chưa xem (server tính theo receipts). */
   unreadCount?: number
+  /** DM: biệt danh mình đặt cho người kia (khi có thì `name` là biệt danh, tên thật ở `peer`). */
+  nickname?: string | null
+  /** Kênh: ảnh nhóm (tải bằng Bearer); null = dùng avatar ghép từ thành viên. */
+  avatarUrl?: string | null
+  /** Kênh: tối đa 3 thành viên cho avatar mặc định, người khác trước mình. */
+  previewMembers?: UserSummary[]
 }
 
 export interface Message {
@@ -147,6 +153,8 @@ export type ServerEvent =
   | { type: 'notification:new'; payload: Notification; ts: string }
   /** Mình vừa được thêm vào kênh (POST /api/rooms/{id}/members hoặc admin). */
   | { type: 'room:added'; payload: Room; ts: string }
+  /** Tên / ảnh nhóm đổi, hoặc mình đổi biệt danh (Room nhìn từ phía mình). */
+  | { type: 'room:updated'; payload: Room; ts: string }
   | { type: 'notification:read'; payload: { id: string }; ts: string }
   | { type: 'presence:update'; payload: Presence; ts: string }
   | { type: 'typing:start' | 'typing:stop'; payload: TypingPayload; ts: string }
@@ -154,5 +162,5 @@ export type ServerEvent =
 export const SERVER_EVENT_TYPES: ReadonlySet<string> = new Set([
   'whiteboard:segment', 'whiteboard:cleared',
   'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react',
-  'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read', 'room:added',
+  'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read', 'room:added', 'room:updated',
 ])

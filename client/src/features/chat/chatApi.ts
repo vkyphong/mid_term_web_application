@@ -19,6 +19,13 @@ export interface ChatApi {
   listMembers(roomId: string): Promise<RoomMember[]>
   /** Thêm một nhân viên đang hoạt động vào kênh; thêm lại người đã có vẫn thành công. */
   addMember(roomId: string, userId: string): Promise<Room>
+  /** Đổi tên kênh (mọi thành viên, kênh chưa lưu trữ). */
+  renameRoom(roomId: string, name: string): Promise<Room>
+  /** Biệt danh cho người kia trong DM; chuỗi rỗng = bỏ. Chỉ mình thấy. */
+  setNickname(roomId: string, nickname: string): Promise<Room>
+  /** Ảnh nhóm JPEG/PNG ≤ 2 MiB. */
+  uploadRoomAvatar(roomId: string, file: File): Promise<Room>
+  removeRoomAvatar(roomId: string): Promise<Room>
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
   listNotifications(before?: string): Promise<NotificationPage>
   markNotificationRead(id: string): Promise<void>
@@ -46,6 +53,15 @@ export const httpChatApi: ChatApi = {
     (await authRequest<{ members: RoomMember[] }>(`/api/rooms/${encodeURIComponent(roomId)}/members`)).members,
   addMember: (roomId, userId) =>
     authRequest(`/api/rooms/${encodeURIComponent(roomId)}/members`, { method: 'POST', body: { userId } }),
+  renameRoom: (roomId, name) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}`, { method: 'PATCH', body: { name } }),
+  setNickname: (roomId, nickname) =>
+    authRequest(`/api/rooms/${encodeURIComponent(roomId)}/nickname`, { method: 'PUT', body: { nickname } }),
+  uploadRoomAvatar: (roomId, file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return authUpload(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, form)
+  },
+  removeRoomAvatar: (roomId) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, { method: 'DELETE' }),
   listNotifications: (before) => {
     const params = new URLSearchParams({ limit: '30' })
     if (before) params.set('before', before)

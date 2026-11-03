@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { crc32 } from 'node:zlib'
+import { crc32, deflateSync } from 'node:zlib'
 
 /** Nhóm: tạo kèm thành viên, thêm người, @All, thanh công cụ soạn tin, file Office/TXT/CSV/ZIP, nhóm lưu trữ — backend thật. */
 
@@ -41,6 +41,21 @@ async function channelWith(owner: Account, ...members: Account[]) {
 
 const box = (page: Page) => page.getByRole('textbox', { name: 'Nội dung tin nhắn' })
 const bubble = (page: Page, text: string) => page.locator('.message-list .message', { hasText: text })
+
+/** PNG hợp lệ (BE kiểm tra giải mã được ảnh). */
+function png(width = 4, height = 4): Buffer {
+  const chunk = (type: string, data: Buffer) => {
+    const len = Buffer.alloc(4); len.writeUInt32BE(data.length)
+    const body = Buffer.concat([Buffer.from(type), data])
+    const crc = Buffer.alloc(4); crc.writeUInt32BE(crc32(body) >>> 0)
+    return Buffer.concat([len, body, crc])
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 2
+  const raw = Buffer.alloc((width * 3 + 1) * height, 0x3c)
+  for (let y = 0; y < height; y++) raw[y * (width * 3 + 1)] = 0
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))])
+}
 
 /** ZIP không nén (đủ để BE đọc được directory), dùng dựng DOCX tối thiểu. */
 function zip(files: Record<string, string>): Buffer {
@@ -292,6 +307,58 @@ test('tin chưa đọc: vòng tròn đỏ đếm tới 5+, còn sau khi tải l�
     await expect(b.getByText('Đã kết nối', { exact: true })).toBeVisible()
     await expect(link).toBeVisible()
     await expect(link.locator('.unread-badge')).toHaveCount(0)
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close()])
+  }
+})
+
+test('đổi tên nhóm, ảnh nhóm thấy ngay ở mọi thành viên; biệt danh DM chỉ người đặt thấy; avatar ghép thay dấu #', async ({ browser }) => {
+  const [alice, bob] = await Promise.all([account(browser, 'alice'), account(browser, 'bob')])
+  try {
+    const roomId = await channelWith(alice, bob)
+    const a = await open(alice, `/rooms/${roomId}`)
+    const b = await open(bob, '/')
+    const bobLink = b.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"]`)
+
+    // Avatar mặc định: ghép avatar thành viên, không còn dấu #.
+    await expect(bobLink.locator('.group-avatar--n2 .avatar')).toHaveCount(2)
+    await expect(a.locator('.room-hash')).toHaveCount(0)
+
+    // Đổi tên nhóm → Bob thấy ngay không cần tải lại.
+    const newName = `Nhóm mới ${crypto.randomUUID().slice(0, 6)}`
+    await a.getByRole('button', { name: 'Đổi tên nhóm' }).click()
+    const rename = a.getByRole('dialog', { name: 'Đổi tên nhóm' })
+    await rename.getByLabel('Tên nhóm').fill(newName)
+    await rename.getByRole('button', { name: 'Lưu', exact: true }).click()
+    await expect(a.getByRole('heading', { level: 1, name: newName })).toBeVisible()
+    await expect(bobLink).toContainText(newName)
+
+    // Ảnh nhóm → hiện ở cả hai người.
+    await a.getByRole('button', { name: 'Đổi ảnh nhóm' }).click()
+    await a.getByTestId('group-avatar-input').setInputFiles({ name: 'nhom.png', mimeType: 'image/png', buffer: png(8, 8) })
+    await expect(a.getByRole('dialog', { name: 'Ảnh nhóm' })).toHaveCount(0)
+    await expect(a.locator('.room-header .group-avatar-image')).toBeVisible()
+    await expect(bobLink.locator('.group-avatar-image')).toBeVisible()
+    // Quay lại ảnh ghép.
+    await a.getByRole('button', { name: 'Đổi ảnh nhóm' }).click()
+    await a.getByRole('button', { name: 'Dùng ảnh ghép thành viên' }).click()
+    await expect(bobLink.locator('.group-avatar-image')).toHaveCount(0)
+    await expect(bobLink.locator('.group-avatar--n2')).toBeVisible()
+
+    // Biệt danh trong DM: Alice đặt cho Bob, chỉ Alice thấy.
+    const dm = await (await alice.context.request.post('/api/dms', { data: { userId: bob.id }, headers: auth(alice) })).json()
+    await a.goto(`/rooms/${dm.id}`)
+    await a.getByRole('button', { name: 'Đổi biệt danh' }).click()
+    const nick = a.getByRole('dialog', { name: 'Đổi biệt danh' })
+    await nick.getByLabel('Biệt danh').fill('Bạn Bob')
+    await nick.getByRole('button', { name: 'Lưu', exact: true }).click()
+    await expect(a.getByRole('heading', { level: 1, name: 'Bạn Bob' })).toBeVisible()
+    await expect(a.locator('.room-title p')).toContainText(`Tên thật: ${bob.displayName}`)
+    await expect(a.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${dm.id}"]`)).toContainText('Bạn Bob')
+    await a.reload()
+    await expect(a.getByRole('heading', { level: 1, name: 'Bạn Bob' })).toBeVisible()
+    const bobDm = await open(bob, `/rooms/${dm.id}`)
+    await expect(bobDm.getByRole('heading', { level: 1, name: alice.displayName })).toBeVisible()
   } finally {
     await Promise.all([alice.context.close(), bob.context.close()])
   }

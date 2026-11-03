@@ -39,6 +39,15 @@ public class ChatController {
     public Room addMember(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody AddMember input) {
         return chat.addMember(id, user.userId(), input);
     }
+    @PatchMapping("/rooms/{id}")
+    public Room rename(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody RenameRoom input) {
+        try { return chat.renameRoom(id, user.userId(), input); }
+        catch (DuplicateKeyException e) { throw new ApiException(409, "invalid_payload", "room_name_taken", "Channel name already exists"); }
+    }
+    @PutMapping("/rooms/{id}/nickname")
+    public Room nickname(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody SetNickname input) {
+        return chat.setNickname(id, user.userId(), input);
+    }
     @GetMapping("/rooms/{id}/messages")
     public MessagePage messages(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id,
                                @RequestParam(defaultValue = "30") int limit, @RequestParam(required = false) String before) {

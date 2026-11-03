@@ -32,6 +32,10 @@ interface StoredRoom {
   members: string[]
   lastMessageAt: string | null
   archived?: boolean
+  /** userId → biệt danh người đó đặt cho người kia (DM). */
+  nicknames?: Record<string, string>
+  /** Thời điểm đổi ảnh nhóm; ảnh nằm trong uploadBlobs với khoá `avatar:<roomId>`. */
+  avatarAt?: string | null
 }
 
 interface StoredReceipts {
@@ -116,12 +120,26 @@ function currentUser(): UserSummary {
 }
 
 function toRoom(room: StoredRoom, userId: string): Room {
+  const users = listMockUsers()
   const peerId = room.type === 'dm' ? room.members.find((id) => id !== userId) : undefined
-  const peer = peerId ? (listMockUsers().find((u) => u.id === peerId) ?? null) : null
+  const peer = peerId ? (users.find((u) => u.id === peerId) ?? null) : null
+  const nickname = room.type === 'dm' ? (room.nicknames?.[userId] ?? null) : null
+  const joined = room.members.includes(userId)
+  const previewMembers =
+    room.type === 'channel' && joined
+      ? [...room.members]
+          .sort((a, b) => Number(a === userId) - Number(b === userId))
+          .map((id) => users.find((u) => u.id === id))
+          .filter((u): u is UserSummary => Boolean(u))
+          .slice(0, 3)
+      : []
   return {
     id: room.id,
     type: room.type,
-    name: room.type === 'dm' ? (peer?.displayName ?? 'Người dùng') : room.name,
+    name: room.type === 'dm' ? (nickname ?? peer?.displayName ?? 'Người dùng') : room.name,
+    nickname,
+    previewMembers,
+    avatarUrl: room.type === 'channel' && room.avatarAt ? `/api/rooms/${room.id}/avatar?v=${Date.parse(room.avatarAt)}` : null,
     description: room.description,
     memberCount: room.members.length,
     joined: room.members.includes(userId),
@@ -248,6 +266,25 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     setTimeout(() => emit({ type: 'notification:new', payload: n, ts: new Date().toISOString() }, userId), 0)
   }
 
+  /** Đổi / xoá ảnh nhóm (file chỉ giữ trong bộ nhớ tab, như file đính kèm). */
+  const setMockAvatar = (roomId: string, file: File | null) => {
+    const user = currentUser()
+    const store = load()
+    const room = findRoom(store, roomId)
+    requireMember(room, user.id)
+    if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
+    requireWritable(room)
+    if (file) {
+      if (!/\.(png|jpe?g)$/i.test(file.name)) throw invalid('file', 'Avatar must be a JPEG or PNG image')
+      if (file.size < 1 || file.size > 2 * 1024 * 1024) throw invalid('file', 'Avatar must contain 1–2097152 bytes')
+      uploadBlobs.set(`avatar:${roomId}`, file)
+    } else uploadBlobs.delete(`avatar:${roomId}`)
+    room.avatarAt = file ? new Date().toISOString() : null
+    save(store)
+    for (const member of room.members) emit({ type: 'room:updated', payload: toRoom(room, member), ts: new Date().toISOString() }, member)
+    return toRoom(room, user.id)
+  }
+
   const api: ChatApi = {
     async listRooms() {
       await delay()
@@ -358,6 +395,52 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       return toRoom(room, user.id)
     },
 
+    async renameRoom(roomId, name) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      requireMember(room, user.id)
+      if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
+      requireWritable(room)
+      const trimmed = name.trim()
+      if (trimmed.length < 2 || trimmed.length > 40) throw invalid('name', 'Tên kênh cần 2–40 ký tự')
+      if (store.rooms.some((r) => r.id !== roomId && r.type === 'channel' && r.name.toLowerCase() === trimmed.toLowerCase())) {
+        throw new ApiError(409, { code: 'invalid_payload', reason: 'room_name_taken', message: 'Channel exists' })
+      }
+      room.name = trimmed
+      save(store)
+      for (const member of room.members) emit({ type: 'room:updated', payload: toRoom(room, member), ts: new Date().toISOString() }, member)
+      return toRoom(room, user.id)
+    },
+
+    async setNickname(roomId, nickname) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      requireMember(room, user.id)
+      if (room.type !== 'dm') throw invalid('nickname', 'Chỉ đặt biệt danh trong tin nhắn riêng')
+      const trimmed = nickname.trim()
+      if (trimmed.length > 40) throw invalid('nickname', 'Biệt danh tối đa 40 ký tự')
+      room.nicknames = { ...room.nicknames }
+      if (trimmed) room.nicknames[user.id] = trimmed
+      else delete room.nicknames[user.id]
+      save(store)
+      emit({ type: 'room:updated', payload: toRoom(room, user.id), ts: new Date().toISOString() }, user.id)
+      return toRoom(room, user.id)
+    },
+
+    async uploadRoomAvatar(roomId, file) {
+      await delay()
+      return setMockAvatar(roomId, file)
+    },
+
+    async removeRoomAvatar(roomId) {
+      await delay()
+      return setMockAvatar(roomId, null)
+    },
+
     async listNotifications(before) {
       await delay()
       const user = currentUser()
@@ -408,6 +491,13 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     async downloadFile(url) {
       await delay(60)
       const user = currentUser()
+      const avatarRoom = /^\/api\/rooms\/([^/]+)\/avatar/.exec(url)?.[1]
+      if (avatarRoom) {
+        requireMember(findRoom(load(), avatarRoom), user.id)
+        const blob = uploadBlobs.get(`avatar:${avatarRoom}`)
+        if (!blob) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Avatar not found' })
+        return blob
+      }
       const id = url.split('/').pop() ?? ''
       const store = load()
       const meta = store.uploads?.[id]
