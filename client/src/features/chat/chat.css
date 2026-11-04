@@ -668,13 +668,25 @@ html.chat-page body {
   right: calc(100% + 4px);
 }
 
-.message-row:empty,
-.message-row:has(> .message-tools:only-child) {
-  min-height: 0;
+.message-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
 }
 
-.message-row:has(> .message-tools:only-child) .message-tools {
-  top: 12px;
+.message--own .message-stack {
+  align-items: flex-end;
+}
+
+.message-stack:empty {
+  display: none;
+}
+
+.message-stack .attachment {
+  margin-top: 0;
 }
 
 .message:hover .message-tools,

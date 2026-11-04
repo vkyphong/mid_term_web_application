@@ -175,6 +175,8 @@ export function MessageItem(props: MessageItemProps) {
         )}
 
         <div className="message-row">
+          {/* Chữ và file chung một khối, thanh thao tác nằm ngoài khối (tin chỉ có file cũng vậy). */}
+          <div className="message-stack">
           {editing ? (
             <div className="message-edit">
               <label className="sr-only" htmlFor={`edit-${m.id}`}>
@@ -208,6 +210,8 @@ export function MessageItem(props: MessageItemProps) {
               </p>
             )
           )}
+          {!deleted && m.attachment && <AttachmentView attachment={m.attachment} pending={!stored} />}
+          </div>
 
           {canAct && !editing && (
             <div className="message-tools" role="toolbar" aria-label="Thao tác với tin nhắn">
@@ -257,8 +261,6 @@ export function MessageItem(props: MessageItemProps) {
             </button>
           </div>
         )}
-
-        {!deleted && m.attachment && <AttachmentView attachment={m.attachment} pending={!stored} />}
 
         {reactions.length > 0 && (
           <div className="reactions">
