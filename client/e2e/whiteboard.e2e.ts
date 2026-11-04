@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { personName } from './people'
+import { groupName, personName } from './people'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -15,7 +15,9 @@ async function account(browser: Browser, label: string): Promise<Account> {
   return { context, token: auth.accessToken, id: auth.user.id }
 }
 async function channel(owner: Account) {
-  const response = await owner.context.request.post('/api/rooms', { headers: { Authorization: `Bearer ${owner.token}` }, data: { name: `WB-${randomUUID().slice(0, 8)}` } })
+  const create = () => owner.context.request.post('/api/rooms', { headers: { Authorization: `Bearer ${owner.token}` }, data: { name: groupName() } })
+  let response = await create()
+  for (let i = 0; i < 4 && response.status() === 409; i++) response = await create()
   expect(response.status()).toBe(201)
   return (await response.json()).id as string
 }

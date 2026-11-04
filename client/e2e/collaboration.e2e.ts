@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { personName } from './people'
+import { groupName, personName } from './people'
 import { crc32, deflateSync } from 'node:zlib'
 
 /** F09 thông báo/@mention, F14 sửa/xoá/cảm xúc, F15 file, F10 hàng đợi offline, F11 giới hạn & XSS — backend thật. */
@@ -25,9 +25,10 @@ async function open(acc: Account, path: string): Promise<Page> {
 }
 
 async function channelWith(owner: Account, ...members: Account[]) {
-  const res = await owner.context.request.post('/api/rooms', {
-    data: { name: `E2E-col-${crypto.randomUUID().slice(0, 8)}` }, headers: { Authorization: `Bearer ${owner.token}` },
-  })
+  let res = await owner.context.request.post('/api/rooms', { data: { name: groupName() }, headers: { Authorization: `Bearer ${owner.token}` } })
+  for (let i = 0; i < 4 && res.status() === 409; i++) {
+    res = await owner.context.request.post('/api/rooms', { data: { name: groupName() }, headers: { Authorization: `Bearer ${owner.token}` } })
+  }
   expect(res.status()).toBe(201)
   const roomId = (await res.json()).id as string
   for (const m of members) {

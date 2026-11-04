@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
-import { personName } from './people'
+import { personName, projectName } from './people'
 
 interface Account { id: string; email: string; displayName: string; token: string }
 interface Capture {
@@ -69,7 +69,7 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
   try {
     for (const label of ['Alice', 'Bob', 'Carol']) people.push(await employee(browser, label))
     const [alice, bob, carol] = people
-    const channelName = `E2E-${crypto.randomUUID().slice(0, 12)}`
+    const channelName = projectName()
     await alice.page.getByRole('button', { name: 'Tạo kênh', exact: true }).click()
     await alice.page.getByRole('textbox', { name: 'Tên kênh', exact: true }).fill(channelName)
     await alice.page.getByRole('dialog').getByRole('button', { name: 'Tạo kênh', exact: true }).click()

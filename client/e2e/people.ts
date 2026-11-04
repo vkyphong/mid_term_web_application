@@ -13,3 +13,23 @@ const pick = <T>(list: readonly T[]) => list[Math.floor(Math.random() * list.len
 export function personName(): string {
   return `${pick(HO)} ${pick(DEM)} ${pick(DEM2)} ${pick(TEN)}`
 }
+
+/**
+ * Tên nhóm như trong một công ty ("Dự án ERP DA-4821", "Backend - Tổ 17") thay cho "E2E-grp-1a2b3c4d".
+ * Mã dự án 4 chữ số cho hàng trăm nghìn tổ hợp; nơi tạo nhóm qua API vẫn thử lại khi trùng tên (409).
+ */
+const PHONG_BAN = ['Phát triển phần mềm', 'Sản phẩm', 'Thiết kế UI/UX', 'Kiểm thử (QA)', 'DevOps', 'An ninh mạng', 'Dữ liệu & AI',
+  'Kinh doanh', 'Marketing', 'Nhân sự', 'Chăm sóc khách hàng', 'Kế toán', 'Frontend', 'Backend', 'Mobile']
+const DU_AN = ['ERP', 'CRM', 'HRM', 'Ví điện tử', 'App Mobile', 'Website bán hàng', 'Chatbot CSKH', 'Data Warehouse', 'Cổng thanh toán',
+  'Hệ thống đặt lịch', 'Nền tảng e-learning', 'Quản lý kho', 'Super App', 'Microservices', 'Cloud Migration', 'AI Assistant',
+  'Hệ thống Loyalty', 'Dashboard BI', 'API Gateway', 'Design System']
+const between = (min: number, max: number) => min + Math.floor(Math.random() * (max - min + 1))
+
+/** Tên dự án có mã (đủ ngẫu nhiên để dùng khi tạo nhóm qua giao diện). */
+export function projectName(): string {
+  return `Dự án ${pick(DU_AN)} DA-${between(1000, 9999)}`
+}
+
+export function groupName(): string {
+  return Math.random() < 0.7 ? projectName() : `${pick(PHONG_BAN)} - Tổ ${between(1, 99)}`
+}

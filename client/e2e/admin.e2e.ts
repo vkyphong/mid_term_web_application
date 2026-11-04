@@ -55,25 +55,26 @@ test('admin quản lý nhóm: tạo, đổi tên, thêm / xoá thành viên, lư
   const reg = await staff.request.post('/api/auth/register', { data: { email: staffEmail, displayName: 'Lê Minh Châu', password: 'Password123' } })
   expect(reg.status()).toBe(201)
   const staffToken = (await reg.json()).accessToken as string
-  const tag = crypto.randomUUID().slice(0, 6)
+  // Mã dự án ngẫu nhiên giúp tìm đúng nhóm vừa tạo; tên nhóm trông như trong công ty.
+  const tag = `DA-${1000 + Math.floor(Math.random() * 9000)}`
   try {
     await loginAsAdmin(page)
     const section = page.getByRole('region', { name: /Quản lý nhóm/ })
     await section.getByRole('button', { name: '+ Tạo nhóm' }).click()
-    await page.getByLabel('Tên nhóm').fill(`Phòng QA ${tag}`)
+    await page.getByLabel('Tên nhóm').fill(`Phòng Kiểm thử ${tag}`)
     await page.getByLabel('Mô tả (không bắt buộc)').fill('Nhóm kiểm thử phần mềm')
     await page.getByRole('button', { name: 'Tạo nhóm', exact: true }).click()
-    await expect(page.getByText(`Đã tạo nhóm Phòng QA ${tag}.`)).toBeVisible()
+    await expect(page.getByText(`Đã tạo nhóm Phòng Kiểm thử ${tag}.`)).toBeVisible()
 
     await section.getByRole('searchbox', { name: 'Tìm nhóm' }).fill(tag)
     await expect(section.locator('tbody tr')).toHaveCount(1)
-    await section.getByRole('button', { name: `Sửa nhóm Phòng QA ${tag}` }).click()
-    await page.getByLabel('Tên nhóm').fill(`Phòng QA mới ${tag}`)
+    await section.getByRole('button', { name: `Sửa nhóm Phòng Kiểm thử ${tag}` }).click()
+    await page.getByLabel('Tên nhóm').fill(`Phòng QA ${tag}`)
     await page.getByRole('button', { name: 'Lưu thay đổi' }).click()
-    await expect(section.getByText(`Phòng QA mới ${tag}`)).toBeVisible()
+    await expect(section.getByText(`Phòng QA ${tag}`)).toBeVisible()
 
     // Thêm nhân viên → họ thấy nhóm trong danh sách phòng.
-    await section.getByRole('button', { name: `Thành viên nhóm Phòng QA mới ${tag}` }).click()
+    await section.getByRole('button', { name: `Thành viên nhóm Phòng QA ${tag}` }).click()
     await page.getByPlaceholder(/Tìm tên hoặc email để thêm/).fill(staffEmail)
     await page.getByRole('list', { name: 'Kết quả tìm kiếm' }).getByRole('button', { name: `Thêm ${staffEmail}` }).click()
     const members = page.getByRole('list', { name: 'Thành viên nhóm' })
@@ -89,23 +90,23 @@ test('admin quản lý nhóm: tạo, đổi tên, thêm / xoá thành viên, lư
     await page.getByRole('switch', { name: /Phê duyệt thành viên mới/ }).check()
     await expect(page.getByText(/Đã bật phê duyệt thành viên mới/)).toBeVisible()
     const roomsFull = async () => ((await (await staff.request.get('/api/rooms', { headers: { Authorization: `Bearer ${staffToken}` } })).json()).rooms as { name: string; requireApproval?: boolean }[])
-    expect((await roomsFull()).find((r) => r.name === `Phòng QA mới ${tag}`)?.requireApproval).toBe(true)
+    expect((await roomsFull()).find((r) => r.name === `Phòng QA ${tag}`)?.requireApproval).toBe(true)
     const rooms = async () => ((await (await staff.request.get('/api/rooms', { headers: { Authorization: `Bearer ${staffToken}` } })).json()).rooms as { name: string; joined: boolean }[])
-    expect((await rooms()).some((r) => r.name === `Phòng QA mới ${tag}` && r.joined)).toBe(true)
+    expect((await rooms()).some((r) => r.name === `Phòng QA ${tag}` && r.joined)).toBe(true)
     await members.getByRole('button', { name: `Xoá ${staffEmail} khỏi nhóm` }).click()
     await members.getByRole('button', { name: 'Xác nhận xoá' }).click()
     await expect(members.getByText(staffEmail)).toHaveCount(0)
     await page.getByRole('button', { name: 'Đóng', exact: true }).click()
 
     // Lưu trữ rồi khôi phục.
-    await section.getByRole('button', { name: `Lưu trữ nhóm Phòng QA mới ${tag}` }).click()
+    await section.getByRole('button', { name: `Lưu trữ nhóm Phòng QA ${tag}` }).click()
     await page.getByRole('button', { name: 'Xác nhận lưu trữ' }).click()
     await expect(section.locator('tbody tr').getByText('Đã lưu trữ')).toBeVisible()
     await section.getByRole('button', { name: 'Đã lưu trữ', exact: true }).click()
-    await expect(section.getByText(`Phòng QA mới ${tag}`)).toBeVisible()
-    await section.getByRole('button', { name: `Khôi phục nhóm Phòng QA mới ${tag}` }).click()
+    await expect(section.getByText(`Phòng QA ${tag}`)).toBeVisible()
+    await section.getByRole('button', { name: `Khôi phục nhóm Phòng QA ${tag}` }).click()
     await page.getByRole('button', { name: 'Xác nhận khôi phục' }).click()
-    await expect(page.getByText(`Đã khôi phục nhóm Phòng QA mới ${tag}.`)).toBeVisible()
+    await expect(page.getByText(`Đã khôi phục nhóm Phòng QA ${tag}.`)).toBeVisible()
   } finally {
     await staff.close()
   }

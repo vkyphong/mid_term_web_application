@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
-import { personName } from './people'
+import { groupName, personName, projectName } from './people'
 import { crc32, deflateSync } from 'node:zlib'
 
 /** Nhóm: tạo kèm thành viên, thêm người, @All, thanh công cụ soạn tin, file Office/TXT/CSV/ZIP, nhóm lưu trữ — backend thật. */
@@ -28,9 +28,9 @@ async function open(acc: Account, path: string): Promise<Page> {
 
 /** Kênh tạo qua API, thêm thành viên bằng POST /api/rooms/{id}/members (không cần họ tự tham gia). */
 async function channelWith(owner: Account, ...members: Account[]) {
-  const res = await owner.context.request.post('/api/rooms', {
-    data: { name: `E2E-grp-${crypto.randomUUID().slice(0, 8)}` }, headers: auth(owner),
-  })
+  let res = await owner.context.request.post('/api/rooms', { data: { name: groupName() }, headers: auth(owner) })
+  // Tên nhóm ngẫu nhiên kiểu công ty: hiếm khi trùng, trùng thì đặt tên khác.
+  for (let i = 0; i < 4 && res.status() === 409; i++) res = await owner.context.request.post('/api/rooms', { data: { name: groupName() }, headers: auth(owner) })
   expect(res.status()).toBe(201)
   const roomId = (await res.json()).id as string
   for (const m of members) {
@@ -111,7 +111,7 @@ test('tạo nhóm kèm thành viên, @All báo cả nhóm, thêm người từ t
     // Bob, Carol, Dan mở app sẵn từ trước: nhóm phải tự hiện khi họ được thêm, không cần tải lại.
     const [bobHome, carolHome, danHome] = await Promise.all([open(bob, '/'), open(carol, '/'), open(dan, '/')])
     const sidebarLink = (page: Page) => page.getByRole('navigation', { name: 'Danh sách phòng' }).getByRole('link', { name })
-    const name = `Nhóm ${crypto.randomUUID().slice(0, 6)}`
+    const name = projectName()
 
     // Tạo kênh và chọn sẵn Bob, Carol như tạo nhóm trên Zalo.
     await a.getByRole('button', { name: 'Tạo kênh', exact: true }).click()
@@ -341,7 +341,7 @@ test('đổi tên nhóm, ảnh nhóm thấy ngay ở mọi thành viên; biệt 
     await expect(a.locator('.room-hash')).toHaveCount(0)
 
     // Đổi tên nhóm → Bob thấy ngay không cần tải lại.
-    const newName = `Nhóm mới ${crypto.randomUUID().slice(0, 6)}`
+    const newName = projectName()
     await a.getByRole('button', { name: 'Đổi tên nhóm' }).click()
     const rename = a.getByRole('dialog', { name: 'Đổi tên nhóm' })
     await rename.getByLabel('Tên nhóm').fill(newName)

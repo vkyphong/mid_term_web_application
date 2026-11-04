@@ -1,5 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
-import { personName } from './people'
+import { personName, groupName } from './people'
 
 /** F05: cuộn lên tải thêm lịch sử theo cursor, gộp với tin realtime, không trùng/thiếu. */
 // > 1 trang (30) để có trang cũ hơn; gửi theo đợt vì F11 giới hạn 10 tin / 5 s / socket.
@@ -39,10 +39,9 @@ test('F05: cuộn lên tải hết lịch sử theo trang 30 tin, không trùng/
   const alice = await employee(browser, 'alice')
   const bob = await employee(browser, 'bob')
   try {
-    const created = await alice.context.request.post('/api/rooms', {
-      data: { name: `E2E-history-${crypto.randomUUID().slice(0, 8)}` },
-      headers: { Authorization: `Bearer ${alice.token}` },
-    })
+    const create = () => alice.context.request.post('/api/rooms', { data: { name: groupName() }, headers: { Authorization: `Bearer ${alice.token}` } })
+    let created = await create()
+    for (let i = 0; i < 4 && created.status() === 409; i++) created = await create()
     expect(created.status()).toBe(201)
     const roomId = (await created.json()).id as string
 
