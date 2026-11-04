@@ -22,7 +22,7 @@ type Target = { kind: 'room'; room: Room } | { kind: 'user'; id: string; name: s
 const keyOf = (t: Target) => (t.kind === 'room' ? t.room.id : `user:${t.id}`)
 
 /**
- * "Chia sẻ" như Zalo: chọn nhiều nhóm / người (tìm kiếm, Gần đây / Nhóm trò chuyện / Bạn bè),
+ * "Chia sẻ" như Zalo: chọn nhiều nhóm / người (tìm kiếm, Gần đây / Nhóm trò chuyện / Đồng nghiệp),
  * xem trước tin / file sẽ chuyển tiếp, kèm lời nhắn tuỳ ý.
  */
 export function ForwardDialog({ message, onClose }: { message: ChatMessage; onClose: () => void }) {
@@ -90,7 +90,7 @@ export function ForwardDialog({ message, onClose }: { message: ChatMessage; onCl
           [
             ['recent', 'Gần đây'],
             ['groups', 'Nhóm trò chuyện'],
-            ['people', 'Bạn bè'],
+            ['people', 'Đồng nghiệp'],
           ] as const
         ).map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)}>
