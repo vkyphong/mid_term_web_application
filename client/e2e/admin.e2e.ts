@@ -78,6 +78,18 @@ test('admin quản lý nhóm: tạo, đổi tên, thêm / xoá thành viên, lư
     await page.getByRole('list', { name: 'Kết quả tìm kiếm' }).getByRole('button', { name: `Thêm ${staffEmail}` }).click()
     const members = page.getByRole('list', { name: 'Thành viên nhóm' })
     await expect(members.getByText(staffEmail)).toBeVisible()
+    // Vai trò: phó nhóm, rồi chuyển trưởng nhóm (admin tạo nhóm nên đang là trưởng nhóm).
+    await page.getByRole('combobox', { name: 'Vai trò của Lê Minh Châu' }).selectOption('deputy')
+    await expect(page.getByText(/Lê Minh Châu giờ là phó nhóm/)).toBeVisible()
+    await page.getByRole('combobox', { name: 'Vai trò của Lê Minh Châu' }).selectOption('owner')
+    await page.getByRole('alertdialog', { name: 'Xác nhận chuyển trưởng nhóm' }).getByRole('button', { name: 'Xác nhận chuyển' }).click()
+    await expect(page.getByRole('combobox', { name: 'Vai trò của Lê Minh Châu' })).toHaveValue('owner')
+    await expect(page.getByRole('combobox', { name: 'Vai trò của Lê Minh Châu' })).toBeDisabled()
+    // Bật phê duyệt: nhân viên (trưởng nhóm mới) thấy ngay trong dữ liệu phòng.
+    await page.getByRole('switch', { name: /Phê duyệt thành viên mới/ }).check()
+    await expect(page.getByText(/Đã bật phê duyệt thành viên mới/)).toBeVisible()
+    const roomsFull = async () => ((await (await staff.request.get('/api/rooms', { headers: { Authorization: `Bearer ${staffToken}` } })).json()).rooms as { name: string; requireApproval?: boolean }[])
+    expect((await roomsFull()).find((r) => r.name === `Phòng QA mới ${tag}`)?.requireApproval).toBe(true)
     const rooms = async () => ((await (await staff.request.get('/api/rooms', { headers: { Authorization: `Bearer ${staffToken}` } })).json()).rooms as { name: string; joined: boolean }[])
     expect((await rooms()).some((r) => r.name === `Phòng QA mới ${tag}` && r.joined)).toBe(true)
     await members.getByRole('button', { name: `Xoá ${staffEmail} khỏi nhóm` }).click()
@@ -94,6 +106,39 @@ test('admin quản lý nhóm: tạo, đổi tên, thêm / xoá thành viên, lư
     await section.getByRole('button', { name: `Khôi phục nhóm Phòng QA mới ${tag}` }).click()
     await page.getByRole('button', { name: 'Xác nhận khôi phục' }).click()
     await expect(page.getByText(`Đã khôi phục nhóm Phòng QA mới ${tag}.`)).toBeVisible()
+  } finally {
+    await staff.close()
+  }
+})
+
+test('admin khoá rồi mở khoá tài khoản, cấp rồi thu quyền admin', async ({ page, browser }) => {
+  const staff = await browser.newContext({ baseURL: 'http://localhost:8080' })
+  const staffEmail = `e2e-admusr-${crypto.randomUUID()}@dqgm.dev`
+  expect((await staff.request.post('/api/auth/register', { data: { email: staffEmail, displayName: 'Trần Gia Bảo', password: 'Password123' } })).status()).toBe(201)
+  const login = () => staff.request.post('/api/auth/login', { data: { email: staffEmail, password: 'Password123' } })
+  try {
+    await loginAsAdmin(page)
+    const accounts = page.locator('#accounts')
+    await page.getByRole('searchbox', { name: 'Tìm tài khoản' }).fill(staffEmail)
+    await expect(accounts.locator('tbody tr')).toHaveCount(1)
+
+    await page.getByRole('button', { name: `Ban ${staffEmail}` }).click()
+    await page.getByRole('button', { name: 'Xác nhận Ban' }).click()
+    await expect(page.getByRole('button', { name: `Mở khóa ${staffEmail}` })).toBeVisible()
+    expect((await login()).status()).toBe(403)
+    await page.getByRole('button', { name: `Mở khóa ${staffEmail}` }).click()
+    await page.getByRole('button', { name: 'Xác nhận mở khóa' }).click()
+    await expect(page.getByRole('button', { name: `Ban ${staffEmail}` })).toBeEnabled()
+    expect((await login()).status()).toBe(200)
+
+    await page.getByRole('button', { name: `Cấp quyền admin ${staffEmail}` }).click()
+    await page.getByRole('button', { name: 'Xác nhận cấp quyền' }).click()
+    await expect(page.getByRole('button', { name: `Thu quyền admin ${staffEmail}` })).toBeVisible()
+    expect((await (await login()).json()).user.role).toBe('admin')
+    await page.getByRole('button', { name: `Thu quyền admin ${staffEmail}` }).click()
+    await page.getByRole('button', { name: 'Xác nhận thu hồi' }).click()
+    await expect(page.getByRole('button', { name: `Cấp quyền admin ${staffEmail}` })).toBeVisible()
+    expect((await (await login()).json()).user.role).toBe('user')
   } finally {
     await staff.close()
   }

@@ -13,7 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class GroupService {
-    public record Group(String id, String name, String description, boolean archived, int memberCount, Instant lastMessageAt) {}
+    public record Group(String id, String name, String description, boolean archived, int memberCount, Instant lastMessageAt,
+            boolean requireApproval, int pendingRequests) {}
     public record GroupPage(List<Group> groups, int total, int page, int pageSize) {}
     public record Archive(Boolean archived) {}
     private final JdbcTemplate db;
@@ -72,14 +73,30 @@ public class GroupService {
         chat.removeMember(id, user); // chuyển quyền nếu người bị xoá là trưởng nhóm
         return group(id);
     }
+    /** Admin chỉ định trưởng nhóm / phó nhóm / thành viên thường. */
+    public List<RoomMember> setMemberRole(String actor, String id, String user, SetRole input) {
+        admin.requireAdmin(actor);
+        if (user == null || user.isBlank() || user.length() > 36) throw ChatService.field("userId", "Employee ID required");
+        db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
+        lockGroup(id);
+        return chat.adminSetRole(id, user, input);
+    }
+    /** Admin bật / tắt chế độ phê duyệt thành viên mới. */
+    public Group settings(String actor, String id, RoomSettings input) {
+        admin.requireAdmin(actor); lockGroup(id);
+        chat.adminSetApproval(id, input);
+        return group(id);
+    }
     private void lockGroup(String id) {
         var types = db.query("SELECT type FROM rooms WHERE id=? FOR UPDATE", (rs, n) -> rs.getString(1), id);
         if (types.isEmpty() || !"channel".equals(types.getFirst())) throw notFound();
     }
     private Group group(String id) {
-        var groups = db.query("SELECT r.*, (SELECT COUNT(*) FROM room_members m WHERE m.room_id=r.id) AS member_count FROM rooms r WHERE r.id=? AND r.type='channel'",
+        var groups = db.query("SELECT r.*, (SELECT COUNT(*) FROM room_members m WHERE m.room_id=r.id) AS member_count, "
+                + "(SELECT COUNT(*) FROM member_requests q WHERE q.room_id=r.id) AS pending_count FROM rooms r WHERE r.id=? AND r.type='channel'",
             (rs, n) -> new Group(rs.getString("id"), rs.getString("name"), rs.getString("description"), rs.getBoolean("archived"),
-                rs.getInt("member_count"), rs.getTimestamp("last_message_at") == null ? null : rs.getTimestamp("last_message_at").toInstant()), id);
+                rs.getInt("member_count"), rs.getTimestamp("last_message_at") == null ? null : rs.getTimestamp("last_message_at").toInstant(),
+                rs.getBoolean("require_approval"), rs.getInt("pending_count")), id);
         if (groups.isEmpty()) throw notFound(); return groups.getFirst();
     }
     private static ApiException notFound() { return new ApiException(404, "invalid_payload", "not_found", "Group not found"); }

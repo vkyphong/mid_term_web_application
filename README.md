@@ -73,11 +73,11 @@ E2E admin dùng sẵn tài khoản admin demo. Chi tiết từng bộ test, smok
 Mở **http://localhost:8080/admin** và đăng nhập bằng tài khoản có role `admin`. Đăng nhập thông thường bằng tài khoản admin cũng tự chuyển đến dashboard; từ màn hình chat có liên kết **Admin Dashboard**. Tài khoản `user` không được truy cập trang và API quản trị.
 
 - Thống kê kết nối chat, người online, tin/giây và phòng hoạt động cập nhật mỗi giây qua STOMP; dùng REST mỗi 3 giây khi không nhận được thống kê realtime. Biểu đồ giữ tối đa 60 mẫu trong phút vừa qua, bắt đầu khi mở trang; dữ liệu cũ được đánh dấu khi mất kết nối.
-- Danh sách tài khoản có tìm kiếm, phân trang 20 tài khoản và cập nhật mỗi 5 giây. **Kick** đóng kết nối hiện tại, người dùng có thể kết nối lại. **Ban** khóa tài khoản, thu hồi phiên đăng nhập và đóng kết nối. Không tự kick/ban bản thân trên dashboard; chưa có nút mở khóa.
+- Danh sách tài khoản có tìm kiếm, phân trang 20 tài khoản và cập nhật mỗi 5 giây. **Kick** đóng kết nối hiện tại, người dùng có thể kết nối lại. **Ban** khóa tài khoản, thu hồi phiên đăng nhập và đóng kết nối; **Mở khóa** cho tài khoản đăng nhập lại. **Cấp admin / Thu quyền admin** đổi vai trò tài khoản (thu quyền thì ngắt kết nối ngay). Không tự kick/ban hay tự đổi quyền của chính mình.
 - Kênh hoạt động: tối đa 50 kênh có tin trong 60 giây, số thành viên và số tin/phút; cập nhật mỗi 5 giây. Chỉ số **phòng hoạt động** bao gồm cả kênh và DM, danh sách kênh không hiển thị DM.
-- **Broadcast** lưu thông báo hệ thống cho tất cả tài khoản đang được kích hoạt, kể cả offline; người đang kết nối nhận thông báo realtime. Nội dung tối đa 2048 byte UTF-8. Kick, Ban và Broadcast đều có bước xác nhận.
+- **Broadcast** lưu thông báo hệ thống cho tất cả tài khoản đang được kích hoạt, kể cả offline; người đang kết nối nhận thông báo realtime. Nội dung tối đa 2048 byte UTF-8. Kick, Ban, Mở khóa, đổi quyền và Broadcast đều có bước xác nhận.
 
-- **Quản lý nhóm:** tìm và lọc nhóm (tất cả / đang hoạt động / đã lưu trữ), tạo nhóm, đổi tên và mô tả, thêm / xoá thành viên (kể cả khi admin không ở trong nhóm), lưu trữ và khôi phục nhóm có xác nhận. Admin không đọc được nội dung chat.
+- **Quản lý nhóm:** tìm và lọc nhóm (tất cả / đang hoạt động / đã lưu trữ), tạo nhóm, đổi tên và mô tả, thêm / xoá thành viên (kể cả khi admin không ở trong nhóm), chỉ định trưởng nhóm / phó nhóm (tối đa 5), bật / tắt phê duyệt thành viên mới, lưu trữ và khôi phục nhóm có xác nhận. Admin không đọc được nội dung chat.
 
 Đăng nhập bằng [tài khoản admin demo](#tài-khoản-demo), hoặc xem [cấp quyền admin](docs/operations.md#tài-khoản-admin) để cấp quyền cho tài khoản khác. Dashboard dùng backend thật, không hỗ trợ chế độ mock.
 

@@ -9,6 +9,44 @@ import { Confirmation, Icon } from './adminUi'
 import { useLogout, useSession } from '../auth/hooks'
 import { adminApi, type AdminUser } from './adminApi'
 import { useAdminStats, type StatsSample } from './useAdminStats'
+
+type AccountAction = 'kick' | 'ban' | 'unban' | 'grant' | 'revoke'
+
+/** Nội dung hộp xác nhận và thông báo cho từng thao tác với tài khoản. */
+const ACCOUNT_ACTIONS: Record<AccountAction, { title: string; body: string; confirm: string; danger: boolean; done: (email: string) => string }> = {
+  kick: {
+    title: 'Ngắt kết nối người dùng?', confirm: 'Xác nhận Kick', danger: false,
+    body: 'Đóng tất cả kết nối chat và Lab hiện tại. Người dùng vẫn có thể đăng nhập và kết nối lại.',
+    done: (email) => `Đã ngắt các kết nối hiện tại của ${email}. Người dùng có thể kết nối lại.`,
+  },
+  ban: {
+    title: 'Khóa tài khoản này?', confirm: 'Xác nhận Ban', danger: true,
+    body: 'Tài khoản sẽ bị khóa, mọi phiên đăng nhập bị thu hồi và các kết nối bị đóng. Có thể mở khóa lại sau.',
+    done: (email) => `Đã khóa tài khoản ${email}.`,
+  },
+  unban: {
+    title: 'Mở khóa tài khoản này?', confirm: 'Xác nhận mở khóa', danger: false,
+    body: 'Người dùng đăng nhập lại được ngay. Các phiên cũ đã bị thu hồi khi khóa nên họ cần đăng nhập mới.',
+    done: (email) => `Đã mở khóa tài khoản ${email}.`,
+  },
+  grant: {
+    title: 'Cấp quyền admin?', confirm: 'Xác nhận cấp quyền', danger: false,
+    body: 'Tài khoản sẽ truy cập được Admin Dashboard: kick/ban, broadcast, quản lý nhóm và cấp quyền cho người khác. Người dùng cần đăng nhập lại để thấy dashboard.',
+    done: (email) => `Đã cấp quyền admin cho ${email}.`,
+  },
+  revoke: {
+    title: 'Thu hồi quyền admin?', confirm: 'Xác nhận thu hồi', danger: true,
+    body: 'Tài khoản trở về nhân viên thường, mất quyền truy cập dashboard ngay và các kết nối hiện tại bị đóng.',
+    done: (email) => `Đã thu hồi quyền admin của ${email}.`,
+  },
+}
+
+function runAccountAction(id: string, action: AccountAction) {
+  if (action === 'unban') return adminApi.unban(id)
+  if (action === 'grant') return adminApi.setRole(id, 'admin')
+  if (action === 'revoke') return adminApi.setRole(id, 'user')
+  return adminApi.moderate(id, action)
+}
 import './admin.css'
 
 function TrafficChart({ samples, live }: { samples: StatsSample[]; live: boolean }) {
@@ -44,7 +82,7 @@ export function AdminDashboard() {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('')
   const [page, setPage] = useState(0)
-  const [selection, setSelection] = useState<{ user: AdminUser; action: 'kick' | 'ban' } | null>(null)
+  const [selection, setSelection] = useState<{ user: AdminUser; action: AccountAction } | null>(null)
   const [content, setContent] = useState('')
   const [confirmBroadcast, setConfirmBroadcast] = useState(false)
   const [notice, setNotice] = useState('')
@@ -59,9 +97,9 @@ export function AdminDashboard() {
   }, [search])
 
   const moderation = useMutation({
-    mutationFn: ({ user: target, action }: NonNullable<typeof selection>) => adminApi.moderate(target.id, action),
+    mutationFn: ({ user: target, action }: NonNullable<typeof selection>) => runAccountAction(target.id, action),
     onSuccess: (_result, { user: target, action }) => {
-      setNotice(action === 'ban' ? `Đã khóa tài khoản ${target.email}.` : `Đã ngắt các kết nối hiện tại của ${target.email}. Người dùng có thể kết nối lại.`)
+      setNotice(ACCOUNT_ACTIONS[action].done(target.email))
       setSelection(null)
       void queryClient.invalidateQueries({ queryKey: ['admin'] })
     },
@@ -75,7 +113,7 @@ export function AdminDashboard() {
     },
   })
   const bytes = new TextEncoder().encode(content.trim()).length
-  const choose = (target: AdminUser, action: 'kick' | 'ban') => { moderation.reset(); setSelection({ user: target, action }) }
+  const choose = (target: AdminUser, action: AccountAction) => { moderation.reset(); setSelection({ user: target, action }) }
   const submitBroadcast = (e: FormEvent) => {
     e.preventDefault()
     if (bytes < 1 || bytes > 2048 || broadcast.isPending || !enabled) return
@@ -129,16 +167,16 @@ export function AdminDashboard() {
 
             <div className="admin-columns">
               <section className="admin-panel admin-accounts" id="accounts" aria-labelledby="accounts-title">
-                <div className="admin-panel-heading"><div><h2 id="accounts-title">Quản lý tài khoản <span className="admin-count">{users.data?.total ?? '—'}</span></h2><p>Kick kết nối hoặc khóa quyền truy cập.</p></div></div>
+                <div className="admin-panel-heading"><div><h2 id="accounts-title">Quản lý tài khoản <span className="admin-count">{users.data?.total ?? '—'}</span></h2><p>Kick kết nối, khóa / mở khóa tài khoản và cấp quyền admin.</p></div></div>
                 <label className="admin-search"><span className="sr-only">Tìm tài khoản</span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" /><path d="m16 16 5 5" /></svg><input type="search" placeholder="Tìm theo tên hoặc email…" value={search} onChange={(e) => setSearch(e.target.value)} /></label>
                 {users.error && <p className="admin-inline-error" role="alert">{describeError(users.error)} <button onClick={() => void users.refetch()}>Thử lại</button></p>}
                 <div className="admin-table-scroll"><table className="admin-table"><thead><tr><th>Tài khoản</th><th>Trạng thái</th><th>Thao tác</th></tr></thead><tbody>
                   {users.isPending && <tr><td colSpan={3} className="admin-empty">Đang tải tài khoản…</td></tr>}
                   {users.isSuccess && users.data.users.length === 0 && <tr><td colSpan={3} className="admin-empty">Không tìm thấy tài khoản phù hợp.</td></tr>}
-                  {users.data?.users.map((target) => <tr key={target.id}><td><div className="admin-user-cell"><span className="admin-avatar">{target.displayName.slice(0, 1).toUpperCase()}</span><div><strong>{target.displayName} {target.id === user?.id && <small>(Bạn)</small>}</strong><span>{target.email}</span>{target.role === 'admin' && <small className="admin-user-role">Admin</small>}</div></div></td><td><span className={`admin-user-state ${!target.enabled ? 'admin-user-state--banned' : target.online ? 'admin-user-state--online' : ''}`}><i />{!target.enabled ? 'Đã khóa' : target.online ? 'Online' : 'Offline'}</span></td><td><div className="admin-actions"><button type="button" className="admin-button admin-button--small" disabled={!enabled || !target.enabled || !target.online || target.id === user?.id || moderation.isPending} onClick={() => choose(target, 'kick')} aria-label={`Kick ${target.email}`}>Kick</button><button type="button" className="admin-button admin-button--small admin-button--danger" disabled={!enabled || !target.enabled || target.id === user?.id || moderation.isPending} onClick={() => choose(target, 'ban')} aria-label={`Ban ${target.email}`}>Ban</button></div></td></tr>)}
+                  {users.data?.users.map((target) => <tr key={target.id}><td><div className="admin-user-cell"><span className="admin-avatar">{target.displayName.slice(0, 1).toUpperCase()}</span><div><strong>{target.displayName} {target.id === user?.id && <small>(Bạn)</small>}</strong><span>{target.email}</span>{target.role === 'admin' && <small className="admin-user-role">Admin</small>}</div></div></td><td><span className={`admin-user-state ${!target.enabled ? 'admin-user-state--banned' : target.online ? 'admin-user-state--online' : ''}`}><i />{!target.enabled ? 'Đã khóa' : target.online ? 'Online' : 'Offline'}</span></td><td><div className="admin-actions"><button type="button" className="admin-button admin-button--small" disabled={!enabled || !target.enabled || !target.online || target.id === user?.id || moderation.isPending} onClick={() => choose(target, 'kick')} aria-label={`Kick ${target.email}`}>Kick</button>{target.enabled ? <button type="button" className="admin-button admin-button--small admin-button--danger" disabled={!enabled || target.id === user?.id || moderation.isPending} onClick={() => choose(target, 'ban')} aria-label={`Ban ${target.email}`}>Ban</button> : <button type="button" className="admin-button admin-button--small admin-button--success" disabled={!enabled || moderation.isPending} onClick={() => choose(target, 'unban')} aria-label={`Mở khóa ${target.email}`}>Mở khóa</button>}<button type="button" className="admin-button admin-button--small" disabled={!enabled || target.id === user?.id || moderation.isPending} onClick={() => choose(target, target.role === 'admin' ? 'revoke' : 'grant')} aria-label={`${target.role === 'admin' ? 'Thu quyền admin' : 'Cấp quyền admin'} ${target.email}`}>{target.role === 'admin' ? 'Thu quyền admin' : 'Cấp admin'}</button></div></td></tr>)}
                 </tbody></table></div>
                 <div className="admin-pagination"><span>{users.data ? `${users.data.total} tài khoản · Trang ${page + 1}/${Math.max(1, Math.ceil(users.data.total / users.data.pageSize))}` : '—'}</span><div><button className="admin-button admin-button--small" disabled={page === 0 || users.isFetching} onClick={() => setPage((p) => p - 1)}>Trước</button><button className="admin-button admin-button--small" disabled={!users.data || (page + 1) * users.data.pageSize >= users.data.total || users.isFetching} onClick={() => setPage((p) => p + 1)}>Sau</button></div></div>
-                <p className="admin-footnote">Danh sách cập nhật mỗi 5 giây. Kick cho phép kết nối lại; Ban khóa tài khoản và thu hồi các phiên đăng nhập.</p>
+                <p className="admin-footnote">Danh sách cập nhật mỗi 5 giây. Kick cho phép kết nối lại; Ban khóa tài khoản và thu hồi các phiên đăng nhập, Mở khóa cho đăng nhập lại. Không tự Ban hoặc tự đổi quyền của chính mình.</p>
               </section>
 
               <div className="admin-right-column">
@@ -159,7 +197,7 @@ export function AdminDashboard() {
         </div>
       </main>
 
-      {selection && <Confirmation title={selection.action === 'ban' ? 'Khóa tài khoản này?' : 'Ngắt kết nối người dùng?'} busy={moderation.isPending} onClose={() => setSelection(null)}><p><strong>{selection.user.displayName}</strong><br />{selection.user.email}</p><p>{selection.action === 'ban' ? 'Tài khoản sẽ bị khóa, mọi phiên đăng nhập bị thu hồi và các kết nối bị đóng. Dashboard hiện chưa có thao tác mở khóa.' : 'Đóng tất cả kết nối chat và Lab hiện tại. Người dùng vẫn có thể đăng nhập và kết nối lại.'}</p>{moderation.error && <p className="admin-inline-error" role="alert">{describeError(moderation.error)}</p>}<div className="admin-dialog-actions"><button className="admin-button" autoFocus disabled={moderation.isPending} onClick={() => setSelection(null)}>Hủy</button><button className={`admin-button ${selection.action === 'ban' ? 'admin-button--danger-fill' : 'admin-button--primary'}`} disabled={moderation.isPending} onClick={() => moderation.mutate(selection)}>{moderation.isPending ? 'Đang xử lý…' : selection.action === 'ban' ? 'Xác nhận Ban' : 'Xác nhận Kick'}</button></div></Confirmation>}
+      {selection && <Confirmation title={ACCOUNT_ACTIONS[selection.action].title} busy={moderation.isPending} onClose={() => setSelection(null)}><p><strong>{selection.user.displayName}</strong><br />{selection.user.email}</p><p>{ACCOUNT_ACTIONS[selection.action].body}</p>{moderation.error && <p className="admin-inline-error" role="alert">{describeError(moderation.error)}</p>}<div className="admin-dialog-actions"><button className="admin-button" autoFocus disabled={moderation.isPending} onClick={() => setSelection(null)}>Hủy</button><button className={`admin-button ${ACCOUNT_ACTIONS[selection.action].danger ? 'admin-button--danger-fill' : 'admin-button--primary'}`} disabled={moderation.isPending} onClick={() => moderation.mutate(selection)}>{moderation.isPending ? 'Đang xử lý…' : ACCOUNT_ACTIONS[selection.action].confirm}</button></div></Confirmation>}
       {confirmBroadcast && <Confirmation title="Gửi thông báo toàn hệ thống?" busy={broadcast.isPending} onClose={() => setConfirmBroadcast(false)}><p>Thông báo sẽ được lưu cho mọi tài khoản đang được kích hoạt.</p><blockquote className="admin-broadcast-preview">{content.trim()}</blockquote>{broadcast.error && <p className="admin-inline-error" role="alert">{describeError(broadcast.error)} Kiểm tra thông báo đã gửi trước khi thử lại nếu kết nối bị gián đoạn.</p>}<div className="admin-dialog-actions"><button className="admin-button" autoFocus disabled={broadcast.isPending} onClick={() => setConfirmBroadcast(false)}>Hủy</button><button className="admin-button admin-button--primary" disabled={broadcast.isPending} onClick={() => broadcast.mutate(content.trim())}>{broadcast.isPending ? 'Đang gửi…' : 'Xác nhận gửi'}</button></div></Confirmation>}
     </div>
   )

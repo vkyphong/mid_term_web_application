@@ -99,7 +99,7 @@ Xác minh F13 local ngày 28/10/2026: lint + production build, **154 frontend te
 
 `src/features/admin/admin.test.tsx` kiểm tra quản lý nhóm (lọc, tạo, sửa, trùng tên, lưu trữ, thêm / xoá thành viên), chặn tài khoản thường, không tự ban, xác nhận/hủy kick/ban/broadcast, thông báo lỗi, giới hạn byte UTF-8 và đăng ký lại queue thống kê sau reconnect. `CollaborationIntegrationTest` kiểm tra phân quyền API, tìm kiếm literal `%`/`_`, phân trang, trạng thái tài khoản đã ban, kênh hoạt động không lộ DM, cùng các thao tác kick/ban/broadcast trên backend thật trong H2.
 
-Browser smoke `e2e/admin.e2e.ts` mặc định đăng nhập bằng tài khoản admin demo `admin@dqgm.dev` / `Admin123456` (backend tự tạo khi khởi động), kiểm tra login → `/admin`, push thống kê, biểu đồ, tìm kiếm, cấm tự ban, hộp thoại broadcast/hủy bằng Escape, reload, viewport mobile 390px, và luồng quản lý nhóm thật: tạo, đổi tên, thêm / xoá thành viên, lưu trữ rồi khôi phục. Test không gửi broadcast hoặc kick/ban tài khoản thật. `DemoAdminAccountTest` kiểm tra việc tạo tài khoản admin demo không trùng lặp.
+Browser smoke `e2e/admin.e2e.ts` mặc định đăng nhập bằng tài khoản admin demo `admin@dqgm.dev` / `Admin123456` (backend tự tạo khi khởi động), kiểm tra login → `/admin`, push thống kê, biểu đồ, tìm kiếm, cấm tự ban, hộp thoại broadcast/hủy bằng Escape, reload, viewport mobile 390px, luồng quản lý nhóm thật (tạo, đổi tên, thêm / xoá thành viên, phó nhóm, chuyển trưởng nhóm, bật phê duyệt, lưu trữ rồi khôi phục) và tài khoản (Ban → Mở khóa, Cấp admin → Thu quyền admin, kiểm tra lại bằng đăng nhập thật). Test không gửi broadcast hoặc kick/ban tài khoản thật. `DemoAdminAccountTest` kiểm tra việc tạo tài khoản admin demo không trùng lặp.
 
 Chạy trong `client/`:
 

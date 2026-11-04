@@ -16,12 +16,13 @@ vi.mock('./adminApi', () => ({
   adminApi: {
     stats: vi.fn(), users: vi.fn(), channels: vi.fn(), moderate: vi.fn(), broadcast: vi.fn(),
     groups: vi.fn(), createGroup: vi.fn(), updateGroup: vi.fn(), archiveGroup: vi.fn(), groupMembers: vi.fn(), addGroupMember: vi.fn(), removeGroupMember: vi.fn(),
+    unban: vi.fn(), setRole: vi.fn(), setGroupMemberRole: vi.fn(), setGroupApproval: vi.fn(),
   },
 }))
 const api = vi.mocked(adminApi)
 const stats = { connections: 3, onlineUsers: 2, msgPerSec: 4, activeRooms: 1 }
 const admin = { id: 'admin', email: 'admin@dqgm.dev', displayName: 'IT Admin', role: 'admin' }
-const project = { id: 'g1', name: 'Dự án A', description: 'Nhóm dự án', archived: false, memberCount: 1, lastMessageAt: null }
+const project = { id: 'g1', name: 'Dự án A', description: 'Nhóm dự án', archived: false, memberCount: 1, lastMessageAt: null, requireApproval: false, pendingRequests: 0 }
 const employee = { id: 'u1', email: 'employee@dqgm.dev', displayName: 'Employee', role: 'user' as const, enabled: true, online: true }
 
 function mount(element = <AdminDashboard />, role = 'admin') {
@@ -179,5 +180,70 @@ describe('quản lý nhóm (admin)', () => {
     expect(api.removeGroupMember).not.toHaveBeenCalled()
     await user.click(within(members).getByRole('button', { name: 'Xác nhận xoá' }))
     await waitFor(() => expect(api.removeGroupMember).toHaveBeenCalledWith('g1', 'admin'))
+  })
+})
+
+describe('mở khoá tài khoản và quyền admin', () => {
+  it('tài khoản bị khoá có nút Mở khóa; cấp / thu quyền admin cần xác nhận; không đổi quyền chính mình', async () => {
+    const user = userEvent.setup()
+    const banned = { ...employee, id: 'u2', email: 'banned@dqgm.dev', displayName: 'Banned', enabled: false, online: false }
+    const otherAdmin = { ...employee, id: 'u3', email: 'boss@dqgm.dev', displayName: 'Boss', role: 'admin' as const }
+    api.users.mockResolvedValue({ users: [{ ...admin, role: 'admin', enabled: true, online: true }, employee, banned, otherAdmin], total: 4, page: 0, pageSize: 20 })
+    api.unban.mockResolvedValue(undefined)
+    api.setRole.mockResolvedValue(undefined)
+    mount()
+    expect(await screen.findByRole('button', { name: 'Mở khóa banned@dqgm.dev' })).toBeEnabled()
+    expect(screen.queryByRole('button', { name: 'Ban banned@dqgm.dev' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Thu quyền admin admin@dqgm.dev' })).toBeDisabled()
+
+    await user.click(screen.getByRole('button', { name: 'Mở khóa banned@dqgm.dev' }))
+    expect(api.unban).not.toHaveBeenCalled()
+    await user.click(screen.getByRole('button', { name: 'Xác nhận mở khóa' }))
+    await waitFor(() => expect(api.unban).toHaveBeenCalledWith('u2'))
+    expect(await screen.findByText(/Đã mở khóa tài khoản banned@dqgm.dev/)).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Cấp quyền admin employee@dqgm.dev' }))
+    await user.click(screen.getByRole('button', { name: 'Xác nhận cấp quyền' }))
+    await waitFor(() => expect(api.setRole).toHaveBeenCalledWith('u1', 'admin'))
+
+    await user.click(screen.getByRole('button', { name: 'Thu quyền admin boss@dqgm.dev' }))
+    await user.click(screen.getByRole('button', { name: 'Xác nhận thu hồi' }))
+    await waitFor(() => expect(api.setRole).toHaveBeenLastCalledWith('u3', 'user'))
+    expect(await screen.findByText(/Đã thu hồi quyền admin của boss@dqgm.dev/)).toBeInTheDocument()
+  })
+})
+
+describe('trưởng / phó nhóm và phê duyệt (admin)', () => {
+  it('chọn phó nhóm đổi ngay; chọn trưởng nhóm mới cần xác nhận; bật phê duyệt', async () => {
+    const user = userEvent.setup()
+    const list = [
+      { id: 'admin', displayName: 'IT Admin', email: 'admin@dqgm.dev', enabled: true, memberRole: 'owner' as const },
+      { id: 'u1', displayName: 'Employee', email: 'employee@dqgm.dev', enabled: true, memberRole: 'member' as const },
+    ]
+    api.groupMembers.mockResolvedValue(list)
+    api.setGroupMemberRole.mockImplementation(async (_g, id, role) => list.map((m) => (m.id === id ? { ...m, memberRole: role } : m)))
+    api.setGroupApproval.mockResolvedValue({ ...project, requireApproval: true })
+    mount()
+    const section = await screen.findByRole('region', { name: /Quản lý nhóm/ })
+    await user.click(await within(section).findByRole('button', { name: 'Thành viên nhóm Dự án A' }))
+    // Trưởng nhóm hiện tại không đổi trực tiếp được.
+    expect(await screen.findByRole('combobox', { name: 'Vai trò của IT Admin' })).toBeDisabled()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Vai trò của Employee' }), 'deputy')
+    await waitFor(() => expect(api.setGroupMemberRole).toHaveBeenCalledWith('g1', 'u1', 'deputy'))
+    expect(await screen.findByText(/Employee giờ là phó nhóm của Dự án A/)).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Vai trò của Employee' }), 'owner')
+    expect(api.setGroupMemberRole).toHaveBeenCalledTimes(1)
+    const confirm = screen.getByRole('alertdialog', { name: 'Xác nhận chuyển trưởng nhóm' })
+    await user.click(within(confirm).getByRole('button', { name: 'Xác nhận chuyển' }))
+    await waitFor(() => expect(api.setGroupMemberRole).toHaveBeenLastCalledWith('g1', 'u1', 'owner'))
+    expect(await screen.findByText(/Employee là trưởng nhóm mới của Dự án A/)).toBeInTheDocument()
+
+    const approval = screen.getByRole('switch', { name: /Phê duyệt thành viên mới/ })
+    expect(approval).not.toBeChecked()
+    await user.click(approval)
+    await waitFor(() => expect(api.setGroupApproval).toHaveBeenCalledWith('g1', true))
+    expect(approval).toBeChecked()
   })
 })

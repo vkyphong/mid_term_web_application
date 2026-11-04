@@ -182,6 +182,8 @@ Mọi API bên dưới yêu cầu tài khoản `role='admin'` và `enabled=true`
 | POST | `/api/admin/groups/{id}/members` | `{ "userId": "employee-id" }` | `200 Group` |
 | DELETE | `/api/admin/groups/{id}/members/{userId}` | — | `200 Group`; xóa lại người đã vắng mặt vẫn thành công |
 | POST | `/api/admin/groups/{id}/archive` | `{ "archived": true }` hoặc `{ "archived": false }` | `200 Group` |
+| PUT | `/api/admin/groups/{id}/members/{userId}/role` | `{ "role": "owner" \| "deputy" \| "member" }` | `200 { members: RoomMember[] }`; chọn `owner` thì trưởng nhóm cũ thành `member`; không hạ trực tiếp trưởng nhóm (400); tối đa 5 phó nhóm (`409 deputy_limit`); tài khoản bị khoá không làm trưởng nhóm được |
+| PATCH | `/api/admin/groups/{id}/settings` | `{ "requireApproval": true }` | `200 Group` |
 
 `Group`:
 
@@ -192,7 +194,9 @@ Mọi API bên dưới yêu cầu tài khoản `role='admin'` và `enabled=true`
   "description": "Mô tả",
   "archived": false,
   "memberCount": 3,
-  "lastMessageAt": "2026-11-03T00:00:00Z"
+  "lastMessageAt": "2026-11-03T00:00:00Z",
+  "requireApproval": false,
+  "pendingRequests": 0
 }
 ```
 

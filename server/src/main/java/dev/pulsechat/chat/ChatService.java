@@ -140,6 +140,36 @@ public class ChatService {
         broadcastRoom(room);
         return memberList(room);
     }
+    /**
+     * Admin đổi vai trò thành viên (owner / deputy / member) mà không cần là thành viên nhóm.
+     * Chọn trưởng nhóm mới thì trưởng nhóm cũ thành thành viên thường; không hạ trực tiếp trưởng nhóm.
+     */
+    public List<RoomMember> adminSetRole(String room, String target, SetRole input) {
+        String role = input == null ? null : input.role();
+        if (!"owner".equals(role) && !"deputy".equals(role) && !"member".equals(role))
+            throw field("role", "Role must be owner, deputy or member");
+        requireChannel(room);
+        String current = role(room, target);
+        if (current == null) throw field("userId", "Employee is not a member of this channel");
+        if (current.equals(role)) return memberList(room);
+        if (current.equals("owner")) throw field("userId", "Choose a new owner instead of demoting the current owner");
+        if (role.equals("owner") && !Boolean.TRUE.equals(db.queryForObject("SELECT enabled FROM users WHERE id=?", Boolean.class, target)))
+            throw field("userId", "A locked account cannot become the owner");
+        if (role.equals("deputy")
+                && db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=? AND role='deputy'", Integer.class, room) >= MAX_DEPUTIES)
+            throw new ApiException(409, "invalid_payload", "deputy_limit", "A channel has at most " + MAX_DEPUTIES + " deputies");
+        if (role.equals("owner")) db.update("UPDATE room_members SET role='member' WHERE room_id=? AND role='owner'", room);
+        db.update("UPDATE room_members SET role=? WHERE room_id=? AND user_id=?", role, room, target);
+        broadcastRoom(room);
+        return memberList(room);
+    }
+    /** Admin bật / tắt phê duyệt thành viên mới của nhóm. */
+    public void adminSetApproval(String room, RoomSettings input) {
+        if (input == null || input.requireApproval() == null) throw field("requireApproval", "requireApproval is required");
+        requireChannel(room);
+        db.update("UPDATE rooms SET require_approval=? WHERE id=?", input.requireApproval(), room);
+        broadcastRoom(room);
+    }
     public Delivery send(String room, String user, String content, String clientMsgId) {
         return send(room,user,content,clientMsgId,null,List.of());
     }

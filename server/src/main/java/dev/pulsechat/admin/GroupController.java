@@ -42,6 +42,15 @@ public class GroupController {
     public GroupService.Group removeMember(@AuthenticationPrincipal SessionPrincipal actor, @PathVariable String id, @PathVariable String userId) {
         return groups.removeMember(actor.userId(), id, userId);
     }
+    @PutMapping("/{id}/members/{userId}/role")
+    public Object setMemberRole(@AuthenticationPrincipal SessionPrincipal actor, @PathVariable String id, @PathVariable String userId,
+            @RequestBody SetRole input) {
+        return Map.of("members", groups.setMemberRole(actor.userId(), id, userId, input));
+    }
+    @PatchMapping("/{id}/settings")
+    public GroupService.Group settings(@AuthenticationPrincipal SessionPrincipal actor, @PathVariable String id, @RequestBody RoomSettings input) {
+        return groups.settings(actor.userId(), id, input);
+    }
     @ExceptionHandler(DuplicateKeyException.class)
     public ResponseEntity<?> duplicate() {
         return ResponseEntity.status(409).body(dev.pulsechat.common.ApiErrors.body(

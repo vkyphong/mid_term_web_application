@@ -153,3 +153,11 @@
 .admin-member-list li > div span { color: var(--muted); font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-member-list--results { max-height: 200px; border: 1px solid var(--border); border-radius: 8px; padding: 0 8px; }
 .admin-member-list--results li:last-child { border-bottom: 0; }
+.admin-button--success { color: #18815b; border-color: color-mix(in srgb, #18815b 30%, var(--border)); }
+.admin-switch { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0 4px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+.admin-switch input { margin-top: 3px; accent-color: var(--primary); }
+.admin-switch > span { display: grid; gap: 2px; font-size: 12px; }
+.admin-switch > span > span { color: var(--muted); font-size: 11px; }
+.admin-role-select { font: inherit; font-size: 11px; padding: 5px 6px; border: 1px solid var(--border); border-radius: 6px; color: var(--text); background: var(--surface); }
+.admin-owner-confirm { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: 8px; font-size: 12px; background: color-mix(in srgb, var(--primary) 8%, var(--surface)); }
+.admin-group-flag { display: block; margin-top: 3px; color: #b27618; font-size: 10px; }

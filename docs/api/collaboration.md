@@ -52,11 +52,13 @@ Only enabled accounts with database role `admin` can access admin APIs, commands
 | `GET /api/admin/channels` | `{channels:[{id,name,members,messagesLastMinute,lastMessageAt}]}`; latest 50 public channels with messages in the last 60 seconds, excluding DMs |
 | `POST /api/admin/users/{id}/kick` | Empty body → 200 |
 | `POST /api/admin/users/{id}/ban` | Empty body → 200 |
+| `POST /api/admin/users/{id}/unban` | Empty body → 200; re-enables the account (revoked sessions stay revoked, the user signs in again) |
+| `PUT /api/admin/users/{id}/role` | `{role:"admin"\|"user"}` → 200; changing your own role is rejected (400); revoking admin closes the user's sockets |
 | `POST /api/admin/broadcast` | `{content}` → `{recipients}` |
 
 STOMP equivalents: `/app/admin.kick`, type `admin:kick`, `{userId}`; `/app/admin.broadcast`, type `admin:broadcast`, `{content}`. Both use normal command acks. Every second `admin:stats` is pushed on the admin queue. Connections means authenticated chat sockets; onlineUsers counts distinct chat users; msgPerSec counts new persisted messages in the previous second; activeRooms counts rooms with a new message in the previous 60 seconds. Stats cover one instance and exclude Lab traffic.
 
-Kick closes all current chat and raw Lab sockets but permits future login/reconnect. Ban disables the account, revokes all its auth sessions and closes those sockets; pending Lab HTTP streams/requests are rejected/closed on their next periodic authorization check (within approximately one second). Self-ban is rejected. Broadcast stores a `system` notification for every enabled user, including offline users, and pushes it to connected notification subscribers. Content limit is 2048 UTF-8 bytes.
+Kick closes all current chat and raw Lab sockets but permits future login/reconnect. Ban disables the account, revokes all its auth sessions and closes those sockets; pending Lab HTTP streams/requests are rejected/closed on their next periodic authorization check (within approximately one second). Self-ban and changing your own role are rejected. Unban sets `enabled=true` only. Broadcast stores a `system` notification for every enabled user, including offline users, and pushes it to connected notification subscribers. Content limit is 2048 UTF-8 bytes.
 
 ## F14 edits, deletion and reactions
 

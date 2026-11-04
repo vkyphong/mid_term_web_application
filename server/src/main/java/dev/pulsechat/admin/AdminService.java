@@ -61,6 +61,19 @@ public class AdminService {
         db.update("UPDATE auth_sessions SET revoked=true WHERE user_id=?",target);
         org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){@Override public void afterCommit(){connections.kick(target);}});
     }
+    /** Mở khoá tài khoản đã bị Ban; các phiên cũ vẫn bị thu hồi nên người dùng phải đăng nhập lại. */
+    @Transactional public void unban(String admin,String target){
+        requireAdmin(admin);requireUser(target);
+        db.update("UPDATE users SET enabled=true WHERE id=?",target);
+    }
+    /** Cấp / thu quyền admin. Không tự đổi quyền của mình (tránh mất admin cuối cùng). Bị thu quyền thì ngắt kết nối để giao diện tải lại quyền mới. */
+    @Transactional public void setRole(String admin,String target,String role){
+        requireAdmin(admin);requireUser(target);
+        if(!"admin".equals(role)&&!"user".equals(role))throw ChatService.field("role","Role must be admin or user");
+        if(admin.equals(target))throw ChatService.field("userId","Cannot change your own role");
+        int changed=db.update("UPDATE users SET role=? WHERE id=? AND role<>?",role,target,role);
+        if(changed>0&&"user".equals(role))org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){@Override public void afterCommit(){connections.kick(target);}});
+    }
     @Transactional public Object broadcast(String admin,String content){
         requireAdmin(admin);if(content==null||content.isBlank()||content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>2048)throw ChatService.field("content","Use 1–2048 UTF-8 bytes");
         var users=db.query("SELECT id FROM users WHERE enabled=true",(rs,n)->rs.getString(1));

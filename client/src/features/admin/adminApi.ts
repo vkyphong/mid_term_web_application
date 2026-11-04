@@ -38,6 +38,9 @@ export interface AdminGroup {
   archived: boolean
   memberCount: number
   lastMessageAt: string | null
+  /** Thành viên thường thêm người phải chờ trưởng / phó nhóm duyệt. */
+  requireApproval: boolean
+  pendingRequests: number
 }
 
 export interface GroupPage {
@@ -52,8 +55,10 @@ export interface GroupMember {
   displayName: string
   email: string
   enabled: boolean
-  memberRole?: string | null
+  memberRole?: GroupRole | null
 }
+
+export type GroupRole = 'owner' | 'deputy' | 'member'
 
 export interface GroupInput {
   name: string
@@ -67,6 +72,9 @@ export const adminApi = {
   users: (search: string, page: number) => authRequest<UserPage>(`/api/admin/users?${new URLSearchParams({ search, page: String(page) })}`),
   channels: () => authRequest<{ channels: ChannelActivity[] }>('/api/admin/channels'),
   moderate: (id: string, action: 'kick' | 'ban') => authRequest<void>(`/api/admin/users/${encodeURIComponent(id)}/${action}`, { method: 'POST' }),
+  unban: (id: string) => authRequest<void>(`/api/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
+  setRole: (id: string, role: 'admin' | 'user') =>
+    authRequest<void>(`/api/admin/users/${encodeURIComponent(id)}/role`, { method: 'PUT', body: { role } }),
   broadcast: (content: string) => authRequest<{ recipients: number }>('/api/admin/broadcast', { method: 'POST', body: { content } }),
   groups: (search: string, archived: boolean | undefined, page: number) => {
     const params = new URLSearchParams({ search, page: String(page) })
@@ -78,6 +86,10 @@ export const adminApi = {
   archiveGroup: (id: string, archived: boolean) => authRequest<AdminGroup>(`${group(id)}/archive`, { method: 'POST', body: { archived } }),
   groupMembers: async (id: string) => (await authRequest<{ members: GroupMember[] }>(`${group(id)}/members`)).members,
   addGroupMember: (id: string, userId: string) => authRequest<AdminGroup>(`${group(id)}/members`, { method: 'POST', body: { userId } }),
+  setGroupMemberRole: async (id: string, userId: string, role: GroupRole) =>
+    (await authRequest<{ members: GroupMember[] }>(`${group(id)}/members/${encodeURIComponent(userId)}/role`, { method: 'PUT', body: { role } })).members,
+  setGroupApproval: (id: string, requireApproval: boolean) =>
+    authRequest<AdminGroup>(`${group(id)}/settings`, { method: 'PATCH', body: { requireApproval } }),
   removeGroupMember: (id: string, userId: string) =>
     authRequest<AdminGroup>(`${group(id)}/members/${encodeURIComponent(userId)}`, { method: 'DELETE' }),
 }

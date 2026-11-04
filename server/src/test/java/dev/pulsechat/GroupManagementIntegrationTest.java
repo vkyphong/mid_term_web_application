@@ -531,6 +531,52 @@ class GroupManagementIntegrationTest {
         get("/api/admin/groups?archived=bad", admin, 400);
         post("/api/admin/groups", admin, Map.of("name", "x"), 400);
     }
+    @Test void adminAssignsOwnerAndDeputiesAndTogglesApproval() throws Exception {
+        String room = room();
+        post("/api/admin/groups/" + room + "/members", admin, Map.of("userId", peer.id()), 200);
+        post("/api/admin/groups/" + room + "/members", admin, Map.of("userId", outsider.id()), 200);
+        String base = "/api/admin/groups/" + room + "/members/";
+        // Phó nhóm, rồi chọn trưởng nhóm mới: trưởng nhóm cũ thành thành viên thường.
+        var members = call(HttpMethod.PUT, base + peer.id() + "/role", admin, Map.of("role", "deputy"), 200).get("members");
+        assertThat(roleOf(members, peer.id())).isEqualTo("deputy");
+        members = call(HttpMethod.PUT, base + outsider.id() + "/role", admin, Map.of("role", "owner"), 200).get("members");
+        assertThat(roleOf(members, outsider.id())).isEqualTo("owner");
+        assertThat(roleOf(members, owner.id())).isEqualTo("member");
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=? AND role='owner'", Integer.class, room)).isEqualTo(1);
+        // Không hạ trực tiếp trưởng nhóm; người ngoài nhóm và vai trò lạ bị từ chối.
+        call(HttpMethod.PUT, base + outsider.id() + "/role", admin, Map.of("role", "member"), 400);
+        call(HttpMethod.PUT, base + admin.id() + "/role", admin, Map.of("role", "deputy"), 400);
+        call(HttpMethod.PUT, base + peer.id() + "/role", admin, Map.of("role", "boss"), 400);
+        // Bật / tắt phê duyệt.
+        var group = call(HttpMethod.PATCH, "/api/admin/groups/" + room + "/settings", admin, Map.of("requireApproval", true), 200);
+        assertThat(group.get("requireApproval").asBoolean()).isTrue();
+        assertThat(group.get("pendingRequests").asInt()).isZero();
+        assertThat(get("/api/admin/groups/" + room, admin, 200).get("requireApproval").asBoolean()).isTrue();
+        call(HttpMethod.PATCH, "/api/admin/groups/" + room + "/settings", admin, Map.of(), 400);
+        assertThat(call(HttpMethod.PATCH, "/api/admin/groups/" + room + "/settings", admin, Map.of("requireApproval", false), 200)
+            .get("requireApproval").asBoolean()).isFalse();
+    }
+    @Test void adminUnbansAndGrantsOrRevokesAdminRole() throws Exception {
+        var target = account();
+        post("/api/admin/users/" + target.id() + "/ban", admin, Map.of(), 200);
+        assertThat(db.queryForObject("SELECT enabled FROM users WHERE id=?", Boolean.class, target.id())).isFalse();
+        post("/api/admin/users/" + target.id() + "/unban", admin, Map.of(), 200);
+        assertThat(db.queryForObject("SELECT enabled FROM users WHERE id=?", Boolean.class, target.id())).isTrue();
+        // Phiên cũ đã bị thu hồi khi Ban: mở khoá không khôi phục phiên, phải đăng nhập lại.
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM auth_sessions WHERE user_id=? AND revoked=false", Integer.class, target.id())).isZero();
+
+        call(HttpMethod.PUT, "/api/admin/users/" + target.id() + "/role", admin, Map.of("role", "admin"), 200);
+        assertThat(db.queryForObject("SELECT role FROM users WHERE id=?", String.class, target.id())).isEqualTo("admin");
+        call(HttpMethod.PUT, "/api/admin/users/" + target.id() + "/role", admin, Map.of("role", "user"), 200);
+        assertThat(db.queryForObject("SELECT role FROM users WHERE id=?", String.class, target.id())).isEqualTo("user");
+        call(HttpMethod.PUT, "/api/admin/users/" + admin.id() + "/role", admin, Map.of("role", "user"), 400);
+        call(HttpMethod.PUT, "/api/admin/users/" + target.id() + "/role", admin, Map.of("role", "root"), 400);
+        post("/api/admin/users/" + UUID.randomUUID() + "/unban", admin, Map.of(), 400);
+    }
+    private static String roleOf(JsonNode members, String userId) {
+        for (JsonNode m : members) if (m.get("id").asText().equals(userId)) return m.path("memberRole").asText(null);
+        return null;
+    }
     @Test void adminRoleIsRequiredForEveryManagementEndpoint() throws Exception {
         String room = room();
         for (String suffix : List.of("", "/" + room, "/" + room + "/members")) get("/api/admin/groups" + suffix, owner, 403);
@@ -539,7 +585,11 @@ class GroupManagementIntegrationTest {
         post("/api/admin/groups/" + room + "/archive", owner, Map.of("archived", true), 403);
         post("/api/admin/groups/" + room + "/members", owner, Map.of("userId", outsider.id()), 403);
         call(HttpMethod.DELETE, "/api/admin/groups/" + room + "/members/" + owner.id(), owner, null, 403);
-        for (String method : List.of("PATCH", "DELETE")) mvc.perform(options("/api/admin/groups/" + room)
+        call(HttpMethod.PUT, "/api/admin/groups/" + room + "/members/" + owner.id() + "/role", owner, Map.of("role", "deputy"), 403);
+        call(HttpMethod.PATCH, "/api/admin/groups/" + room + "/settings", owner, Map.of("requireApproval", true), 403);
+        post("/api/admin/users/" + peer.id() + "/unban", owner, Map.of(), 403);
+        call(HttpMethod.PUT, "/api/admin/users/" + peer.id() + "/role", owner, Map.of("role", "admin"), 403);
+        for (String method : List.of("PUT", "PATCH", "DELETE")) mvc.perform(options("/api/admin/groups/" + room)
             .header("Origin", "http://localhost:5173").header("Access-Control-Request-Method", method)
             .header("Access-Control-Request-Headers", "Authorization,Content-Type"))
             .andExpect(status().isOk()).andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:5173"));

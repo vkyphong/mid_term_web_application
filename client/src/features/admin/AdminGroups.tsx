@@ -1,18 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../lib/apiError'
-import { adminApi, type AdminGroup } from './adminApi'
+import { adminApi, type AdminGroup, type GroupMember, type GroupRole } from './adminApi'
 import { describeError } from './adminErrors'
 import { Confirmation } from './adminUi'
 
 type Status = 'all' | 'active' | 'archived'
-const ROLE_LABEL: Record<string, string> = { owner: 'Trưởng nhóm', deputy: 'Phó nhóm' }
+const ROLE_LABEL: Record<GroupRole, string> = { owner: 'Trưởng nhóm', deputy: 'Phó nhóm', member: 'Thành viên' }
+const MAX_DEPUTIES = 5
 
 function groupError(error: unknown) {
   if (error instanceof ApiError) {
     if (error.reason === 'room_name_taken') return 'Tên nhóm đã tồn tại. Hãy chọn tên khác.'
     if (error.reason === 'room_archived') return 'Nhóm đang lưu trữ. Khôi phục nhóm trước khi thêm thành viên.'
     if (error.reason === 'not_found') return 'Không tìm thấy nhóm hoặc tài khoản (có thể đã bị khoá).'
+    if (error.reason === 'deputy_limit') return `Mỗi nhóm có tối đa ${MAX_DEPUTIES} phó nhóm.`
   }
   return describeError(error)
 }
@@ -78,6 +80,8 @@ function GroupMembers({ group, onClose, onNotice }: { group: AdminGroup; onClose
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
   const [removing, setRemoving] = useState<string | null>(null)
+  const [newOwner, setNewOwner] = useState<GroupMember | null>(null)
+  const [approval, setApproval] = useState(group.requireApproval)
   const query = useDebounced(search)
   const members = useQuery({ queryKey: ['admin', 'groups', group.id, 'members'], queryFn: () => adminApi.groupMembers(group.id), retry: false })
   const candidates = useQuery({ queryKey: ['admin', 'users', query, 0], queryFn: () => adminApi.users(query, 0), enabled: query.length > 0, retry: false })
@@ -99,13 +103,45 @@ function GroupMembers({ group, onClose, onNotice }: { group: AdminGroup; onClose
       onNotice(`Đã xoá ${who?.displayName ?? 'thành viên'} khỏi nhóm ${group.name}.`)
     },
   })
-  const busy = add.isPending || remove.isPending
+  const changeRole = useMutation({
+    mutationFn: ({ member, role }: { member: GroupMember; role: GroupRole }) => adminApi.setGroupMemberRole(group.id, member.id, role),
+    onSuccess: (list, { member, role }) => {
+      queryClient.setQueryData(['admin', 'groups', group.id, 'members'], list)
+      refresh()
+      setNewOwner(null)
+      onNotice(role === 'owner' ? `${member.displayName} là trưởng nhóm mới của ${group.name}.` : `${member.displayName} giờ là ${ROLE_LABEL[role].toLowerCase()} của ${group.name}.`)
+    },
+  })
+  const toggleApproval = useMutation({
+    mutationFn: (on: boolean) => adminApi.setGroupApproval(group.id, on),
+    onMutate: (on) => setApproval(on),
+    onError: (_e, on) => setApproval(!on),
+    onSuccess: (saved) => {
+      refresh()
+      onNotice(saved.requireApproval ? `Đã bật phê duyệt thành viên mới cho ${group.name}.` : `Đã tắt phê duyệt thành viên mới cho ${group.name}.`)
+    },
+  })
+  const busy = add.isPending || remove.isPending || changeRole.isPending
+  const deputies = (members.data ?? []).filter((m) => m.memberRole === 'deputy').length
+  const pickRole = (m: GroupMember, role: GroupRole) => {
+    changeRole.reset()
+    if (role === 'owner') setNewOwner(m)
+    else changeRole.mutate({ member: m, role })
+  }
   const memberIds = new Set((members.data ?? []).map((m) => m.id))
   const results = (candidates.data?.users ?? []).filter((u) => !memberIds.has(u.id))
 
   return (
     <Confirmation title={`Thành viên · ${group.name}`} busy={busy} onClose={onClose} icon="users" className="admin-dialog--wide">
       {group.archived && <p className="admin-form-hint">Nhóm đang lưu trữ: chỉ xem và xoá thành viên, khôi phục nhóm để thêm người.</p>}
+      <label className="admin-switch">
+        <input type="checkbox" role="switch" checked={approval} disabled={toggleApproval.isPending} onChange={(e) => toggleApproval.mutate(e.target.checked)} />
+        <span>
+          <strong>Phê duyệt thành viên mới</strong>
+          <span>Thành viên thường thêm người thì phải chờ trưởng / phó nhóm duyệt.{group.pendingRequests > 0 && ` Đang có ${group.pendingRequests} yêu cầu chờ duyệt.`}</span>
+        </span>
+      </label>
+      {toggleApproval.error && <p className="admin-inline-error admin-inline-error--flush" role="alert">{groupError(toggleApproval.error)}</p>}
       {!group.archived && (
         <label className="admin-search admin-search--flush">
           <span className="sr-only">Tìm tài khoản để thêm</span>
@@ -128,8 +164,19 @@ function GroupMembers({ group, onClose, onNotice }: { group: AdminGroup; onClose
           ))}
         </ul>
       )}
-      {(add.error || remove.error) && <p className="admin-inline-error admin-inline-error--flush" role="alert">{groupError(add.error ?? remove.error)}</p>}
-      <h3 className="admin-member-heading">{members.data ? `${members.data.length} thành viên` : 'Thành viên'}</h3>
+      {(add.error || remove.error || changeRole.error) && <p className="admin-inline-error admin-inline-error--flush" role="alert">{groupError(add.error ?? remove.error ?? changeRole.error)}</p>}
+      {newOwner && (
+        <div className="admin-owner-confirm" role="alertdialog" aria-label="Xác nhận chuyển trưởng nhóm">
+          <span>Chuyển trưởng nhóm cho <strong>{newOwner.displayName}</strong>? Trưởng nhóm hiện tại sẽ thành thành viên thường.</span>
+          <span className="admin-actions">
+            <button type="button" className="admin-button admin-button--small" disabled={busy} onClick={() => setNewOwner(null)}>Hủy</button>
+            <button type="button" className="admin-button admin-button--small admin-button--primary" disabled={busy} onClick={() => changeRole.mutate({ member: newOwner, role: 'owner' })}>
+              {changeRole.isPending ? 'Đang chuyển…' : 'Xác nhận chuyển'}
+            </button>
+          </span>
+        </div>
+      )}
+      <h3 className="admin-member-heading">{members.data ? `${members.data.length} thành viên · ${deputies}/${MAX_DEPUTIES} phó nhóm` : 'Thành viên'}</h3>
       <ul className="admin-member-list" aria-label="Thành viên nhóm">
         {members.isPending && <li className="admin-empty">Đang tải thành viên…</li>}
         {members.error && <li className="admin-inline-error" role="alert">{groupError(members.error)}</li>}
@@ -140,8 +187,19 @@ function GroupMembers({ group, onClose, onNotice }: { group: AdminGroup; onClose
             <div>
               <strong>{m.displayName}</strong>
               <span>{m.email}{!m.enabled && ' · Đã khóa'}</span>
-              {m.memberRole && ROLE_LABEL[m.memberRole] && <small className="admin-user-role">{ROLE_LABEL[m.memberRole]}</small>}
             </div>
+            <select
+              className="admin-role-select"
+              aria-label={`Vai trò của ${m.displayName}`}
+              value={m.memberRole ?? 'member'}
+              disabled={busy || m.memberRole === 'owner'}
+              title={m.memberRole === 'owner' ? 'Chọn trưởng nhóm mới ở một thành viên khác' : undefined}
+              onChange={(e) => pickRole(m, e.target.value as GroupRole)}
+            >
+              <option value="owner" disabled={!m.enabled}>{ROLE_LABEL.owner}</option>
+              <option value="deputy" disabled={m.memberRole !== 'deputy' && deputies >= MAX_DEPUTIES}>{ROLE_LABEL.deputy}</option>
+              <option value="member">{ROLE_LABEL.member}</option>
+            </select>
             {removing === m.id ? (
               <span className="admin-actions">
                 <button type="button" className="admin-button admin-button--small" disabled={busy} onClick={() => setRemoving(null)}>Hủy</button>
@@ -200,7 +258,7 @@ export function AdminGroups({ enabled, onNotice }: { enabled: boolean; onNotice:
       <div className="admin-panel-heading">
         <div>
           <h2 id="groups-title">Quản lý nhóm <span className="admin-count">{groups.data?.total ?? '—'}</span></h2>
-          <p>Tạo, đổi tên, lưu trữ nhóm và quản lý thành viên mà không cần tham gia nhóm.</p>
+          <p>Tạo, đổi tên, lưu trữ nhóm, quản lý thành viên, trưởng / phó nhóm và chế độ phê duyệt mà không cần tham gia nhóm.</p>
         </div>
         <button type="button" className="admin-button admin-button--primary" disabled={!enabled} onClick={() => setForm({ group: null })}>+ Tạo nhóm</button>
       </div>
@@ -233,7 +291,10 @@ export function AdminGroups({ enabled, onNotice }: { enabled: boolean; onNotice:
                 </td>
                 <td>{g.memberCount}</td>
                 <td>{formatTime(g.lastMessageAt)}</td>
-                <td><span className={`admin-user-state ${g.archived ? 'admin-user-state--banned' : 'admin-user-state--online'}`}><i />{g.archived ? 'Đã lưu trữ' : 'Hoạt động'}</span></td>
+                <td>
+                  <span className={`admin-user-state ${g.archived ? 'admin-user-state--banned' : 'admin-user-state--online'}`}><i />{g.archived ? 'Đã lưu trữ' : 'Hoạt động'}</span>
+                  {g.requireApproval && <small className="admin-group-flag">Phê duyệt{g.pendingRequests > 0 ? ` · ${g.pendingRequests} chờ duyệt` : ''}</small>}
+                </td>
                 <td>
                   <div className="admin-actions">
                     <button type="button" className="admin-button admin-button--small" onClick={() => setMembersOf(g)} aria-label={`Thành viên nhóm ${g.name}`}>Thành viên</button>
