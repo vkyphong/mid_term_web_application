@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { personName } from './people'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -8,7 +9,7 @@ interface Segment { operationId: string; authorId: string; generation: number; r
 interface Snapshot { roomId: string; generation: number; revision: number; segments: Segment[] }
 async function account(browser: Browser, label: string): Promise<Account> {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080', hasTouch: true, viewport: { width: 1280, height: 900 } })
-  const response = await context.request.post('/api/auth/register', { data: { email: `wb-${label}-${randomUUID()}@dqgm.dev`, displayName: `Whiteboard ${label}`, password: 'BoardBrowser123' } })
+  const response = await context.request.post('/api/auth/register', { data: { email: `wb-${label}-${randomUUID()}@dqgm.dev`, displayName: personName(), password: 'BoardBrowser123' } })
   expect(response.status()).toBe(201)
   const auth = await response.json()
   return { context, token: auth.accessToken, id: auth.user.id }

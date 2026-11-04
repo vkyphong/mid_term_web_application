@@ -17,9 +17,10 @@ test('admin login, live telemetry, search, confirmation dialogs and mobile layou
   await expect(page.getByRole('heading', { name: 'Admin Live Dashboard', exact: true })).toBeVisible()
   await expect(page.getByText('Trực tiếp · mỗi giây', { exact: true })).toBeVisible()
   await expect.poll(() => statsEvents).toBeGreaterThanOrEqual(2)
-  await expect(page.getByRole('button', { name: `Ban ${email}` })).toBeDisabled()
+  // Tìm theo email trước: danh sách sắp theo tên, trang đầu (20 người) chưa chắc có tài khoản admin.
   await page.getByRole('searchbox', { name: 'Tìm tài khoản' }).fill(email!)
   await expect(page.locator('.admin-table tbody tr')).toHaveCount(1)
+  await expect(page.getByRole('button', { name: `Ban ${email}` })).toBeDisabled()
   // Open the real confirmation UI and cancel: this smoke test never broadcasts to real users.
   await page.getByRole('textbox', { name: 'Nội dung broadcast' }).fill('Kiểm tra hộp thoại broadcast')
   await page.getByRole('button', { name: 'Gửi broadcast', exact: true }).click()

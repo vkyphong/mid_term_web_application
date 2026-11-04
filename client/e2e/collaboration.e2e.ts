@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { personName } from './people'
 import { crc32, deflateSync } from 'node:zlib'
 
 /** F09 thông báo/@mention, F14 sửa/xoá/cảm xúc, F15 file, F10 hàng đợi offline, F11 giới hạn & XSS — backend thật. */
@@ -7,7 +8,7 @@ interface Account { context: BrowserContext; id: string; token: string; displayN
 
 async function account(browser: Browser, label: string): Promise<Account> {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
-  const displayName = `E2E ${label} ${crypto.randomUUID().slice(0, 6)}`
+  const displayName = personName()
   const res = await context.request.post('/api/auth/register', {
     data: { email: `e2e-col-${label}-${crypto.randomUUID()}@DQGM.dev`, displayName, password: 'Password123' },
   })
@@ -72,7 +73,7 @@ test('F09: @mention chọn từ thành viên, toast + badge không cần reload,
     const bell = (p: Page) => p.getByRole('button', { name: /^Thông báo/ })
 
     // Gõ "@" + vài chữ → chọn Bob từ danh sách thành viên.
-    await box(a).pressSequentially(`Nhờ @${bob.displayName.split(' ')[1]}`)
+    await box(a).pressSequentially(`Nhờ @${bob.displayName.split(' ').at(-1)}`)
     await a.getByRole('option', { name: bob.displayName }).click()
     await box(a).pressSequentially('xem giúp')
     await a.keyboard.press('Enter')

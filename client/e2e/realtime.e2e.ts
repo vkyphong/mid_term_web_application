@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { personName } from './people'
 
 /** F06 presence, F07 typing, F08 receipts trên backend thật. */
 
@@ -38,7 +39,7 @@ function watchSends(page: Page): string[] {
 
 async function account(browser: Browser, label: string) {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
-  const displayName = `E2E ${label} ${crypto.randomUUID().slice(0, 6)}`
+  const displayName = personName()
   const response = await context.request.post('/api/auth/register', {
     data: { email: `e2e-rt-${label}-${crypto.randomUUID()}@DQGM.dev`, displayName, password: 'Password123' },
   })

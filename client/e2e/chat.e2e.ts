@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
+import { personName } from './people'
 
 interface Account { id: string; email: string; displayName: string; token: string }
 interface Capture {
@@ -39,7 +40,7 @@ function capture(page: Page): Capture {
 async function employee(browser: Browser, label: string) {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
   const email = `e2e-${label}-${crypto.randomUUID()}@DQGM.dev`
-  const displayName = `E2E ${label} ${crypto.randomUUID().slice(0, 8)}`
+  const displayName = personName()
   const response = await context.request.post('/api/auth/register', {
     data: { email, displayName, password: 'Password123' },
   })

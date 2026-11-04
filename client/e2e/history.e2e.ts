@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
+import { personName } from './people'
 
 /** F05: cuộn lên tải thêm lịch sử theo cursor, gộp với tin realtime, không trùng/thiếu. */
 // > 1 trang (30) để có trang cũ hơn; gửi theo đợt vì F11 giới hạn 10 tin / 5 s / socket.
@@ -11,7 +12,7 @@ async function employee(browser: Browser, label: string) {
   const response = await context.request.post('/api/auth/register', {
     data: {
       email: `e2e-history-${label}-${crypto.randomUUID()}@DQGM.dev`,
-      displayName: `E2E history ${label}`,
+      displayName: personName(),
       password: 'Password123',
     },
   })

@@ -1338,9 +1338,6 @@ html.chat-page body {
   color: var(--text);
 }
 
-.sound-toggle {
-  font-size: 1.05rem;
-}
 
 /* ---------- Avatar nhóm: ảnh đã đặt hoặc ghép 2–3 thành viên (thay dấu #) ---------- */
 .group-avatar {

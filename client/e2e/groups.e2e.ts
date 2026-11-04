@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { personName } from './people'
 import { crc32, deflateSync } from 'node:zlib'
 
 /** Nhóm: tạo kèm thành viên, thêm người, @All, thanh công cụ soạn tin, file Office/TXT/CSV/ZIP, nhóm lưu trữ — backend thật. */
@@ -7,7 +8,7 @@ interface Account { context: BrowserContext; id: string; token: string; displayN
 
 async function account(browser: Browser, label: string): Promise<Account> {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
-  const displayName = `E2E ${label} ${crypto.randomUUID().slice(0, 6)}`
+  const displayName = personName()
   const res = await context.request.post('/api/auth/register', {
     data: { email: `e2e-grp-${label}-${crypto.randomUUID()}@DQGM.dev`, displayName, password: 'Password123' },
   })

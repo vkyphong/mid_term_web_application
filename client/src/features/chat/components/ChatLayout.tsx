@@ -5,7 +5,6 @@ import { useLogout, useSession } from '../../auth/hooks'
 import { RealtimeStatus } from '../../realtime/RealtimeStatus'
 import { NotificationBell, ToastHost } from './NotificationCenter'
 import { useChatEvents, useRooms } from '../hooks'
-import { setSoundMuted, unlockSound, useSoundMuted } from '../sound'
 import { countUnreadRooms } from '../unread'
 import '../chat.css'
 import { Avatar } from './Avatar'
@@ -13,26 +12,6 @@ import { ProfileAvatarDialog } from './ProfileAvatarDialog'
 import { UserProfileHost } from './UserProfileDialog'
 import { RoomView } from './RoomView'
 import { Sidebar } from './Sidebar'
-
-/** Bật/tắt âm báo tin nhắn mới (lưu theo trình duyệt). */
-function SoundToggle() {
-  const muted = useSoundMuted()
-  return (
-    <button
-      type="button"
-      className="icon-btn sound-toggle"
-      aria-pressed={!muted}
-      aria-label={muted ? 'Bật âm thanh thông báo' : 'Tắt âm thanh thông báo'}
-      title={muted ? 'Bật âm thanh thông báo' : 'Tắt âm thanh thông báo'}
-      onClick={() => {
-        unlockSound()
-        setSoundMuted(!muted)
-      }}
-    >
-      {muted ? '🔇' : '🔊'}
-    </button>
-  )
-}
 
 function Welcome({ name }: { name: string }) {
   return (
@@ -81,7 +60,6 @@ export function ChatLayout() {
           <Link to="/lab">Protocol Lab</Link>
           {user.role === 'admin' && <Link to="/admin">Admin Dashboard</Link>}
           <RealtimeStatus />
-          <SoundToggle />
           <NotificationBell />
           <span className="chat-user">
             <button type="button" className="chat-user-avatar" aria-label="Thông tin tài khoản" title="Thông tin tài khoản" onClick={() => setProfileOpen(true)}>

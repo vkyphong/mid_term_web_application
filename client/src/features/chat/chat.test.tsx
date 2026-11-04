@@ -714,12 +714,10 @@ describe('số tin chưa đọc', () => {
     expect(screen.getByRole('button', { name: /^Thông báo/ })).toHaveAccessibleName('Thông báo, 1 chưa đọc')
   })
 
-  it('nút loa bật/tắt âm thanh thông báo', async () => {
-    const user = userEvent.setup()
+  it('không còn nút loa: âm báo luôn bật', async () => {
     renderChat()
-    await user.click(screen.getByRole('button', { name: 'Tắt âm thanh thông báo' }))
-    expect(screen.getByRole('button', { name: 'Bật âm thanh thông báo' })).toHaveAttribute('aria-pressed', 'false')
-    expect(localStorage.getItem('pulsechat:sound-muted')).toBe('1')
+    expect(await screen.findByRole('link', { name: /Engineering/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /âm thanh thông báo/ })).not.toBeInTheDocument()
   })
 })
 
