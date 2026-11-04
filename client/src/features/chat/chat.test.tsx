@@ -15,7 +15,7 @@ vi.mock('./chatApi', () => ({
     listMembers: vi.fn(), addMember: vi.fn(), listNotifications: vi.fn(),
     renameRoom: vi.fn(), setNickname: vi.fn(), uploadRoomAvatar: vi.fn(), removeRoomAvatar: vi.fn(), downloadFile: vi.fn(),
     listUserAvatars: vi.fn(), uploadMyAvatar: vi.fn(), removeMyAvatar: vi.fn(), searchMessages: vi.fn(), setMemberRole: vi.fn(),
-    createPoll: vi.fn(), vote: vi.fn(), getMyProfile: vi.fn(), updateMyProfile: vi.fn(), getUserProfile: vi.fn(), closePoll: vi.fn(),
+    createPoll: vi.fn(), vote: vi.fn(), getMyProfile: vi.fn(), updateMyProfile: vi.fn(), getUserProfile: vi.fn(), closePoll: vi.fn(), reopenPoll: vi.fn(),
     updateRoomSettings: vi.fn(), listMemberRequests: vi.fn(), decideMemberRequest: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
@@ -448,6 +448,13 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     expect(await within(poll2).findByText(/Đã khoá bình chọn/)).toBeInTheDocument()
     expect(within(poll2).getByRole('checkbox', { name: '20h: 0 phiếu' })).toBeDisabled()
     expect(within(poll2).queryByRole('button', { name: '🔒 Khoá bình chọn' })).not.toBeInTheDocument()
+
+    // Mở lại được ngay, rồi bình chọn tiếp.
+    api.reopenPoll.mockResolvedValueOnce(theirs(null))
+    await user.click(within(poll2).getByRole('button', { name: '🔓 Mở lại bình chọn' }))
+    expect(api.reopenPoll).toHaveBeenCalledWith('poll-3')
+    expect(await within(poll2).findByRole('button', { name: '🔒 Khoá bình chọn' })).toBeInTheDocument()
+    expect(within(poll2).getByRole('checkbox', { name: '20h: 0 phiếu' })).toBeEnabled()
   })
 
   it('chìa khoá: trưởng nhóm vàng, phó nhóm bạc', async () => {

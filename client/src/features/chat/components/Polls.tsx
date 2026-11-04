@@ -89,9 +89,9 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
   const vote = useVote()
   const close = useClosePoll()
   const closed = Boolean(poll.closedAt)
-  // Khoá bình chọn: người tạo, trưởng nhóm, phó nhóm.
+  // Khoá / mở lại bình chọn: chỉ người tạo, trưởng nhóm, phó nhóm (bao nhiêu lần cũng được).
   const myRole = roleOf(members, selfId)
-  const canClose = !closed && !disabled && (poll.createdBy === selfId || myRole === 'owner' || myRole === 'deputy')
+  const canManage = !disabled && (poll.createdBy === selfId || myRole === 'owner' || myRole === 'deputy')
   const mine = poll.options.filter((o) => o.voters.includes(selfId)).map((o) => o.id)
   const voters = new Set(poll.options.flatMap((o) => o.voters))
   const nameOf = (id: string) => (id === selfId ? 'Bạn' : (members.find((m) => m.id === id)?.displayName ?? 'Ai đó'))
@@ -137,9 +137,14 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
           )
         })}
       </ul>
-      {canClose && (
-        <button type="button" className="btn-secondary poll-close" disabled={close.isPending} onClick={() => close.mutate(poll.id)}>
-          {close.isPending ? 'Đang khoá…' : '🔒 Khoá bình chọn'}
+      {canManage && (
+        <button
+          type="button"
+          className="btn-secondary poll-close"
+          disabled={close.isPending}
+          onClick={() => close.mutate({ pollId: poll.id, closed: !closed })}
+        >
+          {close.isPending ? 'Đang lưu…' : closed ? '🔓 Mở lại bình chọn' : '🔒 Khoá bình chọn'}
         </button>
       )}
       {(vote.error || close.error) && <p className="field-error small">{describeChatError(vote.error ?? close.error)}</p>}

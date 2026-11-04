@@ -224,6 +224,19 @@ class GroupManagementIntegrationTest {
         post("/api/polls/" + second + "/close", maker, null, 200);
         var third = post("/api/rooms/" + room + "/polls", maker, Map.of("question", "Lần ba", "options", List.of("A", "B")), 201).path("poll").path("id").asText();
         post("/api/polls/" + third + "/close", boss, null, 200);
+
+        // Mở lại / khoá lại thoải mái, nhưng chỉ người tạo, trưởng nhóm, phó nhóm.
+        post("/api/polls/" + pollId + "/reopen", voter, null, 403);
+        var reopened = post("/api/polls/" + pollId + "/reopen", maker, null, 200);
+        assertThat(reopened.path("poll").path("closedAt").asText(null)).isNull(); // null hoặc không có trường
+        call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", voter, Map.of("optionIds", List.of(h20)), 200);
+        post("/api/polls/" + pollId + "/close", boss, null, 200);
+        post("/api/polls/" + pollId + "/close", boss, null, 200); // khoá lại lần nữa: không thêm dòng
+        post("/api/polls/" + pollId + "/reopen", deputy, null, 200);
+        var types = new ArrayList<String>();
+        for (JsonNode m : get("/api/rooms/" + room + "/messages", boss, 200).path("messages"))
+            if (m.path("activity").path("pollId").asText().equals(pollId)) types.add(m.path("activity").path("type").asText());
+        assertThat(types).containsExactly("vote", "change", "close", "reopen", "change", "close", "reopen");
     }
 
     @Test void ownerRequiresApprovalForMembersAddedByRegularMembers() throws Exception {

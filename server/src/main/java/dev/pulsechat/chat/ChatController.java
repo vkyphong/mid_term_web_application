@@ -82,7 +82,11 @@ public class ChatController {
     }
     @PostMapping("/polls/{id}/close")
     public Message closePoll(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
-        return chat.closePoll(id, user.userId());
+        return chat.setPollClosed(id, user.userId(), true);
+    }
+    @PostMapping("/polls/{id}/reopen")
+    public Message reopenPoll(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
+        return chat.setPollClosed(id, user.userId(), false);
     }
     @PutMapping("/polls/{id}/votes")
     public Message vote(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody Vote input) {

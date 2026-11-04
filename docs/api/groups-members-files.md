@@ -67,9 +67,9 @@ Tên hiển thị 2–50 ký tự; giới tính, ngày sinh (1900 tới hôm nay
 
 `GET /api/users/{id}/profile` trả hồ sơ một nhân viên; `gender`, `birthDate`, `phone` chỉ có giá trị khi người đó để `profilePublic: true` (hoặc là chính mình, `self: true`). `PUT /api/me/profile` nhận thêm `profilePublic` (bỏ trống = giữ nguyên; mặc định riêng tư).
 
-`POST /api/polls/{id}/close` khoá bình chọn: người tạo, trưởng nhóm hoặc phó nhóm (người khác → 403); khoá lại lần nữa không đổi gì. `Poll` có `closedAt`, `closedBy`; bỏ phiếu khi đã khoá → 409 `poll_closed`.
+`POST /api/polls/{id}/close` khoá và `POST /api/polls/{id}/reopen` mở lại bình chọn, bao nhiêu lần cũng được: chỉ người tạo, trưởng nhóm hoặc phó nhóm (người khác → 403); gửi lại đúng trạng thái hiện có thì không đổi gì. `Poll` có `closedAt`, `closedBy`; bỏ phiếu khi đã khoá → 409 `poll_closed`.
 
-Mỗi lần bình chọn / đổi lựa chọn / bỏ bình chọn / khoá, server thêm một tin hệ thống có `activity { type: vote | change | unvote | close, pollId, pollMessageId }` và `content` là câu hỏi, gửi qua `message:new`. Tin này không có receipts, không thông báo, không tính chưa đọc, không tìm thấy khi tìm kiếm và không sửa / xoá / thả cảm xúc được. Flyway V13 thêm `users.profile_public`, `polls.closed_at`, `polls.closed_by`, `messages.activity`, `messages.activity_poll_id`.
+Mỗi lần bình chọn / đổi lựa chọn / bỏ bình chọn / khoá, server thêm một tin hệ thống có `activity { type: vote | change | unvote | close | reopen, pollId, pollMessageId }` và `content` là câu hỏi, gửi qua `message:new`. Tin này không có receipts, không thông báo, không tính chưa đọc, không tìm thấy khi tìm kiếm và không sửa / xoá / thả cảm xúc được. Flyway V13 thêm `users.profile_public`, `polls.closed_at`, `polls.closed_by`, `messages.activity`, `messages.activity_poll_id`.
 
 ### Phê duyệt thành viên mới
 

@@ -614,6 +614,22 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       }
     },
 
+    async reopenPoll(pollId) {
+      await delay(60)
+      const user = currentUser()
+      const store = load()
+      const message = Object.values(store.messages).flat().find((m) => m.poll?.id === pollId)
+      if (!message?.poll) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Poll not found' })
+      const role = findRoom(store, message.roomId).roles?.[user.id]
+      if (message.poll.createdBy !== user.id && role !== 'owner' && role !== 'deputy') throw new ApiError(403, { code: 'forbidden', message: 'Not allowed' })
+      message.poll.closedAt = null
+      message.poll.closedBy = null
+      save(store)
+      const updated = withReceipts(store, message)
+      setTimeout(() => emit({ type: 'message:poll', payload: updated, ts: new Date().toISOString() }), 0)
+      return updated
+    },
+
     async closePoll(pollId) {
       await delay(60)
       const user = currentUser()

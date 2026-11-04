@@ -320,10 +320,12 @@ export function useCreatePoll(roomId: string) {
   })
 }
 
+/** Khoá (closed=true) hoặc mở lại bình chọn. */
 export function useClosePoll() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (pollId: string) => chatApi.closePoll(pollId),
+    mutationFn: ({ pollId, closed }: { pollId: string; closed: boolean }) =>
+      closed ? chatApi.closePoll(pollId) : chatApi.reopenPoll(pollId),
     onSuccess: (message) => applyMessage(queryClient, message),
   })
 }

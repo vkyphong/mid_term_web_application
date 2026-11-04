@@ -49,8 +49,9 @@ export interface ChatApi {
   getMyProfile(): Promise<Profile>
   /** Hồ sơ người khác: giới tính / ngày sinh / điện thoại chỉ có khi họ để công khai. */
   getUserProfile(userId: string): Promise<Profile>
-  /** Người tạo, trưởng nhóm, phó nhóm khoá bình chọn. */
+  /** Người tạo, trưởng nhóm, phó nhóm khoá / mở lại bình chọn (bao nhiêu lần cũng được). */
   closePoll(pollId: string): Promise<Message>
+  reopenPoll(pollId: string): Promise<Message>
   /** Chuỗi rỗng = xoá thông tin tuỳ chọn. */
   updateMyProfile(input: ProfileInput): Promise<Profile>
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
@@ -124,6 +125,7 @@ export const httpChatApi: ChatApi = {
   getMyProfile: () => authRequest('/api/me/profile'),
   getUserProfile: (userId) => authRequest(`/api/users/${encodeURIComponent(userId)}/profile`),
   closePoll: (pollId) => authRequest(`/api/polls/${encodeURIComponent(pollId)}/close`, { method: 'POST' }),
+  reopenPoll: (pollId) => authRequest(`/api/polls/${encodeURIComponent(pollId)}/reopen`, { method: 'POST' }),
   updateMyProfile: (input) => authRequest('/api/me/profile', { method: 'PUT', body: input }),
   listNotifications: (before) => {
     const params = new URLSearchParams({ limit: '30' })

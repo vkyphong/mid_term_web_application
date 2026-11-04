@@ -444,6 +444,14 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(alicePoll).toContainText('Đã khoá bình chọn')
     await expect(alicePoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' })).toBeDisabled()
     await expect(a.locator('.activity-line', { hasText: 'đã khoá bình chọn' })).toContainText(bob.displayName)
+    // Mở lại: Alice (người tạo) bấm "Mở lại", Bob bình chọn tiếp được; khoá / mở thoải mái.
+    await alicePoll.getByRole('button', { name: '🔓 Mở lại bình chọn' }).click()
+    await expect(bobPoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' })).toBeEnabled()
+    await expect(b.locator('.activity-line', { hasText: 'đã mở lại bình chọn' })).toContainText(alice.displayName)
+    await bobPoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' }).click()
+    await expect(alicePoll.getByRole('checkbox', { name: 'Cơm: 1 phiếu' })).toBeVisible()
+    await alicePoll.getByRole('button', { name: '🔒 Khoá bình chọn' }).click()
+    await expect(bobPoll).toContainText('Đã khoá bình chọn')
 
     // ---- Hồ sơ riêng tư / công khai: Alice bấm avatar Bob trong danh sách thành viên ----
     await bob.context.request.put('/api/me/profile', { headers: auth(bob), data: { displayName: bob.displayName, gender: 'male', birthDate: '2000-02-03', phone: '0901 234 567' } })

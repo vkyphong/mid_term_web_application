@@ -132,7 +132,7 @@ export interface Poll {
 
 /** Dòng hoạt động bình chọn trong khung chat; `content` của tin là câu hỏi. */
 export interface MessageActivity {
-  type: 'vote' | 'change' | 'unvote' | 'close'
+  type: 'vote' | 'change' | 'unvote' | 'close' | 'reopen'
   pollId: string
   pollMessageId: string | null
 }

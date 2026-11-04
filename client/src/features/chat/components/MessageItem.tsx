@@ -114,7 +114,7 @@ export function MessageItem(props: MessageItemProps) {
 
   // Dòng hoạt động bình chọn (tin hệ thống) như Zalo: "X đã bình chọn: <câu hỏi>  Xem".
   if (m.activity) {
-    const verb = { vote: 'đã bình chọn', change: 'đổi lựa chọn trong cuộc bình chọn', unvote: 'bỏ bình chọn', close: 'đã khoá bình chọn' }[m.activity.type]
+    const verb = { vote: 'đã bình chọn', change: 'đổi lựa chọn trong cuộc bình chọn', unvote: 'bỏ bình chọn', close: 'đã khoá bình chọn', reopen: 'đã mở lại bình chọn' }[m.activity.type]
     const target = m.activity.pollMessageId
     return (
       <li className="message message--activity" id={`message-${m.id}`}>

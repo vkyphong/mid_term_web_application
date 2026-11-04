@@ -268,21 +268,26 @@ public class ChatService {
             activity(room, user, before.isEmpty() ? "vote" : chosen.isEmpty() ? "unvote" : "change", pollId, (String) poll[3]);
         return message;
     }
-    /** Khoá bình chọn: người tạo, trưởng nhóm hoặc phó nhóm. Khoá lại lần nữa không đổi gì. */
-    public Message closePoll(String pollId, String user) {
+    /**
+     * Khoá (closed=true) hoặc mở lại (closed=false) bình chọn, bao nhiêu lần cũng được: chỉ người tạo,
+     * trưởng nhóm hoặc phó nhóm. Gửi lại đúng trạng thái hiện có thì không đổi gì, không thêm dòng hoạt động.
+     */
+    public Message setPollClosed(String pollId, String user, boolean closed) {
         var poll = lockPoll(pollId, user);
         String room = (String) poll[0], messageId = (String) poll[1];
         String role = role(room, user);
         if (!user.equals(poll[4]) && !"owner".equals(role) && !"deputy".equals(role)) throw forbidden();
-        if (!(Boolean) poll[5]) {
-            db.update("UPDATE polls SET closed_at=?, closed_by=? WHERE id=?", now(), user, pollId);
+        if ((Boolean) poll[5] != closed) {
+            if (closed) db.update("UPDATE polls SET closed_at=?, closed_by=? WHERE id=?", now(), user, pollId);
+            else db.update("UPDATE polls SET closed_at=NULL, closed_by=NULL WHERE id=?", pollId);
             var message = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
             events.send(recipients(room), "/queue/events", "message:poll", message);
-            activity(room, user, "close", pollId, (String) poll[3]);
+            activity(room, user, closed ? "close" : "reopen", pollId, (String) poll[3]);
             return message;
         }
         return db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
     }
+    public Message closePoll(String pollId, String user) { return setPollClosed(pollId, user, true); }
     /** Tin hệ thống trong khung chat: không receipts / thông báo, không tính chưa đọc, không đổi thứ tự phòng. */
     private void activity(String room, String user, String type, String pollId, String question) {
         String id = UUID.randomUUID().toString();
