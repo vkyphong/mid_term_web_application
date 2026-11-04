@@ -38,6 +38,9 @@ interface StoredRoom {
   avatarAt?: string | null
   /** userId → vai trò (thiếu = thành viên). */
   roles?: Record<string, MemberRole>
+  requireApproval?: boolean
+  /** Yêu cầu thêm người chờ trưởng / phó nhóm duyệt. */
+  requests?: { id: string; userId: string; requestedBy: string; createdAt: string }[]
 }
 
 interface StoredReceipts {
@@ -151,6 +154,8 @@ function toRoom(room: StoredRoom, userId: string): Room {
     lastMessageAt: room.lastMessageAt,
     archived: Boolean(room.archived),
     myRole: room.type === 'channel' && joined ? (room.roles?.[userId] ?? 'member') : null,
+    requireApproval: Boolean(room.requireApproval),
+    pendingRequests: ['owner', 'deputy'].includes(room.roles?.[userId] ?? '') ? (room.requests?.length ?? 0) : 0,
     unreadCount: room.members.includes(userId) ? unreadCount(room.id, userId) : 0,
   }
 }
@@ -168,6 +173,12 @@ function unreadCount(roomId: string, userId: string): number {
     const r = receipt(m.id)
     return !m.deletedAt && m.createdAt > mark && Boolean(r?.recipients.includes(userId)) && !r?.seen.includes(userId)
   }).length
+}
+
+function mockRequests(room: StoredRoom) {
+  const users = listMockUsers()
+  const summary = (id: string) => users.find((u) => u.id === id) ?? { id, displayName: 'Người dùng', email: '' }
+  return (room.requests ?? []).map((r) => ({ id: r.id, user: summary(r.userId), requestedBy: summary(r.requestedBy), createdAt: r.createdAt }))
 }
 
 function findRoom(store: Store, roomId: string): StoredRoom {
@@ -393,11 +404,60 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       if (room.type !== 'channel') throw new ApiError(403, { code: 'forbidden', message: 'Channels only' })
       requireWritable(room)
       if (!listMockUsers().some((u) => u.id === userId)) throw invalid('userId', 'Người dùng không tồn tại')
+      const leader = ['owner', 'deputy'].includes(room.roles?.[user.id] ?? '')
+      if (room.requireApproval && !leader && !room.members.includes(userId)) {
+        room.requests ??= []
+        if (!room.requests.some((r) => r.userId === userId)) {
+          room.requests.push({ id: uuid(), userId, requestedBy: user.id, createdAt: new Date().toISOString() })
+        }
+        save(store)
+        for (const member of room.members) emit({ type: 'room:updated', payload: toRoom(room, member), ts: new Date().toISOString() }, member)
+        const request = mockRequests(room).find((r) => r.user.id === userId)!
+        return { pending: true as const, request, room: toRoom(room, user.id) }
+      }
       const added = !room.members.includes(userId)
       if (added) room.members.push(userId)
       save(store)
       if (added) emit({ type: 'room:added', payload: toRoom(room, userId), ts: new Date().toISOString() }, userId)
       return toRoom(room, user.id)
+    },
+
+    async updateRoomSettings(roomId, settings) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      if (room.roles?.[user.id] !== 'owner') throw new ApiError(403, { code: 'forbidden', message: 'Owner only' })
+      room.requireApproval = settings.requireApproval
+      save(store)
+      for (const member of room.members) emit({ type: 'room:updated', payload: toRoom(room, member), ts: new Date().toISOString() }, member)
+      return toRoom(room, user.id)
+    },
+
+    async listMemberRequests(roomId) {
+      await delay(40)
+      const user = currentUser()
+      const room = findRoom(load(), roomId)
+      if (!['owner', 'deputy'].includes(room.roles?.[user.id] ?? '')) throw new ApiError(403, { code: 'forbidden', message: 'Leaders only' })
+      return mockRequests(room)
+    },
+
+    async decideMemberRequest(roomId, requestId, approve) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      if (!['owner', 'deputy'].includes(room.roles?.[user.id] ?? '')) throw new ApiError(403, { code: 'forbidden', message: 'Leaders only' })
+      const request = room.requests?.find((r) => r.id === requestId)
+      if (!request) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Request not found' })
+      room.requests = room.requests!.filter((r) => r.id !== requestId)
+      if (approve && !room.members.includes(request.userId)) {
+        room.members.push(request.userId)
+        emit({ type: 'room:added', payload: toRoom(room, request.userId), ts: new Date().toISOString() }, request.userId)
+      }
+      save(store)
+      for (const member of room.members) emit({ type: 'room:updated', payload: toRoom(room, member), ts: new Date().toISOString() }, member)
+      return mockRequests(room)
     },
 
     async renameRoom(roomId, name) {

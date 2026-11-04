@@ -71,6 +71,16 @@ Tên hiển thị 2–50 ký tự; giới tính, ngày sinh (1900 tới hôm nay
 
 Mỗi lần bình chọn / đổi lựa chọn / bỏ bình chọn / khoá, server thêm một tin hệ thống có `activity { type: vote | change | unvote | close, pollId, pollMessageId }` và `content` là câu hỏi, gửi qua `message:new`. Tin này không có receipts, không thông báo, không tính chưa đọc, không tìm thấy khi tìm kiếm và không sửa / xoá / thả cảm xúc được. Flyway V13 thêm `users.profile_public`, `polls.closed_at`, `polls.closed_by`, `messages.activity`, `messages.activity_poll_id`.
 
+### Phê duyệt thành viên mới
+
+| Method | Endpoint | Body | Thành công | Quyền |
+| --- | --- | --- | --- | --- |
+| PATCH | `/api/rooms/{id}/settings` | `{ "requireApproval": true }` | `200 Room` | Trưởng nhóm |
+| GET | `/api/rooms/{id}/requests` | — | `200 { requests: [{ id, user, requestedBy, createdAt }] }` | Trưởng / phó nhóm |
+| POST | `/api/rooms/{id}/requests/{requestId}/approve` hoặc `/reject` | — | `200 { requests }` (còn lại) | Trưởng / phó nhóm |
+
+Khi `requireApproval` bật, `POST /api/rooms/{id}/members` của thành viên thường trả `202 { pending: true, request, room }` và chỉ tạo yêu cầu (gửi lại cùng người không tạo trùng); trưởng / phó nhóm vẫn thêm thẳng (`200 Room`). Duyệt thì người đó vào nhóm và nhận `room:added`. `Room` có thêm `requireApproval` và `pendingRequests` (chỉ khác 0 với trưởng / phó nhóm); mỗi thay đổi gửi `room:updated` cho cả nhóm. Admin thêm người qua API admin không cần duyệt. Flyway V14 thêm `rooms.require_approval` và bảng `member_requests`.
+
 ## 2. Gửi file
 
 Luồng gửi vẫn dùng upload HTTP trước, sau đó gửi tin bằng STOMP:

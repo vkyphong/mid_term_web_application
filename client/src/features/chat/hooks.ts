@@ -72,15 +72,20 @@ export function useRooms() {
 /** Thêm lần lượt từng người (API nhận một userId mỗi lần); trả về phòng mới nhất và những người thêm lỗi. */
 async function addMembers(roomId: string, userIds: readonly string[]) {
   let room: Room | null = null
+  let pending = 0
   const failed: { userId: string; error: unknown }[] = []
   for (const userId of userIds) {
     try {
-      room = await chatApi.addMember(roomId, userId)
+      const result = await chatApi.addMember(roomId, userId)
+      if ('pending' in result) {
+        pending++
+        room = result.room
+      } else room = result
     } catch (error) {
       failed.push({ userId, error })
     }
   }
-  return { room, failed }
+  return { room, failed, pending }
 }
 
 export interface CreateGroupInput extends CreateRoomInput {
@@ -394,6 +399,38 @@ export function useUpdateProfile() {
 
 export function useRemoveMyAvatar() {
   return useMutation({ mutationFn: () => chatApi.removeMyAvatar(), onSuccess: setUserAvatar })
+}
+
+export const requestsKey = (roomId: string) => ['chat', 'requests', roomId] as const
+
+/** Trưởng nhóm bật / tắt "Phê duyệt thành viên mới". */
+export function useRoomSettings(roomId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (requireApproval: boolean) => chatApi.updateRoomSettings(roomId, { requireApproval }),
+    onSuccess: (room) => upsertRoom(queryClient, withViewed([room])[0]),
+  })
+}
+
+/** Yêu cầu chờ duyệt (chỉ tải khi mình là trưởng / phó nhóm); tải lại khi số chờ duyệt đổi. */
+export function useMemberRequests(roomId: string, enabled: boolean, pending: number) {
+  return useQuery({
+    queryKey: [...requestsKey(roomId), pending],
+    queryFn: () => chatApi.listMemberRequests(roomId),
+    enabled,
+  })
+}
+
+export function useDecideMemberRequest(roomId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ requestId, approve }: { requestId: string; approve: boolean }) => chatApi.decideMemberRequest(roomId, requestId, approve),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: requestsKey(roomId) })
+      void queryClient.invalidateQueries({ queryKey: chatKeys.members(roomId) })
+      void queryClient.invalidateQueries({ queryKey: chatKeys.rooms })
+    },
+  })
 }
 
 export function useRoomMembers(roomId: string) {

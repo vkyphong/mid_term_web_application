@@ -70,6 +70,25 @@ export interface Room {
   previewMembers?: UserSummary[]
   /** Kênh đã tham gia: vai trò của mình. */
   myRole?: MemberRole | null
+  /** Bật thì thành viên thường thêm người phải chờ trưởng / phó nhóm duyệt. */
+  requireApproval?: boolean
+  /** Số yêu cầu chờ duyệt (chỉ trưởng / phó nhóm thấy, người khác là 0). */
+  pendingRequests?: number
+}
+
+/** Yêu cầu thêm người đang chờ trưởng / phó nhóm duyệt. */
+export interface MemberRequest {
+  id: string
+  user: UserSummary
+  requestedBy: UserSummary
+  createdAt: string
+}
+
+/** POST /members khi nhóm cần phê duyệt: đã gửi yêu cầu, người đó chưa vào nhóm. */
+export interface PendingAdd {
+  pending: true
+  request: MemberRequest
+  room: Room
 }
 
 export interface Message {

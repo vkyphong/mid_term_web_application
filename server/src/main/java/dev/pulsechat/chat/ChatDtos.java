@@ -19,7 +19,12 @@ public final class ChatDtos {
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
     public record Room(String id, String type, String name, String description, int memberCount,
                        boolean joined, UserSummary peer, Instant lastMessageAt, boolean archived, int unreadCount,
-                       String nickname, String avatarUrl, List<UserSummary> previewMembers, String myRole) {}
+                       String nickname, String avatarUrl, List<UserSummary> previewMembers, String myRole,
+                       boolean requireApproval, int pendingRequests) {}
+    public record RoomSettings(Boolean requireApproval) {}
+    /** Kết quả thêm người khi nhóm cần phê duyệt: yêu cầu đã được gửi, chưa vào nhóm. */
+    public record PendingAdd(boolean pending, MemberRequest request, Room room) {}
+    public record MemberRequest(String id, UserSummary user, UserSummary requestedBy, Instant createdAt) {}
     public record Message(String id, String roomId, String clientMsgId, Sender sender, String content, Instant createdAt,
                           Instant editedAt, Instant deletedAt, Object attachment, Object receipts, Object reactions, Poll poll,
                           Activity activity) {}

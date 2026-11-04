@@ -226,6 +226,47 @@ class GroupManagementIntegrationTest {
         post("/api/polls/" + third + "/close", boss, null, 200);
     }
 
+    @Test void ownerRequiresApprovalForMembersAddedByRegularMembers() throws Exception {
+        Account boss = account(), deputy = account(), regular = account(), guest = account(), guest2 = account();
+        String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Approve-" + UUID.randomUUID().toString().substring(0, 20), null)).id();
+        String members = "/api/rooms/" + room + "/members";
+        post(members, boss, Map.of("userId", deputy.id()), 200);
+        post(members, boss, Map.of("userId", regular.id()), 200);
+        call(HttpMethod.PUT, members + "/" + deputy.id() + "/role", boss, Map.of("role", "deputy"), 200);
+        // Chỉ trưởng nhóm bật được phê duyệt.
+        call(HttpMethod.PATCH, "/api/rooms/" + room + "/settings", deputy, Map.of("requireApproval", true), 403);
+        assertThat(call(HttpMethod.PATCH, "/api/rooms/" + room + "/settings", boss, Map.of("requireApproval", true), 200).path("requireApproval").asBoolean()).isTrue();
+
+        // Thành viên thường thêm người → yêu cầu chờ duyệt, người đó chưa vào nhóm; gửi lại không tạo trùng.
+        var pending = post(members, regular, Map.of("userId", guest.id()), 202);
+        assertThat(pending.path("pending").asBoolean()).isTrue();
+        assertThat(pending.path("request").path("requestedBy").path("id").asText()).isEqualTo(regular.id());
+        post(members, regular, Map.of("userId", guest.id()), 202);
+        post(members, regular, Map.of("userId", guest2.id()), 202);
+        assertThat(listed(room, guest).joined()).isFalse();
+        assertThat(listed(room, boss).pendingRequests()).isEqualTo(2);
+        assertThat(listed(room, regular).pendingRequests()).isZero(); // chỉ trưởng / phó nhóm thấy
+        get("/api/rooms/" + room + "/requests", regular, 403);
+        var requests = get("/api/rooms/" + room + "/requests", deputy, 200).path("requests");
+        assertThat(requests).hasSize(2);
+
+        // Phó nhóm duyệt một, trưởng nhóm từ chối một.
+        String guestRequest = requests.get(0).path("id").asText(), guest2Request = requests.get(1).path("id").asText();
+        assertThat(post("/api/rooms/" + room + "/requests/" + guestRequest + "/approve", deputy, null, 200).path("requests")).hasSize(1);
+        assertThat(listed(room, guest).joined()).isTrue();
+        post("/api/rooms/" + room + "/requests/" + guest2Request + "/reject", boss, null, 200);
+        assertThat(listed(room, guest2).joined()).isFalse();
+        assertThat(listed(room, boss).pendingRequests()).isZero();
+        post("/api/rooms/" + room + "/requests/" + guest2Request + "/approve", boss, null, 404);
+
+        // Trưởng / phó nhóm vẫn thêm thẳng; tắt phê duyệt thì thành viên thường lại thêm thẳng.
+        post(members, deputy, Map.of("userId", guest2.id()), 200);
+        Account guest3 = account();
+        call(HttpMethod.PATCH, "/api/rooms/" + room + "/settings", boss, Map.of("requireApproval", false), 200);
+        post(members, regular, Map.of("userId", guest3.id()), 200);
+        assertThat(listed(room, guest3).joined()).isTrue();
+    }
+
     @Test void creatorOwnsChannelAndAppointsUpToFiveDeputies() throws Exception {
         Account boss = account();
         String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Roles-" + UUID.randomUUID().toString().substring(0, 20), null)).id();

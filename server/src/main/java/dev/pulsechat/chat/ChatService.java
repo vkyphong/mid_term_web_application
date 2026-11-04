@@ -328,12 +328,72 @@ public class ChatService {
                 + "ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'deputy' THEN 1 ELSE 2 END, u.display_name,u.id",
             (rs, n) -> new RoomMember(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBoolean(4), rs.getString(5)), room);
     }
-    public Room addMember(String room, String actor, AddMember input) {
+    /**
+     * Thêm người vào kênh. Nhóm bật phê duyệt mà người thêm không phải trưởng / phó nhóm thì chỉ tạo
+     * yêu cầu chờ duyệt (trả về PendingAdd); ngược lại thêm thẳng (trả về Room).
+     */
+    public Object addMember(String room, String actor, AddMember input) {
         String target = input == null ? null : input.userId();
         lockEnabledUser(target);
         requireChannel(room); requireMember(room, actor); requireWritable(room);
-        insertMember(room, target);
+        boolean approval = db.queryForObject("SELECT require_approval FROM rooms WHERE id=?", Boolean.class, room);
+        if (!approval || isLeader(room, actor) || member(room, target)) {
+            insertMember(room, target);
+            db.update("DELETE FROM member_requests WHERE room_id=? AND user_id=?", room, target);
+            return room(room, actor);
+        }
+        // Đã có yêu cầu cho người này thì giữ nguyên (gửi lại không tạo trùng).
+        if (db.queryForObject("SELECT COUNT(*) FROM member_requests WHERE room_id=? AND user_id=?", Integer.class, room, target) == 0) {
+            db.update("INSERT INTO member_requests(id,room_id,user_id,requested_by,created_at) VALUES (?,?,?,?,?)",
+                UUID.randomUUID().toString(), room, target, actor, now());
+            broadcastRoom(room); // trưởng / phó nhóm thấy số yêu cầu chờ duyệt tăng
+        }
+        var request = requests(room).stream().filter(r -> r.user().id().equals(target)).findFirst().orElseThrow();
+        return new PendingAdd(true, request, room(room, actor));
+    }
+    private boolean isLeader(String room, String user) {
+        String role = role(room, user);
+        return "owner".equals(role) || "deputy".equals(role);
+    }
+    private void requireLeader(String room, String user) {
+        requireChannel(room); requireMember(room, user);
+        if (!isLeader(room, user)) throw forbidden();
+    }
+    /** Trưởng nhóm bật / tắt phê duyệt thành viên mới. Tắt thì các yêu cầu đang chờ vẫn giữ để duyệt. */
+    public Room updateSettings(String room, String actor, RoomSettings input) {
+        if (input == null || input.requireApproval() == null) throw field("requireApproval", "requireApproval is required");
+        requireChannel(room); requireMember(room, actor); requireWritable(room);
+        if (!"owner".equals(role(room, actor))) throw forbidden();
+        db.update("UPDATE rooms SET require_approval=? WHERE id=?", input.requireApproval(), room);
+        broadcastRoom(room);
         return room(room, actor);
+    }
+    private List<MemberRequest> requests(String room) {
+        return db.query("SELECT r.id, r.created_at, u.id, u.display_name, u.email, b.id, b.display_name, b.email FROM member_requests r "
+                + "JOIN users u ON u.id=r.user_id JOIN users b ON b.id=r.requested_by WHERE r.room_id=? ORDER BY r.created_at, r.id",
+            (rs, n) -> new MemberRequest(rs.getString(1),
+                new UserSummary(rs.getString(3), rs.getString(4), rs.getString(5)),
+                new UserSummary(rs.getString(6), rs.getString(7), rs.getString(8)), rs.getTimestamp(2).toInstant()), room);
+    }
+    // Không readOnly: requireLeader khoá dòng phòng (SELECT … FOR UPDATE), MySQL từ chối trong transaction chỉ đọc.
+    public List<MemberRequest> listRequests(String room, String actor) {
+        requireLeader(room, actor);
+        return requests(room);
+    }
+    /** Duyệt (thêm vào nhóm) hoặc từ chối một yêu cầu; trả về danh sách yêu cầu còn lại. */
+    public List<MemberRequest> decideRequest(String room, String actor, String requestId, boolean approve) {
+        requireLeader(room, actor);
+        var targets = db.query("SELECT user_id FROM member_requests WHERE id=? AND room_id=?", (rs, n) -> rs.getString(1), requestId, room);
+        if (targets.isEmpty()) throw new ApiException(404, "invalid_payload", "not_found", "Request not found");
+        db.update("DELETE FROM member_requests WHERE id=?", requestId);
+        if (approve) {
+            requireWritable(room);
+            var enabled = db.query("SELECT enabled FROM users WHERE id=?", (rs, n) -> rs.getBoolean(1), targets.getFirst());
+            if (enabled.isEmpty() || !enabled.getFirst()) throw field("userId", "Enabled employee not found");
+            insertMember(room, targets.getFirst());
+        }
+        broadcastRoom(room);
+        return requests(room);
     }
     public void lockEnabledUser(String user) {
         if (user == null || user.isBlank() || user.length() > 36) throw field("userId", "Employee ID required");
@@ -430,7 +490,10 @@ public class ChatService {
             return new Room(id, type, displayName, rs.getString("description"),
                 db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"), rs.getBoolean("archived"),
                 joined ? unreadCount(id, user) : 0, nickname, avatarUrl, preview,
-                joined && type.equals("channel") ? role(id, user) : null);
+                joined && type.equals("channel") ? role(id, user) : null,
+                rs.getBoolean("require_approval"),
+                // Số yêu cầu chờ duyệt chỉ cho trưởng / phó nhóm thấy.
+                isLeader(id, user) ? db.queryForObject("SELECT COUNT(*) FROM member_requests WHERE room_id=?", Integer.class, id) : 0);
         }, id);
         if (rooms.isEmpty()) throw notFound(); return rooms.getFirst();
     }

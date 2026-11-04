@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import { describeChatError } from '../errors'
 import { describeReceipt, markSeen, needsReceipt } from '../receipts'
 import type { ChatMessage, RoomType, UserSummary } from '../types'
@@ -83,10 +83,24 @@ const LOAD_OLDER_THRESHOLD_PX = 120
 const GROUP_WINDOW_MS = 5 * 60 * 1000
 
 
+const WEEKDAYS = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+const dayKey = (iso: string) => new Date(iso).toDateString()
+
+/** Chip ngày giữa khung chat như Zalo: "T7 31/10/2026"; hôm nay / hôm qua ghi chữ. */
+function formatDay(iso: string, now = new Date()): string {
+  const d = new Date(iso)
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === now.toDateString()) return 'Hôm nay'
+  if (d.toDateString() === yesterday.toDateString()) return 'Hôm qua'
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${WEEKDAYS[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}/${d.getFullYear()}`
+}
+
 /** Tin liền nhau của cùng người trong 5 phút thì gộp, không lặp tên. */
 function startsGroup(prev: ChatMessage | undefined, m: ChatMessage) {
   // Bình chọn nằm giữa khung, nên tin ngay sau nó bắt đầu nhóm mới (hiện lại tên + avatar).
-  if (!prev || prev.poll || m.poll || prev.activity || m.activity) return true
+  if (!prev || prev.poll || m.poll || prev.activity || m.activity || dayKey(prev.createdAt) !== dayKey(m.createdAt)) return true
   return prev.sender.id !== m.sender.id || Date.parse(m.createdAt) - Date.parse(prev.createdAt) > GROUP_WINDOW_MS
 }
 
@@ -177,7 +191,14 @@ export function MessageList({
       <ol className="message-list" aria-label="Tin nhắn" aria-live="polite">
         {messages?.map((m, i) => {
           const own = m.sender.id === currentUserId
+          const newDay = i === 0 || dayKey(messages[i - 1].createdAt) !== dayKey(m.createdAt)
           return (
+            <Fragment key={m.id}>
+            {newDay && (
+              <li className="day-separator" role="separator">
+                <span>{formatDay(m.createdAt)}</span>
+              </li>
+            )}
             <MessageItem
               key={m.id}
               message={m}
@@ -194,6 +215,7 @@ export function MessageList({
               onRetry={onRetry}
               actions={actions}
             />
+            </Fragment>
           )
         })}
       </ol>

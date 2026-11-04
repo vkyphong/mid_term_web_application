@@ -216,6 +216,11 @@ function Conversation({ room }: { room: Room }) {
                   <button type="button" className="link-btn room-members-link" title="Xem thành viên và phân quyền" onClick={() => setEditing('members')}>
                     {room.memberCount} thành viên
                   </button>
+                  {(room.pendingRequests ?? 0) > 0 && (
+                    <button type="button" className="link-btn pending-badge" onClick={() => setEditing('members')}>
+                      · {room.pendingRequests} chờ duyệt
+                    </button>
+                  )}
                 </>
               )}
           </p>

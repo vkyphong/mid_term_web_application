@@ -470,3 +470,44 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await Promise.all([alice.context.close(), bob.context.close()])
   }
 })
+
+test('phê duyệt thành viên mới: thành viên thường thêm người thì chờ trưởng nhóm duyệt mới vào nhóm', async ({ browser }) => {
+  const [alice, bob, carol] = await Promise.all([account(browser, 'alice'), account(browser, 'bob'), account(browser, 'carol')])
+  try {
+    const roomId = await channelWith(alice, bob) // Alice tạo kênh → trưởng nhóm
+    const a = await open(alice, `/rooms/${roomId}`)
+    const b = await open(bob, `/rooms/${roomId}`)
+    const carolHome = await open(carol, '/')
+    const joined = async (acc: typeof carol) =>
+      (await (await acc.context.request.get('/api/rooms', { headers: auth(acc) })).json()).rooms.find((r: { id: string }) => r.id === roomId)?.joined
+
+    // Trưởng nhóm bật phê duyệt trong danh sách thành viên.
+    await a.getByRole('button', { name: '2 thành viên' }).click()
+    await a.getByRole('switch', { name: /Phê duyệt thành viên mới/ }).check()
+    await expect(a.getByRole('switch', { name: /Phê duyệt thành viên mới/ })).toBeChecked()
+    await a.keyboard.press('Escape')
+
+    // Bob (thành viên thường) thêm Carol → chỉ gửi yêu cầu.
+    await b.getByRole('toolbar', { name: 'Công cụ soạn tin' }).getByRole('button', { name: 'Thêm thành viên' }).click()
+    const add = b.getByRole('dialog', { name: /Thêm thành viên vào/ })
+    await expect(add.getByText(/Nhóm đang bật phê duyệt/)).toBeVisible()
+    await add.getByRole('searchbox', { name: 'Tìm nhân viên' }).fill(carol.displayName)
+    await add.getByRole('checkbox', { name: new RegExp(carol.displayName) }).check()
+    await add.getByRole('button', { name: 'Gửi yêu cầu thêm 1 người' }).click()
+    await expect(b.locator('.toast', { hasText: 'Đã gửi yêu cầu thêm thành viên' })).toBeVisible()
+    expect(await joined(carol)).toBeFalsy()
+
+    // Alice thấy "1 chờ duyệt" ngay (realtime), duyệt → Carol vào nhóm và thấy nhóm không cần tải lại.
+    await a.getByRole('button', { name: '· 1 chờ duyệt' }).click()
+    const requests = a.getByRole('region', { name: 'Yêu cầu chờ duyệt' })
+    await expect(requests).toContainText(carol.displayName)
+    await expect(requests).toContainText(`Do ${bob.displayName} thêm`)
+    await requests.getByRole('button', { name: 'Duyệt' }).click()
+    await expect(requests).toHaveCount(0)
+    await expect.poll(() => joined(carol)).toBe(true)
+    await expect(carolHome.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"]`)).toBeVisible()
+    await expect(a.getByRole('button', { name: /chờ duyệt/ })).toHaveCount(0)
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close(), carol.context.close()])
+  }
+})

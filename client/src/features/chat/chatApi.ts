@@ -2,7 +2,7 @@ import { config } from '../../config'
 import { authBlob, authRequest, authUpload } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, Presence, Profile, ProfileInput, Room, RoomMember, Upload, UserAvatar, UserSummary } from './types'
+import type { CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, PendingAdd, Presence, Profile, ProfileInput, Room, RoomMember, MemberRequest, Upload, UserAvatar, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -17,8 +17,17 @@ export interface ChatApi {
   getPresence(): Promise<Presence[]>
   /** F09: thành viên hiện tại của phòng (để chọn @mention), gồm cả tài khoản bị khoá. */
   listMembers(roomId: string): Promise<RoomMember[]>
-  /** Thêm một nhân viên đang hoạt động vào kênh; thêm lại người đã có vẫn thành công. */
-  addMember(roomId: string, userId: string): Promise<Room>
+  /**
+   * Thêm một nhân viên đang hoạt động vào kênh; thêm lại người đã có vẫn thành công. Nhóm bật phê duyệt
+   * mà mình không phải trưởng / phó nhóm thì trả về PendingAdd (chờ duyệt).
+   */
+  addMember(roomId: string, userId: string): Promise<Room | PendingAdd>
+  /** Trưởng nhóm bật / tắt phê duyệt thành viên mới. */
+  updateRoomSettings(roomId: string, settings: { requireApproval: boolean }): Promise<Room>
+  /** Trưởng / phó nhóm: yêu cầu chờ duyệt. */
+  listMemberRequests(roomId: string): Promise<MemberRequest[]>
+  /** Duyệt (thêm vào nhóm) hoặc từ chối; trả về các yêu cầu còn lại. */
+  decideMemberRequest(roomId: string, requestId: string, approve: boolean): Promise<MemberRequest[]>
   /** Đổi tên kênh (mọi thành viên, kênh chưa lưu trữ). */
   renameRoom(roomId: string, name: string): Promise<Room>
   /** Biệt danh cho người kia trong DM; chuỗi rỗng = bỏ. Chỉ mình thấy. */
@@ -71,6 +80,17 @@ export const httpChatApi: ChatApi = {
     (await authRequest<{ members: RoomMember[] }>(`/api/rooms/${encodeURIComponent(roomId)}/members`)).members,
   addMember: (roomId, userId) =>
     authRequest(`/api/rooms/${encodeURIComponent(roomId)}/members`, { method: 'POST', body: { userId } }),
+  updateRoomSettings: (roomId, settings) =>
+    authRequest(`/api/rooms/${encodeURIComponent(roomId)}/settings`, { method: 'PATCH', body: settings }),
+  listMemberRequests: async (roomId) =>
+    (await authRequest<{ requests: MemberRequest[] }>(`/api/rooms/${encodeURIComponent(roomId)}/requests`)).requests,
+  decideMemberRequest: async (roomId, requestId, approve) =>
+    (
+      await authRequest<{ requests: MemberRequest[] }>(
+        `/api/rooms/${encodeURIComponent(roomId)}/requests/${encodeURIComponent(requestId)}/${approve ? 'approve' : 'reject'}`,
+        { method: 'POST' },
+      )
+    ).requests,
   renameRoom: (roomId, name) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}`, { method: 'PATCH', body: { name } }),
   setNickname: (roomId, nickname) =>
     authRequest(`/api/rooms/${encodeURIComponent(roomId)}/nickname`, { method: 'PUT', body: { nickname } }),

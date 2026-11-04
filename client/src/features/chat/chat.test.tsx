@@ -16,6 +16,7 @@ vi.mock('./chatApi', () => ({
     renameRoom: vi.fn(), setNickname: vi.fn(), uploadRoomAvatar: vi.fn(), removeRoomAvatar: vi.fn(), downloadFile: vi.fn(),
     listUserAvatars: vi.fn(), uploadMyAvatar: vi.fn(), removeMyAvatar: vi.fn(), searchMessages: vi.fn(), setMemberRole: vi.fn(),
     createPoll: vi.fn(), vote: vi.fn(), getMyProfile: vi.fn(), updateMyProfile: vi.fn(), getUserProfile: vi.fn(), closePoll: vi.fn(),
+    updateRoomSettings: vi.fn(), listMemberRequests: vi.fn(), decideMemberRequest: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -459,6 +460,63 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     const owner = (await screen.findByText('trưởng nhóm nói')).closest('li')!
     await waitFor(() => expect(owner.querySelector('.role-key--owner svg')).not.toBeNull())
     expect(screen.getByText('phó nhóm nói').closest('li')!.querySelector('.role-key--deputy svg')).not.toBeNull()
+  })
+
+  it('phê duyệt thành viên mới: thành viên thường thêm người thì gửi yêu cầu chờ duyệt', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, myRole: 'member', requireApproval: true, memberCount: 3 }])
+    api.listMembers.mockResolvedValue([{ ...me, enabled: true, memberRole: 'member' }])
+    api.searchUsers.mockResolvedValue([an])
+    api.addMember.mockResolvedValueOnce({
+      pending: true,
+      request: { id: 'rq1', user: an, requestedBy: me, createdAt: '2026-11-04T09:00:00Z' },
+      room: { ...eng, myRole: 'member', requireApproval: true, memberCount: 3 },
+    })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click((await screen.findAllByRole('button', { name: 'Thêm thành viên' }))[0])
+    const dialog = screen.getByRole('dialog', { name: /Thêm thành viên vào/ })
+    expect(within(dialog).getByText(/Nhóm đang bật phê duyệt/)).toBeInTheDocument()
+    await user.click(await within(dialog).findByRole('checkbox', { name: /Nguyễn An/ }))
+    await user.click(within(dialog).getByRole('button', { name: 'Gửi yêu cầu thêm 1 người' }))
+    expect(await screen.findByText('Đã gửi yêu cầu thêm thành viên')).toBeInTheDocument()
+    expect(screen.getByText('1 người đang chờ trưởng nhóm / phó nhóm duyệt.')).toBeInTheDocument()
+    expect(screen.getByText('3 thành viên')).toBeInTheDocument() // chưa vào nhóm
+  })
+
+  it('trưởng nhóm bật phê duyệt và duyệt / từ chối yêu cầu; đầu phòng báo số chờ duyệt', async () => {
+    const request = { id: 'rq1', user: an, requestedBy: phong, createdAt: '2026-11-04T09:00:00Z' }
+    api.listRooms.mockResolvedValue([{ ...eng, myRole: 'owner', requireApproval: false, pendingRequests: 1, memberCount: 2 }])
+    api.listMembers.mockResolvedValue([{ ...me, enabled: true, memberRole: 'owner' }, { ...phong, enabled: true, memberRole: 'member' }])
+    api.listMemberRequests.mockResolvedValue([request])
+    api.updateRoomSettings.mockResolvedValueOnce({ ...eng, myRole: 'owner', requireApproval: true, pendingRequests: 1, memberCount: 2 })
+    api.decideMemberRequest.mockResolvedValueOnce([])
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: '· 1 chờ duyệt' }))
+    const dialog = screen.getByRole('dialog', { name: 'Thành viên (2)' })
+    const toggle = within(dialog).getByRole('switch', { name: /Phê duyệt thành viên mới/ })
+    expect(toggle).not.toBeChecked()
+    await user.click(toggle)
+    expect(api.updateRoomSettings).toHaveBeenCalledWith(eng.id, { requireApproval: true })
+    await waitFor(() => expect(within(dialog).getByRole('switch', { name: /Phê duyệt thành viên mới/ })).toBeChecked())
+    const requests = await within(dialog).findByRole('region', { name: 'Yêu cầu chờ duyệt' })
+    expect(within(requests).getByText('Do Phong thêm')).toBeInTheDocument()
+    await user.click(within(requests).getByRole('button', { name: 'Duyệt' }))
+    expect(api.decideMemberRequest).toHaveBeenCalledWith(eng.id, 'rq1', true)
+  })
+
+  it('chip ngày giữa khung chat khi sang ngày mới', async () => {
+    api.listMessages.mockResolvedValue({
+      messages: [
+        message('d1', 'tin ngày cũ', { createdAt: '2026-10-31T08:00:00.000Z' }),
+        message('d2', 'tin hôm sau', { createdAt: '2026-11-01T08:00:00.000Z' }),
+      ],
+      nextCursor: null,
+    })
+    renderChat(`/rooms/${eng.id}`)
+    expect(await screen.findByText('tin ngày cũ')).toBeInTheDocument()
+    const days = screen.getAllByRole('separator').map((s) => s.textContent)
+    expect(days).toEqual(['T7 31/10/2026', 'CN 01/11/2026'])
   })
 
   it('thành viên thường không thấy nút phân quyền', async () => {

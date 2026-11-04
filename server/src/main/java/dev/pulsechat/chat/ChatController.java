@@ -36,8 +36,22 @@ public class ChatController {
         return Map.of("members", chat.members(id, user.userId()));
     }
     @PostMapping("/rooms/{id}/members")
-    public Room addMember(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody AddMember input) {
-        return chat.addMember(id, user.userId(), input);
+    /** 200 Room khi đã thêm; 202 { pending, request, room } khi nhóm cần trưởng / phó nhóm duyệt. */
+    public ResponseEntity<Object> addMember(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody AddMember input) {
+        Object result = chat.addMember(id, user.userId(), input);
+        return ResponseEntity.status(result instanceof PendingAdd ? 202 : 200).body(result);
+    }
+    @PatchMapping("/rooms/{id}/settings")
+    public Room settings(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody RoomSettings input) {
+        return chat.updateSettings(id, user.userId(), input);
+    }
+    @GetMapping("/rooms/{id}/requests")
+    public Object requests(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
+        return Map.of("requests", chat.listRequests(id, user.userId()));
+    }
+    @PostMapping("/rooms/{id}/requests/{requestId}/{decision:approve|reject}")
+    public Object decide(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @PathVariable String requestId, @PathVariable String decision) {
+        return Map.of("requests", chat.decideRequest(id, user.userId(), requestId, decision.equals("approve")));
     }
     @PatchMapping("/rooms/{id}")
     public Room rename(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody RenameRoom input) {
