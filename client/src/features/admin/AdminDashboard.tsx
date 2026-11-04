@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { config } from '../../config'
 import { ApiError } from '../../lib/apiError'
 import { describeError } from './adminErrors'
@@ -105,7 +105,7 @@ export function AdminDashboard() {
   const nav = useActiveSection(SECTIONS)
   const forbidden = stats.error instanceof ApiError && stats.error.status === 403
   const enabled = !forbidden && !config.useMockApi
-  const users = useQuery({ queryKey: ['admin', 'users', filter, page], queryFn: () => adminApi.users(filter, page), enabled, retry: false, refetchInterval: 5000 })
+  const users = useQuery({ queryKey: ['admin', 'users', filter, page], queryFn: () => adminApi.users(filter, page), enabled, retry: false, refetchInterval: 5000, placeholderData: keepPreviousData })
   // Ảnh đại diện tài khoản như bên chat; nạp lại định kỳ để thấy ảnh mới của nhân viên.
   useQuery({
     queryKey: ['admin', 'avatars'],

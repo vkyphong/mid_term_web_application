@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiError } from '../../lib/apiError'
 import { adminApi, type AdminGroup, type GroupMember, type GroupRole } from './adminApi'
 import { describeError } from './adminErrors'
@@ -240,6 +240,8 @@ export function AdminGroups({ enabled, onNotice }: { enabled: boolean; onNotice:
     queryKey: ['admin', 'groups', filter, status, page],
     queryFn: () => adminApi.groups(filter, archived, page),
     enabled,
+    // Giữ bảng trang cũ trong lúc tải trang mới: trang không bị co lại làm trình duyệt nhảy xuống cuối.
+    placeholderData: keepPreviousData,
     retry: false,
     refetchInterval: 10000,
   })
