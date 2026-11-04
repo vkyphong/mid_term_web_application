@@ -44,7 +44,6 @@ export function NewDirectMessageDialog({ onClose }: { onClose: () => void }) {
               <Avatar name={u.displayName} userId={u.id} />
               <span>
                 <strong>{u.displayName}</strong>
-                <span className="muted small">{u.email}</span>
               </span>
             </button>
           </li>

@@ -60,7 +60,8 @@ export function MemberPicker({ selected, onChange, existingIds, disabled = false
                 <Avatar name={u.displayName} userId={u.id} />
                 <span>
                   <strong>{u.displayName}</strong>
-                  <span className="muted small">{existing ? 'Đã trong nhóm' : u.email}</span>
+                  {/* Không hiện email nhân viên trong danh sách chọn (chỉ admin mới thấy email). */}
+                  {existing && <span className="muted small">Đã trong nhóm</span>}
                 </span>
               </label>
             </li>
