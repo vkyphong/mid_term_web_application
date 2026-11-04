@@ -1,5 +1,8 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import { crc32, deflateSync } from 'node:zlib'
+import { rm, truncate, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 
 /** F09 thông báo/@mention, F14 sửa/xoá/cảm xúc, F15 file, F10 hàng đợi offline, F11 giới hạn & XSS — backend thật. */
 
@@ -135,8 +138,12 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     // ---- F14: cảm xúc (gửi lại cùng trạng thái không đảo) ----
     await bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Thả cảm xúc' }).click()
     await b.getByRole('button', { name: 'Thả 👍' }).click()
-    await expect(bubble(a, 'Bản đã sửa').getByRole('button', { name: '👍 1' })).toBeVisible()
-    await bubble(b, 'Bản đã sửa').getByRole('button', { name: /👍 1, bạn đã thả/ }).click() // bỏ cảm xúc
+    await expect(bubble(a, 'Bản đã sửa').getByRole('button', { name: `👍 1: ${bob.displayName}` })).toBeVisible()
+    // Rê chuột vào cảm xúc: hiện tên người đã thả.
+    await bubble(a, 'Bản đã sửa').locator('.reaction-chip').hover()
+    await expect(bubble(a, 'Bản đã sửa').locator('.reaction-who')).toBeVisible()
+    await expect(bubble(a, 'Bản đã sửa').locator('.reaction-who')).toHaveText(bob.displayName)
+    await bubble(b, 'Bản đã sửa').getByRole('button', { name: '👍 1: Bạn' }).click() // bỏ cảm xúc
     await expect(bubble(a, 'Bản đã sửa').locator('.reaction-chip')).toHaveCount(0)
 
     // ---- F14: xoá (mềm, còn đúng trong lịch sử) ----
@@ -155,11 +162,15 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     expect(await b.locator('.message-list img').count()).toBe(0)
     expect(await b.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined()
 
-    // ---- F15: chặn file quá 5 MB ngay ở client (không gửi request upload) ----
+    // ---- F15: chặn file quá 100 MB ngay ở client (không gửi request upload) ----
     let uploads = 0
     a.on('request', (r) => { if (r.url().endsWith('/api/uploads') && r.method() === 'POST') uploads++ })
-    await a.getByTestId('file-input').setInputFiles({ name: 'big.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) })
-    await expect(a.getByText(/vượt quá giới hạn 5 MB/)).toBeVisible()
+    // File thưa 100 MB + 1 byte trên đĩa (buffer của Playwright giới hạn 50 MB).
+    const big = join(tmpdir(), `pulsechat-big-${crypto.randomUUID()}.png`)
+    await truncate(big, 100 * 1024 * 1024 + 1).catch(async () => { await writeFile(big, ''); await truncate(big, 100 * 1024 * 1024 + 1) })
+    await a.getByTestId('file-input').setInputFiles(big)
+    await rm(big, { force: true })
+    await expect(a.getByText(/vượt quá giới hạn 100 MB/)).toBeVisible()
     await a.getByRole('button', { name: 'Bỏ tệp đính kèm' }).click()
     expect(uploads).toBe(0)
 

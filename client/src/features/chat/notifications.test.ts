@@ -36,9 +36,12 @@ describe('F09 notifications cache', () => {
 describe('F15 kiểm tra file phía client', () => {
   const file = (size: number, name: string, type = '') => new File([new Uint8Array(size)], name, { type })
 
-  it('đúng biên 5 MB và định dạng', () => {
-    expect(validateFile(file(5 * 1024 * 1024, 'a.png', 'image/png'))).toBeNull()
-    expect(validateFile(file(5 * 1024 * 1024 + 1, 'a.png', 'image/png'))).toMatch(/vượt quá giới hạn 5 MB/)
+  it('đúng biên 100 MB và định dạng', () => {
+    // File giả có kích thước tuỳ ý mà không cấp phát 100 MB thật.
+    const sized = (size: number, name: string) => Object.defineProperty(new File(['x'], name), 'size', { value: size })
+    expect(validateFile(file(5 * 1024 * 1024 + 1, 'a.png', 'image/png'))).toBeNull()
+    expect(validateFile(sized(100 * 1024 * 1024, 'a.zip'))).toBeNull()
+    expect(validateFile(sized(100 * 1024 * 1024 + 1, 'a.zip'))).toMatch(/vượt quá giới hạn 100 MB/)
     expect(validateFile(file(10, 'a.gif', 'image/gif'))).toMatch(/Chỉ hỗ trợ ảnh JPG\/PNG, PDF/)
     expect(validateFile(file(0, 'a.pdf', 'application/pdf'))).toBe('Tệp rỗng.')
   })

@@ -75,12 +75,14 @@ final class UploadTypes {
         Set<String> entries = new HashSet<>();
         Map<String, byte[]> xml = new HashMap<>();
         long expanded = 0;
+        // Chống "bom giải nén" theo tỉ lệ với file gửi lên: tối thiểu 25 MiB, tối đa 2 GiB.
+        long maxExpanded = Math.min(2L * 1024 * 1024 * 1024, Math.max(25L * 1024 * 1024, 20L * bytes.length));
         try (var zip = new ZipInputStream(new ByteArrayInputStream(bytes))) {
             java.util.zip.ZipEntry entry;
             byte[] buffer = new byte[8192];
             while ((entry = zip.getNextEntry()) != null) {
                 String name = entry.getName();
-                if (entries.size() >= 1000 || !entries.add(name) || name.startsWith("/") || name.contains("\\") || name.contains(":") ||
+                if (entries.size() >= 20_000 || !entries.add(name) || name.startsWith("/") || name.contains("\\") || name.contains(":") ||
                         java.util.Arrays.asList(name.split("/")).contains("..")) throw invalid("Invalid archive entry or too many entries");
                 if (!extension.equals("zip") && (name.toLowerCase(Locale.ROOT).contains("vbaproject") || name.toLowerCase(Locale.ROOT).contains("activex/")))
                     throw invalid("Macro and ActiveX Office documents are not supported");
@@ -89,9 +91,9 @@ final class UploadTypes {
                 int size;
                 while ((size = zip.read(buffer)) != -1) {
                     expanded += size;
-                    if (expanded > 25L * 1024 * 1024) throw invalid("Archive expands beyond 25 MiB");
+                    if (expanded > maxExpanded) throw invalid("Archive expands beyond the allowed size");
                     if (collect) {
-                        if (output.size() + size > 2 * 1024 * 1024) throw invalid("Office XML part exceeds 2 MiB");
+                        if (output.size() + size > 32 * 1024 * 1024) throw invalid("Office XML part exceeds 32 MiB");
                         output.write(buffer, 0, size);
                     }
                 }

@@ -61,9 +61,9 @@ interface Store {
   uploads?: Record<string, StoredUpload>
 }
 
-/** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho 5 MiB). */
+/** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho file lớn). */
 const uploadBlobs = new Map<string, Blob>()
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 /** Đuôi file BE chấp nhận → MIME (BE tự xác định MIME, không tin trình duyệt). */
 const UPLOAD_TYPES: Record<string, string> = {
   '.jpg': 'image/jpeg',
@@ -474,7 +474,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       const room = findRoom(store, roomId)
       requireMember(room, user.id)
       requireWritable(room)
-      if (file.size < 1 || file.size > MAX_UPLOAD_BYTES) throw invalid('file', 'File must contain 1–5242880 bytes')
+      if (file.size < 1 || file.size > MAX_UPLOAD_BYTES) throw invalid('file', `File must contain 1–${MAX_UPLOAD_BYTES} bytes`)
       const mediaType = UPLOAD_TYPES[file.name.slice(file.name.lastIndexOf('.')).toLowerCase()]
       if (!mediaType) throw invalid('file', 'Unsupported file type')
       for (const step of [0.25, 0.5, 0.75, 1]) {

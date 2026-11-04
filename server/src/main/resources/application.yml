@@ -7,8 +7,9 @@ server:
 spring:
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
+      # File công ty thường lớn: mặc định 100 MB/file, đổi bằng UPLOAD_MAX_FILE_SIZE / UPLOAD_MAX_REQUEST_SIZE.
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:100MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:101MB}
   application:
     name: pulsechat
   datasource:

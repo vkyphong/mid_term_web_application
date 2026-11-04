@@ -29,7 +29,7 @@ export interface ChatApi {
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
   listNotifications(before?: string): Promise<NotificationPage>
   markNotificationRead(id: string): Promise<void>
-  /** F15: upload một file (ảnh, PDF, văn bản, Office, ZIP ≤ 5 MiB) vào phòng. */
+  /** F15: upload một file (ảnh, PDF, văn bản, Office, ZIP ≤ 100 MB) vào phòng. */
   uploadFile(roomId: string, file: File, onProgress?: (ratio: number) => void, signal?: AbortSignal): Promise<Upload>
   /** F15: tải file đính kèm (cần đăng nhập và là thành viên phòng). */
   downloadFile(url: string): Promise<Blob>

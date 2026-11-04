@@ -103,9 +103,9 @@ SEND đến `/app/message.send`, subscribe ack/event theo contract chat hiện c
 | `.pptx` | `application/vnd.openxmlformats-officedocument.presentationml.presentation` | ZIP có content types đúng và `ppt/presentation.xml` hợp lệ |
 | `.zip` | `application/zip` | Archive không rỗng, đọc được và có directory hợp lệ |
 
-Tối đa **5 MiB/file** (5.242.880 byte), request multipart tối đa 6 MiB, ảnh tối đa 25 megapixel. Tên file tối đa 200 ký tự; ký tự điều khiển và dấu phân cách đường dẫn được thay bằng `_`. File trên đĩa lưu bằng UUID, không dùng tên do người upload gửi.
+Mặc định tối đa **100 MB/file**, request multipart tối đa 101 MB, đổi bằng biến môi trường `UPLOAD_MAX_FILE_SIZE` / `UPLOAD_MAX_REQUEST_SIZE`, ảnh tối đa 25 megapixel. Tên file tối đa 200 ký tự; ký tự điều khiển và dấu phân cách đường dẫn được thay bằng `_`. File trên đĩa lưu bằng UUID, không dùng tên do người upload gửi.
 
-Backend không tin MIME từ trình duyệt. TXT/CSV dùng UTF-8; DOC/XLS/PPT đời cũ, định dạng macro-enabled và archive mã hóa không được hỗ trợ. Office có VBA/ActiveX bị từ chối. ZIP giới hạn 1.000 entry và tổng dữ liệu giải nén 25 MiB; mỗi XML chính của Office tối đa 2 MiB. Archive có đường dẫn tuyệt đối, `..`, entry trùng hoặc directory bị cắt hỏng bị từ chối. XML không được dùng DTD hoặc external entity. Các kiểm tra này xác định định dạng và giới hạn tài nguyên, không phải quét virus.
+Backend không tin MIME từ trình duyệt. TXT/CSV dùng UTF-8; DOC/XLS/PPT đời cũ, định dạng macro-enabled và archive mã hóa không được hỗ trợ. Office có VBA/ActiveX bị từ chối. ZIP giới hạn 20.000 entry; tổng dữ liệu giải nén tối đa gấp 20 lần file gửi lên (ít nhất 25 MiB, nhiều nhất 2 GiB); mỗi XML chính của Office tối đa 32 MiB. Archive có đường dẫn tuyệt đối, `..`, entry trùng hoặc directory bị cắt hỏng bị từ chối. XML không được dùng DTD hoặc external entity. Các kiểm tra này xác định định dạng và giới hạn tài nguyên, không phải quét virus.
 
 Download dùng `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, `Cache-Control: no-store` và `Content-Security-Policy: sandbox`. Không có endpoint public/static để đọc trực tiếp thư mục file. Thư mục lưu file, Docker volume và giới hạn request dùng cấu hình backend hiện có.
 

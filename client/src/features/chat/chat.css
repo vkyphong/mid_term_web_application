@@ -1,4 +1,10 @@
 /* Layout */
+html.chat-page,
+html.chat-page body {
+  height: 100%;
+  overflow: hidden;
+}
+
 .chat-app {
   height: 100vh;
   height: 100dvh;
@@ -1469,4 +1475,37 @@
   .room-avatar-camera {
     opacity: 1;
   }
+}
+
+/* Rê chuột / focus vào cảm xúc: hiện tên những người đã thả */
+.reaction-chip {
+  position: relative;
+}
+
+.reaction-who {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 8;
+  width: max-content;
+  max-width: 240px;
+  padding: 4px 8px;
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: normal;
+  text-align: left;
+  color: #fff;
+  background: rgba(20, 22, 30, 0.92);
+  border-radius: 6px;
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.12s;
+}
+
+.reaction-chip:hover .reaction-who,
+.reaction-chip:focus-visible .reaction-who {
+  opacity: 1;
+  visibility: visible;
 }

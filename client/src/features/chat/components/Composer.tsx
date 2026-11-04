@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type Fo
 import type { SendOptions } from '../hooks'
 import { MENTION_ALL, filterMentionCandidates, insertMention, mentionQueryAt, resolveMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
-import { ACCEPTED_LABEL, ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, formatBytes, useFileUpload } from '../uploads'
+import { ACCEPTED_LABEL, ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, MAX_UPLOAD_LABEL, formatBytes, useFileUpload } from '../uploads'
 import type { RoomMember, UserSummary } from '../types'
 import { Avatar } from './Avatar'
 import { AtIcon, ImageIcon, PaperclipIcon, SmileIcon, ThumbsUpIcon, UserPlusIcon } from './icons'
@@ -265,7 +265,7 @@ export function Composer(props: ComposerProps) {
             <UserPlusIcon />
           </ToolButton>
         )}
-        <span className="composer-hint muted small">Tệp: {ACCEPTED_LABEL}, tối đa 5 MB</span>
+        <span className="composer-hint muted small">Tệp: {ACCEPTED_LABEL}, tối đa {MAX_UPLOAD_LABEL}</span>
 
         {emojiOpen && (
           <div className="emoji-panel" role="group" aria-label="Chọn biểu tượng cảm xúc">

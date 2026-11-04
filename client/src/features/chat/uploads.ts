@@ -4,7 +4,9 @@ import { describeChatError } from './errors'
 import type { Upload } from './types'
 
 /** F15: giới hạn theo docs/api/groups-members-files.md (BE kiểm tra lại chữ ký/cấu trúc file). */
-export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+/** Khớp mặc định của BE (`UPLOAD_MAX_FILE_SIZE`, 100 MB); BE vẫn là nơi quyết định cuối. */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
+export const MAX_UPLOAD_LABEL = '100 MB'
 export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
 /**
  * Kiểm tra theo đuôi file chứ không theo `file.type`: trình duyệt trên Windows báo CSV là
@@ -29,7 +31,7 @@ const extensionOf = (name: string) => {
 /** Kiểm tra trước khi upload để báo lỗi sớm; null = hợp lệ. */
 export function validateFile(file: File, imagesOnly = false): string | null {
   if (file.size === 0) return 'Tệp rỗng.'
-  if (file.size > MAX_UPLOAD_BYTES) return `Tệp ${formatBytes(file.size)} vượt quá giới hạn 5 MB.`
+  if (file.size > MAX_UPLOAD_BYTES) return `Tệp ${formatBytes(file.size)} vượt quá giới hạn ${MAX_UPLOAD_LABEL}.`
   const allowed: readonly string[] = imagesOnly ? IMAGE_EXTENSIONS : ACCEPTED_EXTENSIONS
   if (!allowed.includes(extensionOf(file.name))) {
     return imagesOnly ? 'Chỉ gửi được ảnh JPG hoặc PNG.' : `Chỉ hỗ trợ ${ACCEPTED_LABEL}.`

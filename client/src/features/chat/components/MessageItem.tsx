@@ -50,12 +50,15 @@ function MessageText(props: { content: string; members: readonly UserSummary[]; 
 }
 
 /** F14: gom reaction theo emoji, đánh dấu emoji mình đã thả. */
-function groupReactions(message: ChatMessage, selfId: string) {
-  const groups = new Map<string, { count: number; mine: boolean }>()
+function groupReactions(message: ChatMessage, selfId: string, members: readonly UserSummary[]) {
+  const groups = new Map<string, { count: number; mine: boolean; names: string[] }>()
   for (const r of message.reactions ?? []) {
-    const g = groups.get(r.emoji) ?? { count: 0, mine: false }
+    const g = groups.get(r.emoji) ?? { count: 0, mine: false, names: [] }
     g.count++
     if (r.userId === selfId) g.mine = true
+    // Ai đã thả: "Bạn" đứng đầu, người khác theo tên thành viên (người đã rời nhóm: "Ai đó").
+    if (r.userId === selfId) g.names.unshift('Bạn')
+    else g.names.push(members.find((u) => u.id === r.userId)?.displayName ?? (r.userId === message.sender.id ? message.sender.displayName : 'Ai đó'))
     groups.set(r.emoji, g)
   }
   return [...groups.entries()]
@@ -72,7 +75,7 @@ export function MessageItem(props: MessageItemProps) {
   const deleted = Boolean(m.deletedAt)
   const stored = !m.status
   const canAct = Boolean(actions) && stored && !deleted
-  const reactions = deleted ? [] : groupReactions(m, selfId)
+  const reactions = deleted ? [] : groupReactions(m, selfId, members)
   const draftTooLong = contentBytes(draft.trim()) > MAX_CONTENT_BYTES
 
   const run = async (fn: () => Promise<boolean>) => {
@@ -213,11 +216,14 @@ export function MessageItem(props: MessageItemProps) {
                 type="button"
                 className={`reaction-chip${g.mine ? ' reaction-chip--mine' : ''}`}
                 aria-pressed={g.mine}
-                aria-label={`${emoji} ${g.count}${g.mine ? ', bạn đã thả' : ''}`}
+                aria-label={`${emoji} ${g.count}: ${g.names.join(', ')}`}
                 disabled={!canAct}
                 onClick={() => toggleReaction(emoji, g.mine)}
               >
                 {emoji} {g.count}
+                <span className="reaction-who" aria-hidden="true">
+                  {g.names.join(', ')}
+                </span>
               </button>
             ))}
           </div>

@@ -20,7 +20,7 @@ function renderItem(message: ChatMessage, own = true) {
   return render(
     <ul>
       <MessageItem
-        message={message} own={own} head selfId="me" members={[]} receipt={null} showReceipt={false}
+        message={message} own={own} head selfId="me" members={[{ id: 'phong', displayName: 'Phong', email: 'p@dqgm.dev' }]} receipt={null} showReceipt={false}
         trackSeen={false} onRetry={() => {}} actions={actions as unknown as MessageActionsApi}
       />
     </ul>,
@@ -66,10 +66,12 @@ describe('F14 thao tác tin nhắn', () => {
   it('cảm xúc: gom theo emoji; bấm chip của mình gửi active=false (bỏ), không đảo khi gửi lại', async () => {
     const user = userEvent.setup()
     renderItem(msg({ reactions: [{ userId: 'me', emoji: '👍' }, { userId: 'phong', emoji: '👍' }, { userId: 'phong', emoji: '🎉' }] }))
-    expect(screen.getByRole('button', { name: '👍 2, bạn đã thả' })).toHaveAttribute('aria-pressed', 'true')
-    await user.click(screen.getByRole('button', { name: '👍 2, bạn đã thả' }))
+    expect(screen.getByRole('button', { name: '👍 2: Bạn, Phong' })).toHaveAttribute('aria-pressed', 'true')
+    // Rê chuột vào chip: hiện tên những người đã thả.
+    expect(screen.getByRole('button', { name: '👍 2: Bạn, Phong' }).querySelector('.reaction-who')).toHaveTextContent('Bạn, Phong')
+    await user.click(screen.getByRole('button', { name: '👍 2: Bạn, Phong' }))
     expect(actions.react).toHaveBeenCalledWith('m1', '👍', false)
-    await user.click(screen.getByRole('button', { name: '🎉 1' }))
+    await user.click(screen.getByRole('button', { name: '🎉 1: Phong' }))
     expect(actions.react).toHaveBeenLastCalledWith('m1', '🎉', true)
   })
 

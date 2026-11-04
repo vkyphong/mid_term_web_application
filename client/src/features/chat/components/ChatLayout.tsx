@@ -48,6 +48,12 @@ export function ChatLayout() {
   const logout = useLogout()
   useChatEvents()
   const unreadRooms = countUnreadRooms(useRooms().data)
+  // App chat cao đúng bằng màn hình và tự cuộn bên trong: khoá cuộn cấp trang để không bao giờ
+  // trượt xuống khoảng trống bên dưới khi có phần tử tạm thời tràn ra ngoài.
+  useEffect(() => {
+    document.documentElement.classList.add('chat-page')
+    return () => document.documentElement.classList.remove('chat-page')
+  }, [])
   useEffect(() => {
     document.title = unreadRooms > 0 ? `(${unreadRooms}) ${config.appName}` : config.appName
     return () => {
