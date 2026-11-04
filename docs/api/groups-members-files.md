@@ -85,6 +85,20 @@ Khi `requireApproval` bật, `POST /api/rooms/{id}/members` của thành viên t
 
 `GET /api/rooms/{id}/media?kind=image|file|link&limit=20&before=<messageId>` trả `200 { items: [{ messageId, createdAt, sender, attachment, url }], nextCursor }`, mới nhất trước, chỉ cho thành viên phòng. `image` là file đính kèm có MIME `image/*`, `file` là các file còn lại (có `attachment`), `link` là các đường `http(s)://` tách từ nội dung tin (có `url`; một tin có nhiều link thì có nhiều mục). Tin đã xoá và dòng hoạt động bình chọn không được tính. `nextCursor` là ID tin cuối đã đọc, truyền vào `before` để lấy trang sau.
 
+### Trả lời, chuyển tiếp, ghim, xoá chỉ ở phía tôi
+
+Rê chuột vào tin sẽ hiện ba nút tròn như Zalo: **Trả lời**, **Chuyển tiếp** và **…** (Thêm: Lưu về máy, Ghim tin nhắn, Sửa, Thu hồi, Xoá chỉ ở phía tôi). Nút thả cảm xúc 👍 nằm ở góc dưới bên phải của tin (chữ, file, ảnh, link).
+
+| Method / lệnh | Endpoint | Body | Thành công | Quyền |
+| --- | --- | --- | --- | --- |
+| STOMP `message:send` | — | thêm `replyToId` (tuỳ chọn) | `Message` có `replyTo: { id, sender, content, attachmentName, deleted }` | Thành viên; tin gốc phải cùng phòng, không phải dòng hoạt động |
+| POST | `/api/messages/{id}/forward` | `{ "roomIds": [...], "note": "..." }` (tối đa 20 phòng) | `200 { forwarded }` | Thành viên phòng gốc và mọi phòng đích |
+| PUT | `/api/messages/{id}/pin` | `{ "pinned": true }` | `200 Message` | Thành viên phòng |
+| GET | `/api/rooms/{id}/pins` | — | `200 { messages }` (tối đa 50, ghim mới nhất trước) | Thành viên phòng |
+| POST | `/api/messages/{id}/hide` | — | `200 { id, roomId }` | Thành viên phòng |
+
+Chuyển tiếp file sẽ sao chép file thành bản upload mới cho từng phòng đích; lời nhắn được gửi thành một tin riêng ngay sau đó. Ghim / bỏ ghim gửi `message:pin` cho cả phòng. Xoá chỉ ở phía tôi gửi `message:hidden { id, roomId }` cho riêng người đó; tin bị ẩn không xuất hiện trong lịch sử, tìm kiếm và mục Ảnh / File / Link của họ. "Thu hồi" vẫn là xoá mềm cho mọi người (hiện "Tin nhắn đã được thu hồi"). Flyway V15 thêm `messages.reply_to_id`, `pinned_at`, `pinned_by` và bảng `message_hidden`.
+
 ## 2. Gửi file
 
 Luồng gửi vẫn dùng upload HTTP trước, sau đó gửi tin bằng STOMP:

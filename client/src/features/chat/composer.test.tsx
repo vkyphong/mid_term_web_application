@@ -114,3 +114,31 @@ describe('thanh công cụ soạn tin (kiểu Zalo)', () => {
     expect(screen.queryByRole('group', { name: 'Ảnh sẽ gửi' })).not.toBeInTheDocument()
   })
 })
+
+describe('trả lời tin (kiểu Zalo)', () => {
+  const original = {
+    id: 'm9', roomId: 'r1', clientMsgId: 'c9', sender: { id: 'u2', displayName: 'Vòng Phong' }, content: 'Mai họp lúc mấy giờ?',
+    createdAt: '2026-11-05T08:00:00Z', reactions: [],
+  }
+
+  it('hiện khung "Trả lời <tên>", tin gửi đi mang replyTo rồi khung tự đóng', async () => {
+    const onCancelReply = vi.fn()
+    const { user, box, onSend } = setup({ replyTo: original, onCancelReply })
+    const bar = screen.getByRole('status', { name: 'Đang trả lời' })
+    expect(bar).toHaveTextContent('Trả lời Vòng Phong')
+    expect(bar).toHaveTextContent('Mai họp lúc mấy giờ?')
+    await user.type(box, '9h nhé{Enter}')
+    expect(onSend).toHaveBeenCalledWith('9h nhé', expect.objectContaining({ replyTo: original }))
+    expect(onCancelReply).toHaveBeenCalled()
+  })
+
+  it('nút × và phím Escape huỷ trả lời', async () => {
+    const onCancelReply = vi.fn()
+    const { user, box } = setup({ replyTo: original, onCancelReply })
+    await user.click(screen.getByRole('button', { name: 'Huỷ trả lời' }))
+    expect(onCancelReply).toHaveBeenCalledTimes(1)
+    await user.click(box)
+    await user.keyboard('{Escape}')
+    expect(onCancelReply).toHaveBeenCalledTimes(2)
+  })
+})

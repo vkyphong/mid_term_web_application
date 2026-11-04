@@ -84,3 +84,32 @@ export const SearchIcon = () => (
     <path d="m20 20-4.2-4.2" />
   </Icon>
 )
+
+/** Trả lời (dấu ngoặc kép như Zalo). */
+export const QuoteIcon = () => (
+  <Icon fill="currentColor" stroke="none">
+    <path d="M4 11.5C4 8 6.2 5.6 9.4 5l.6 1.7c-1.9.6-3 1.9-3.2 3.6H9.6c.8 0 1.4.6 1.4 1.4V17c0 .8-.6 1.4-1.4 1.4H5.4C4.6 18.4 4 17.8 4 17v-5.5Zm9 0C13 8 15.2 5.6 18.4 5l.6 1.7c-1.9.6-3 1.9-3.2 3.6h2.8c.8 0 1.4.6 1.4 1.4V17c0 .8-.6 1.4-1.4 1.4h-4.2c-.8 0-1.4-.6-1.4-1.4v-5.5Z" />
+  </Icon>
+)
+
+/** Chuyển tiếp (mũi tên chia sẻ). */
+export const ShareIcon = () => (
+  <Icon fill="currentColor" stroke="none">
+    <path d="M13.5 5.2a1 1 0 0 1 1.6-.8l6.4 5.6a1.2 1.2 0 0 1 0 1.8l-6.4 5.6a1 1 0 0 1-1.6-.8v-2.9c-4.1.1-6.9 1.4-8.9 4.4-.3.5-1.1.2-1-.4.8-5 3.9-8.6 9.9-9.2V5.2Z" />
+  </Icon>
+)
+
+export const MoreIcon = () => (
+  <Icon fill="currentColor" stroke="none">
+    <circle cx="5" cy="12" r="2" />
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="19" cy="12" r="2" />
+  </Icon>
+)
+
+/** Thả cảm xúc (ngón cái, viền). */
+export const LikeOutlineIcon = () => (
+  <Icon>
+    <path d="M7 10v10H4.5A1.5 1.5 0 0 1 3 18.5v-7A1.5 1.5 0 0 1 4.5 10H7Zm0 0 4.2-6.2a1.6 1.6 0 0 1 2.9 1.1L13.6 9h5.1a2.2 2.2 0 0 1 2.2 2.6l-1.4 7a2.4 2.4 0 0 1-2.4 2H7" />
+  </Icon>
+)

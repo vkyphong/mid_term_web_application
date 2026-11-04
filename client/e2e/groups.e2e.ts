@@ -43,6 +43,8 @@ async function channelWith(owner: Account, ...members: Account[]) {
 const box = (page: Page) => page.getByRole('textbox', { name: 'Nội dung tin nhắn' })
 const bubble = (page: Page, text: string) => page.locator('.message-list .message', { hasText: text })
 
+const pdf = Buffer.from('%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF\n')
+
 /** PNG hợp lệ (BE kiểm tra giải mã được ảnh). */
 function png(width = 4, height = 4): Buffer {
   const chunk = (type: string, data: Buffer) => {
@@ -576,5 +578,79 @@ test('Ctrl+V dán ảnh vào ô nhập: khay "N ảnh", gửi mỗi ảnh một 
     expect((await download).suggestedFilename()).toMatch(/^anh-dan-\d+\.png$/)
   } finally {
     await Promise.all([alice.context.close(), bob.context.close()])
+  }
+})
+
+test('trả lời, chuyển tiếp file sang nhóm khác, ghim tin, xoá chỉ ở phía tôi (menu "…" như Zalo)', async ({ browser }) => {
+  const [alice, bob, carol] = await Promise.all([account(browser, 'alice'), account(browser, 'bob'), account(browser, 'carol')])
+  try {
+    const roomId = await channelWith(alice, bob)
+    const otherId = await channelWith(alice, carol)
+    const a = await open(alice, `/rooms/${roomId}`)
+    const b = await open(bob, `/rooms/${roomId}`)
+    await expect(box(a)).toBeEnabled()
+
+    // ---- Trả lời: khung "Trả lời <tên>" trên ô nhập, tin gửi đi có trích tin gốc ở cả hai phía ----
+    await box(b).fill('Mai họp lúc mấy giờ?')
+    await b.keyboard.press('Enter')
+    await expect(bubble(a, 'Mai họp lúc mấy giờ?')).toBeVisible()
+    await bubble(a, 'Mai họp lúc mấy giờ?').hover()
+    await bubble(a, 'Mai họp lúc mấy giờ?').getByRole('button', { name: 'Trả lời' }).click()
+    await expect(a.getByRole('status', { name: 'Đang trả lời' })).toContainText(`Trả lời ${bob.displayName}`)
+    await box(a).fill('9h sáng nhé')
+    await a.keyboard.press('Enter')
+    await expect(a.getByRole('status', { name: 'Đang trả lời' })).toHaveCount(0)
+    const quote = bubble(b, '9h sáng nhé').getByRole('button', { name: `Tin được trả lời của ${bob.displayName}` })
+    await expect(quote).toContainText('Mai họp lúc mấy giờ?')
+    await b.reload()
+    await expect(bubble(b, '9h sáng nhé').locator('.reply-quote')).toContainText('Mai họp lúc mấy giờ?')
+
+    // ---- Ghim: thanh "Tin nhắn đã ghim" hiện realtime ở người kia ----
+    await bubble(a, 'Mai họp lúc mấy giờ?').first().hover()
+    await bubble(a, 'Mai họp lúc mấy giờ?').first().getByRole('button', { name: 'Thêm' }).click()
+    const menu = a.getByRole('menu', { name: 'Thao tác khác' })
+    await expect(menu.getByRole('menuitem')).toHaveText([/Ghim tin nhắn/, /Xoá chỉ ở phía tôi/])
+    await menu.getByRole('menuitem', { name: /Ghim tin nhắn/ }).click()
+    await expect(b.getByRole('region', { name: 'Tin nhắn đã ghim' })).toContainText('Mai họp lúc mấy giờ?')
+
+    // ---- Chuyển tiếp file: hộp "Chia sẻ", chọn nhóm khác, kèm lời nhắn ----
+    await a.getByTestId('file-input').setInputFiles({ name: 'bao-cao.pdf', mimeType: 'application/pdf', buffer: pdf })
+    await a.getByRole('button', { name: 'Gửi', exact: true }).click()
+    const file = bubble(a, 'bao-cao.pdf')
+    await expect(file.locator('.attachment')).toBeVisible()
+    await file.hover()
+    await file.getByRole('button', { name: 'Thêm' }).click()
+    await expect(a.getByRole('menu', { name: 'Thao tác khác' }).getByRole('menuitem')).toHaveText([/Lưu về máy/, /Ghim tin nhắn/, /Thu hồi/, /Xoá chỉ ở phía tôi/])
+    await a.keyboard.press('Escape')
+    await file.hover()
+    await file.getByRole('button', { name: 'Chuyển tiếp' }).click()
+    const share = a.getByRole('dialog', { name: 'Chia sẻ' })
+    await expect(share.getByText('Chia sẻ file')).toBeVisible()
+    await share.getByRole('tab', { name: 'Nhóm trò chuyện' }).click()
+    // Chọn nhóm có Carol (không phải nhóm hiện tại).
+    const res = await alice.context.request.get(`/api/rooms`, { headers: auth(alice) })
+    const otherName = ((await res.json()).rooms as { id: string; name: string }[]).find((r) => r.id === otherId)!.name
+    await share.locator('label', { hasText: otherName }).getByRole('checkbox').check()
+    await share.getByRole('textbox', { name: 'Lời nhắn (không bắt buộc)' }).fill('Báo cáo tuần nè')
+    await share.getByRole('button', { name: 'Chia sẻ (1)' }).click()
+    await expect(share).toHaveCount(0)
+    const c = await open(carol, `/rooms/${otherId}`)
+    await expect(bubble(c, 'bao-cao.pdf').locator('.attachment')).toBeVisible()
+    await expect(bubble(c, 'Báo cáo tuần nè')).toBeVisible()
+    const download = c.waitForEvent('download')
+    await bubble(c, 'bao-cao.pdf').locator('.attachment').getByRole('button').first().click()
+    expect((await download).suggestedFilename()).toBe('bao-cao.pdf')
+
+    // ---- Xoá chỉ ở phía tôi: Bob không còn thấy, Alice vẫn thấy, kể cả sau khi tải lại ----
+    await bubble(b, '9h sáng nhé').hover()
+    await bubble(b, '9h sáng nhé').getByRole('button', { name: 'Thêm' }).click()
+    await b.getByRole('menu', { name: 'Thao tác khác' }).getByRole('menuitem', { name: /Xoá chỉ ở phía tôi/ }).click()
+    await expect(bubble(b, '9h sáng nhé')).toHaveCount(0)
+    await b.reload()
+    await expect(bubble(b, 'Mai họp lúc mấy giờ?')).toBeVisible()
+    await expect(bubble(b, '9h sáng nhé')).toHaveCount(0)
+    await expect(bubble(a, '9h sáng nhé')).toBeVisible()
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close(), carol.context.close()])
   }
 })

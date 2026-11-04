@@ -29,6 +29,8 @@ import { AddMembersDialog } from './AddMembersDialog'
 import { RoomAvatar } from './RoomAvatar'
 import { NicknameDialog, RenameGroupDialog } from './RoomSettingsDialogs'
 import { GroupInfoDialog } from './GroupInfoDialog'
+import { ForwardDialog } from './ForwardDialog'
+import { PinnedBar } from './PinnedBar'
 import { MembersDialog } from './MembersDialog'
 import { MessageSearchBar } from './MessageSearchBar'
 import { CreatePollDialog } from './Polls'
@@ -113,6 +115,8 @@ function Conversation({ room }: { room: Room }) {
   const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<'name' | 'nickname' | 'info' | 'members' | 'search' | 'poll' | null>(null)
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
+  const [replyTo, setReplyTo] = useState<ChatMessage | null>(null)
+  const [forwarding, setForwarding] = useState<ChatMessage | null>(null)
   const [jumpError, setJumpError] = useState<string>()
   const closeEditing = () => setEditing(null)
   const canAddMembers = room.type === 'channel' && !room.archived
@@ -270,12 +274,14 @@ function Conversation({ room }: { room: Room }) {
         />
       )}
       {editing === 'poll' && <CreatePollDialog roomId={room.id} onClose={closeEditing} />}
+      {forwarding && <ForwardDialog message={forwarding} onClose={() => setForwarding(null)} />}
       {jumpError && <FormAlert>{jumpError}</FormAlert>}
       <div className="room-tabs" role="tablist" aria-label="Nội dung phòng">
         <button type="button" role="tab" id="room-chat-tab" aria-controls="room-chat-panel" aria-selected={panel === 'chat'} onClick={() => setPanel('chat')}>Trò chuyện</button>
         <button type="button" role="tab" id="room-whiteboard-tab" aria-controls="room-whiteboard-panel" aria-selected={panel === 'whiteboard'} onClick={() => { typing.onSent(); setPanel('whiteboard') }}>Bảng trắng</button>
       </div>
       {panel === 'whiteboard' ? <div className="whiteboard-panel" id="room-whiteboard-panel" role="tabpanel" aria-labelledby="room-whiteboard-tab"><Suspense fallback={<p className="whiteboard-empty">Đang tải bảng trắng…</p>}><Whiteboard key={room.id} roomId={room.id} /></Suspense></div> : <div className="conversation-panel" id="room-chat-panel" role="tabpanel" aria-labelledby="room-chat-tab">
+      <PinnedBar roomId={room.id} onOpen={(id) => void openSearchResult(id)} />
       <MessageList
         messages={messages.data}
         isPending={messages.isPending}
@@ -287,6 +293,8 @@ function Conversation({ room }: { room: Room }) {
         actions={actions}
         focusMessageId={focusMessageId}
         onOpenMessage={(id) => void openSearchResult(id)}
+        onReply={room.archived ? undefined : (m) => setReplyTo(m)}
+        onForward={(m) => setForwarding(m)}
         history={{
           hasMore: older.hasMore,
           isLoading: older.isLoading,
@@ -311,6 +319,8 @@ function Conversation({ room }: { room: Room }) {
           allowMentionAll={room.type === 'channel'}
           onAddMembers={canAddMembers ? () => setAdding(true) : undefined}
           onCreatePoll={canAddMembers ? () => setEditing('poll') : undefined}
+          replyTo={replyTo}
+          onCancelReply={() => setReplyTo(null)}
           // Chỉ khoá khi lịch sử chưa từng tải xong (để chèn bản tạm); tải lại lỗi lúc offline vẫn cho gõ (F10).
           disabled={messages.data === undefined}
         />

@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MENTION_ALL, splitMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { REACTION_EMOJIS, type ChatMessage, type UserSummary } from '../types'
@@ -6,12 +6,17 @@ import { roleOf } from '../roles'
 import { openProfile } from '../profileViewer'
 import { AttachmentView } from './AttachmentView'
 import { PollCard } from './Polls'
+import { downloadAttachment } from '../downloads'
+import { LikeOutlineIcon, MoreIcon, QuoteIcon, ShareIcon } from './icons'
 import { Avatar } from './Avatar'
 
 export interface MessageActionsApi {
   edit: (messageId: string, content: string) => Promise<boolean>
   remove: (messageId: string) => Promise<boolean>
   react: (messageId: string, emoji: string, active: boolean) => Promise<boolean>
+  pin?: (messageId: string, pinned: boolean) => Promise<boolean>
+  /** "Xoá chỉ ở phía tôi". */
+  hide?: (messageId: string) => Promise<boolean>
 }
 
 interface MessageItemProps {
@@ -31,6 +36,10 @@ interface MessageItemProps {
   trackSeen: boolean
   onRetry: (message: ChatMessage) => void
   actions?: MessageActionsApi
+  /** Trả lời tin này (ô nhập hiện khung "Trả lời"). */
+  onReply?: (message: ChatMessage) => void
+  /** Chuyển tiếp tin này sang phòng khác. */
+  onForward?: (message: ChatMessage) => void
 }
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -72,12 +81,41 @@ function groupReactions(message: ChatMessage, selfId: string, members: readonly 
 }
 
 export function MessageItem(props: MessageItemProps) {
-  const { message: m, own, head, selfId, members, mentionAll, highlight, onOpenMessage, receipt, showReceipt, trackSeen, onRetry, actions } = props
+  const { message: m, own, head, selfId, members, mentionAll, highlight, onOpenMessage, receipt, showReceipt, trackSeen, onRetry, actions, onReply, onForward } = props
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(m.content)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [picker, setPicker] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [menu, setMenu] = useState(false)
+  const menuArea = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuUp, setMenuUp] = useState(false)
+
+  // Tin ở cuối khung chat: không đủ chỗ phía dưới thì menu "…" mở lên trên (không bị cắt).
+  useLayoutEffect(() => {
+    const el = menuRef.current
+    if (!menu || !el) return
+    const bounds = el.closest('.message-scroller')?.getBoundingClientRect()
+    const anchor = menuArea.current?.getBoundingClientRect()
+    if (!bounds || !anchor) return
+    setMenuUp(anchor.bottom + el.offsetHeight + 8 > bounds.bottom && anchor.top - el.offsetHeight - 8 >= bounds.top)
+  }, [menu])
+
+  // Bấm ra ngoài menu "…" hoặc Escape thì đóng.
+  useEffect(() => {
+    if (!menu) return
+    const onDown = (e: MouseEvent) => {
+      if (!menuArea.current?.contains(e.target as Node)) setMenu(false)
+    }
+    const onKey = (e: globalThis.KeyboardEvent) => e.key === 'Escape' && setMenu(false)
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [menu])
 
   const deleted = Boolean(m.deletedAt)
   const stored = !m.status
@@ -201,32 +239,85 @@ export function MessageItem(props: MessageItemProps) {
               </div>
             </div>
           ) : deleted ? (
-            <p className="message-content message-bubble message-bubble--deleted">Tin nhắn đã bị xoá</p>
+            <p className="message-content message-bubble message-bubble--deleted">Tin nhắn đã được thu hồi</p>
           ) : (
-            (m.content || !m.attachment) && (
-              <p className="message-content message-bubble">
-                <MessageText content={m.content} members={members} selfId={selfId} mentionAll={mentionAll} />
-                {m.editedAt && <span className="message-edited"> (đã sửa)</span>}
-              </p>
-            )
+            <>
+              {m.replyTo && (
+                <button
+                  type="button"
+                  className="reply-quote"
+                  aria-label={`Tin được trả lời của ${m.replyTo.sender.displayName}`}
+                  onClick={() => onOpenMessage?.(m.replyTo!.id)}
+                >
+                  <strong>{m.replyTo.sender.id === selfId ? 'Bạn' : m.replyTo.sender.displayName}</strong>
+                  <span>
+                    {m.replyTo.deleted
+                      ? 'Tin nhắn đã được thu hồi'
+                      : m.replyTo.content || (m.replyTo.attachmentName ? `[Tệp] ${m.replyTo.attachmentName}` : '')}
+                  </span>
+                </button>
+              )}
+              {(m.content || !m.attachment) && (
+                <p className="message-content message-bubble">
+                  <MessageText content={m.content} members={members} selfId={selfId} mentionAll={mentionAll} />
+                  {m.editedAt && <span className="message-edited"> (đã sửa)</span>}
+                </p>
+              )}
+            </>
           )}
           {!deleted && m.attachment && <AttachmentView attachment={m.attachment} pending={!stored} />}
+          {/* Thả cảm xúc ở góc dưới bên phải của tin (chữ, file, ảnh, link) như Zalo. */}
+          {canAct && !editing && (
+            <button type="button" className="react-trigger" aria-label="Thả cảm xúc" aria-expanded={picker} onClick={() => setPicker((v) => !v)}>
+              <LikeOutlineIcon />
+            </button>
+          )}
           </div>
 
           {canAct && !editing && (
-            <div className="message-tools" role="toolbar" aria-label="Thao tác với tin nhắn">
-              <button type="button" className="icon-btn" aria-label="Thả cảm xúc" aria-expanded={picker} onClick={() => setPicker((v) => !v)}>
-                😊
+            <div className={`message-tools${menu ? ' message-tools--open' : ''}`} role="toolbar" aria-label="Thao tác với tin nhắn" ref={menuArea}>
+              {onReply && (
+                <button type="button" className="tool-round" aria-label="Trả lời" title="Trả lời" onClick={() => onReply(m)}>
+                  <QuoteIcon />
+                </button>
+              )}
+              {onForward && (
+                <button type="button" className="tool-round" aria-label="Chuyển tiếp" title="Chuyển tiếp" onClick={() => onForward(m)}>
+                  <ShareIcon />
+                </button>
+              )}
+              <button type="button" className="tool-round" aria-label="Thêm" title="Thêm" aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu((v) => !v)}>
+                <MoreIcon />
               </button>
-              {own && (
-                <>
-                  <button type="button" className="icon-btn" aria-label="Sửa tin nhắn" onClick={() => { setDraft(m.content); setEditing(true) }} disabled={!m.content}>
-                    ✏️
-                  </button>
-                  <button type="button" className="icon-btn" aria-label="Xoá tin nhắn" onClick={() => setConfirmDelete(true)}>
-                    🗑️
-                  </button>
-                </>
+              {menu && (
+                <div className={`message-menu${menuUp ? ' message-menu--up' : ''}`} role="menu" aria-label="Thao tác khác" ref={menuRef}>
+                  {m.attachment && (
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); void downloadAttachment(m.attachment!) }}>
+                      <span aria-hidden="true">⤓</span> Lưu về máy
+                    </button>
+                  )}
+                  {actions?.pin && (
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); void actions.pin!(m.id, !m.pinnedAt) }}>
+                      <span aria-hidden="true">📌</span> {m.pinnedAt ? 'Bỏ ghim tin nhắn' : 'Ghim tin nhắn'}
+                    </button>
+                  )}
+                  {own && m.content && (
+                    <button type="button" role="menuitem" onClick={() => { setMenu(false); setDraft(m.content); setEditing(true) }}>
+                      <span aria-hidden="true">✎</span> Sửa tin nhắn
+                    </button>
+                  )}
+                  <hr />
+                  {own && (
+                    <button type="button" role="menuitem" className="danger" onClick={() => { setMenu(false); setConfirmDelete(true) }}>
+                      <span aria-hidden="true">↺</span> Thu hồi
+                    </button>
+                  )}
+                  {actions?.hide && (
+                    <button type="button" role="menuitem" className="danger" onClick={() => { setMenu(false); void actions.hide!(m.id) }}>
+                      <span aria-hidden="true">🗑</span> Xoá chỉ ở phía tôi
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
@@ -246,8 +337,8 @@ export function MessageItem(props: MessageItemProps) {
         )}
 
         {confirmDelete && actions && (
-          <div className="message-confirm" role="alertdialog" aria-label="Xác nhận xoá">
-            <span>Xoá tin nhắn này?</span>
+          <div className="message-confirm" role="alertdialog" aria-label="Xác nhận thu hồi">
+            <span>Thu hồi tin nhắn này? Mọi người sẽ thấy tin đã được thu hồi.</span>
             <button type="button" className="btn-secondary" onClick={() => setConfirmDelete(false)} disabled={busy}>
               Huỷ
             </button>
@@ -257,7 +348,7 @@ export function MessageItem(props: MessageItemProps) {
               disabled={busy}
               onClick={async () => { if (await run(() => actions.remove(m.id))) setConfirmDelete(false) }}
             >
-              Xoá
+              Thu hồi
             </button>
           </div>
         )}

@@ -64,6 +64,8 @@ interface Store {
   receipts?: Record<string, StoredReceipts>
   notifications?: Record<string, Notification[]> // userId → thông báo, mới nhất trước
   uploads?: Record<string, StoredUpload>
+  /** userId → ID tin đã "Xoá chỉ ở phía tôi". */
+  hidden?: Record<string, string[]>
 }
 
 /** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho file lớn). */
@@ -362,8 +364,9 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       const user = currentUser()
       const store = load()
       requireMember(findRoom(store, roomId), user.id)
-      // Cursor = id của tin cũ nhất trang trước (tin lưu theo thứ tự gửi).
-      const all = store.messages[roomId] ?? []
+      // Cursor = id của tin cũ nhất trang trước (tin lưu theo thứ tự gửi). Bỏ tin mình đã "Xoá chỉ ở phía tôi".
+      const hidden = new Set(store.hidden?.[user.id] ?? [])
+      const all = (store.messages[roomId] ?? []).filter((m) => !hidden.has(m.id))
       let end = all.length
       if (before) {
         end = all.findIndex((m) => m.id === before)
@@ -499,6 +502,67 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     async uploadRoomAvatar(roomId, file) {
       await delay()
       return setMockAvatar(roomId, file)
+    },
+
+    async forwardMessage(messageId, roomIds, note) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const source = Object.values(store.messages).flat().find((m) => m.id === messageId)
+      if (!source || source.deletedAt) throw invalid('messageId', 'This message cannot be forwarded')
+      for (const roomId of roomIds) {
+        const room = findRoom(store, roomId)
+        requireMember(room, user.id)
+        for (const content of [source.content, note?.trim() ?? ''].filter((c, i) => i === 0 || c)) {
+          const message: Message = {
+            id: uuid(), roomId, clientMsgId: uuid(), sender: { id: user.id, displayName: user.displayName }, content,
+            createdAt: new Date().toISOString(), reactions: [], attachment: content === source.content ? (source.attachment ?? null) : null,
+          }
+          ;(store.messages[roomId] ??= []).push(message)
+          room.lastMessageAt = message.createdAt
+          ;(store.receipts ??= {})[message.id] = { recipients: room.members.filter((id) => id !== user.id), delivered: [], seen: [] }
+          setTimeout(() => emit({ type: 'message:new', payload: message, ts: new Date().toISOString() }), 0)
+        }
+      }
+      save(store)
+      return { forwarded: roomIds.length }
+    },
+
+    async pinMessage(messageId, pinned) {
+      await delay(60)
+      const user = currentUser()
+      const store = load()
+      const message = Object.values(store.messages).flat().find((m) => m.id === messageId)
+      if (!message) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Message not found' })
+      requireMember(findRoom(store, message.roomId), user.id)
+      message.pinnedAt = pinned ? new Date().toISOString() : null
+      message.pinnedBy = pinned ? user.id : null
+      save(store)
+      const updated = withReceipts(store, message)
+      setTimeout(() => emit({ type: 'message:pin', payload: updated, ts: new Date().toISOString() }), 0)
+      return updated
+    },
+
+    async listPins(roomId) {
+      await delay(40)
+      const user = currentUser()
+      const store = load()
+      requireMember(findRoom(store, roomId), user.id)
+      const hidden = new Set(store.hidden?.[user.id] ?? [])
+      return (store.messages[roomId] ?? [])
+        .filter((m) => m.pinnedAt && !m.deletedAt && !hidden.has(m.id))
+        .sort((a, b) => b.pinnedAt!.localeCompare(a.pinnedAt!))
+    },
+
+    async hideMessage(messageId) {
+      await delay(40)
+      const user = currentUser()
+      const store = load()
+      const message = Object.values(store.messages).flat().find((m) => m.id === messageId)
+      if (!message) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Message not found' })
+      store.hidden = { ...store.hidden, [user.id]: [...new Set([...(store.hidden?.[user.id] ?? []), messageId])] }
+      save(store)
+      return { id: messageId, roomId: message.roomId }
     },
 
     async listRoomMedia(roomId, kind, before) {
@@ -837,9 +901,11 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       }
 
       // message:send
-      const { content, clientMsgId, mentions = [], uploadId } = payload as {
-        roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string
+      const { content, clientMsgId, mentions = [], uploadId, replyToId } = payload as {
+        roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string; replyToId?: string
       }
+      const replied = replyToId ? (store.messages[room.id] ?? []).find((m) => m.id === replyToId) : undefined
+      if (replyToId && !replied) throw invalid('replyToId', 'Reply target must be a message in this room')
       requireMember(room, user.id)
       requireWritable(room)
       const text = content.trim()
@@ -861,6 +927,9 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         content: text,
         createdAt: new Date().toISOString(),
         reactions: [],
+        replyTo: replied
+          ? { id: replied.id, sender: replied.sender, content: replied.deletedAt ? '' : replied.content.slice(0, 120), attachmentName: replied.attachment?.filename ?? null, deleted: Boolean(replied.deletedAt) }
+          : null,
         attachment: upload && uploadId
           ? { id: uploadId, filename: upload.filename, mediaType: upload.mediaType, size: upload.size, url: `/api/uploads/${uploadId}` }
           : null,

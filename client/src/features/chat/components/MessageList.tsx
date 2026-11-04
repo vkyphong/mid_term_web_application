@@ -28,6 +28,8 @@ interface MessageListProps {
   focusMessageId?: string | null
   /** Nhảy tới một tin (dòng hoạt động bình chọn → tin bình chọn). */
   onOpenMessage?: (messageId: string) => void
+  onReply?: (message: ChatMessage) => void
+  onForward?: (message: ChatMessage) => void
 }
 
 const NO_MEMBERS: readonly UserSummary[] = []
@@ -116,6 +118,8 @@ export function MessageList({
   actions,
   focusMessageId,
   onOpenMessage,
+  onReply,
+  onForward,
 }: MessageListProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -214,6 +218,8 @@ export function MessageList({
               trackSeen={needsReceipt(m, 'seen', currentUserId)}
               onRetry={onRetry}
               actions={actions}
+              onReply={onReply}
+              onForward={m.content || m.attachment ? onForward : undefined}
             />
             </Fragment>
           )

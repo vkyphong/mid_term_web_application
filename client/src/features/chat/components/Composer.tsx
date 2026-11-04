@@ -3,7 +3,7 @@ import type { SendOptions } from '../hooks'
 import { MENTION_ALL, filterMentionCandidates, insertMention, mentionQueryAt, resolveMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { ACCEPTED_LABEL, ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, MAX_TRAY_IMAGES, MAX_UPLOAD_LABEL, formatBytes, normalizePastedImage, useFileUpload, useImageTray } from '../uploads'
-import type { RoomMember, UserSummary } from '../types'
+import type { ChatMessage, RoomMember, UserSummary } from '../types'
 import { Avatar } from './Avatar'
 import { AtIcon, ImageIcon, PaperclipIcon, PollIcon, SmileIcon, ThumbsUpIcon, UserPlusIcon } from './icons'
 
@@ -24,6 +24,9 @@ interface ComposerProps {
   onAddMembers?: () => void
   /** Kênh: nút "Tạo bình chọn" trên thanh công cụ. */
   onCreatePoll?: () => void
+  /** Đang trả lời tin này: hiện khung "Trả lời" trên ô nhập. */
+  replyTo?: ChatMessage | null
+  onCancelReply?: () => void
 }
 
 /** Emoji hay dùng; chèn vào vị trí con trỏ. */
@@ -56,7 +59,7 @@ function ToolButton(props: { label: string; onClick: () => void; disabled?: bool
 }
 
 export function Composer(props: ComposerProps) {
-  const { roomId, placeholder, onSend, disabled = false, onInput, members = [], selfId, allowMentionAll = false, onAddMembers, onCreatePoll } = props
+  const { roomId, placeholder, onSend, disabled = false, onInput, members = [], selfId, allowMentionAll = false, onAddMembers, onCreatePoll, replyTo, onCancelReply } = props
   const [value, setValue] = useState('')
   const [picked, setPicked] = useState<UserSummary[]>([])
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null)
@@ -159,8 +162,14 @@ export function Composer(props: ComposerProps) {
   const submit = () => {
     if (!canSend) return
     // Như Zalo: các ảnh trước (mỗi ảnh một tin, đúng thứ tự), rồi lời nhắn / file kèm theo.
-    for (const image of trayReady) onSend('', { upload: image.upload })
-    if (trimmed || ready) onSend(trimmed, { mentions: resolveMentions(trimmed, picked, members, selfId), upload: ready })
+    // Đang trả lời thì tin đầu tiên gửi đi mang phần trích tin gốc.
+    let reply = replyTo ?? undefined
+    for (const image of trayReady) {
+      onSend('', { upload: image.upload, replyTo: reply })
+      reply = undefined
+    }
+    if (trimmed || ready) onSend(trimmed, { mentions: resolveMentions(trimmed, picked, members, selfId), upload: ready, replyTo: reply })
+    onCancelReply?.()
     reset()
   }
 
@@ -178,7 +187,10 @@ export function Composer(props: ComposerProps) {
   /** Giống Zalo: ô trống thì nút gửi là 👍, bấm để gửi nhanh. */
   const sendQuickReaction = () => {
     if (disabled) return
-    onSend(QUICK_REACTION, {})
+    if (replyTo) {
+      onSend(QUICK_REACTION, { replyTo })
+      onCancelReply?.()
+    } else onSend(QUICK_REACTION, {})
     setEmojiOpen(false)
   }
 
@@ -207,6 +219,10 @@ export function Composer(props: ComposerProps) {
     }
     if (e.key === 'Escape' && emojiOpen) {
       setEmojiOpen(false)
+      return
+    }
+    if (e.key === 'Escape' && replyTo) {
+      onCancelReply?.()
       return
     }
     // Enter gửi, Shift+Enter xuống dòng (bỏ qua khi đang gõ tiếng Việt bằng IME).
@@ -320,6 +336,18 @@ export function Composer(props: ComposerProps) {
       <input ref={imageInput} type="file" accept={IMAGE_ACCEPT_ATTR} multiple hidden onChange={onPickImages} data-testid="image-input" />
       <input ref={fileInput} type="file" accept={ACCEPT_ATTR} hidden onChange={onPickFile} data-testid="file-input" />
 
+      {replyTo && (
+        <div className="reply-bar" role="status" aria-label="Đang trả lời">
+          <span className="reply-bar-icon" aria-hidden="true">❝</span>
+          <span className="reply-bar-text">
+            <strong>Trả lời {replyTo.sender.id === selfId ? 'chính bạn' : replyTo.sender.displayName}</strong>
+            <span>{replyTo.content || (replyTo.attachment ? `[Tệp] ${replyTo.attachment.filename}` : '')}</span>
+          </span>
+          <button type="button" className="icon-btn" aria-label="Huỷ trả lời" onClick={onCancelReply}>
+            ×
+          </button>
+        </div>
+      )}
       <div className="composer-row">
         <label htmlFor="composer-input" className="sr-only">
           Nội dung tin nhắn

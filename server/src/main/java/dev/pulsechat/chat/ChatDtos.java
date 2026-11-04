@@ -31,7 +31,11 @@ public final class ChatDtos {
     public record MemberRequest(String id, UserSummary user, UserSummary requestedBy, Instant createdAt) {}
     public record Message(String id, String roomId, String clientMsgId, Sender sender, String content, Instant createdAt,
                           Instant editedAt, Instant deletedAt, Object attachment, Object receipts, Object reactions, Poll poll,
-                          Activity activity) {}
+                          Activity activity, ReplyRef replyTo, Instant pinnedAt, String pinnedBy) {}
+    /** Trích tin được trả lời: nội dung rút gọn, tên file (nếu có), đã thu hồi hay chưa. */
+    public record ReplyRef(String id, Sender sender, String content, String attachmentName, boolean deleted) {}
+    public record Forward(List<String> roomIds, String note) {}
+    public record Pin(Boolean pinned) {}
     public record PollOption(String id, String label, List<String> voters) {}
     public record Poll(String id, String question, boolean multiple, String createdBy, List<PollOption> options,
                        Instant closedAt, String closedBy) {}

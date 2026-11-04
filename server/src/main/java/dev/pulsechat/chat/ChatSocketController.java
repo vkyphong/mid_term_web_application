@@ -47,7 +47,9 @@ public class ChatSocketController {
                 }
                 if(!payload.path("content").isTextual())throw ChatService.field("content","String required");
                 if(payload.hasNonNull("uploadId")&&!payload.path("uploadId").isTextual())throw ChatService.field("uploadId","String required");
-                delivery = chat.send(room, user.userId(), payload.path("content").asText(), text(payload, "clientMsgId"),payload.path("uploadId").asText(null),mentions);
+                if(payload.hasNonNull("replyToId")&&!payload.path("replyToId").isTextual())throw ChatService.field("replyToId","String required");
+                delivery = chat.send(room, user.userId(), payload.path("content").asText(), text(payload, "clientMsgId"),payload.path("uploadId").asText(null),mentions,
+                    payload.path("replyToId").asText(null));
                 data = delivery.message();
             }
             // Service transaction has committed. Ack only this socket, then notify all member sessions.

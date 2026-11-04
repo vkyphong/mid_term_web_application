@@ -17,6 +17,7 @@ vi.mock('./chatApi', () => ({
     listUserAvatars: vi.fn(), uploadMyAvatar: vi.fn(), removeMyAvatar: vi.fn(), searchMessages: vi.fn(), setMemberRole: vi.fn(),
     createPoll: vi.fn(), vote: vi.fn(), getMyProfile: vi.fn(), updateMyProfile: vi.fn(), getUserProfile: vi.fn(), closePoll: vi.fn(), reopenPoll: vi.fn(),
     updateRoomSettings: vi.fn(), listMemberRequests: vi.fn(), decideMemberRequest: vi.fn(), listRoomMedia: vi.fn(),
+    forwardMessage: vi.fn(), pinMessage: vi.fn(), listPins: vi.fn(), hideMessage: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -73,6 +74,7 @@ beforeEach(() => {
   api.listMembers.mockResolvedValue([])
   api.listUserAvatars.mockResolvedValue([])
   api.listRoomMedia.mockResolvedValue({ items: [], nextCursor: null })
+  api.listPins.mockResolvedValue([])
   api.listNotifications.mockResolvedValue({ notifications: [], nextCursor: null, unreadCount: 0 })
   transport.onEvent.mockImplementation((listener) => {
     emit = listener
@@ -200,6 +202,24 @@ describe('nhóm: thêm thành viên và lưu trữ', () => {
 })
 
 describe('tin nhắn', () => {
+  it('trả lời tin: khung "Trả lời" trên ô nhập, message:send mang replyToId; thanh ghim hiện tin đã ghim', async () => {
+    api.listPins.mockResolvedValue([message('m1', 'Chào cả nhóm', { pinnedAt: '2026-10-21T08:01:00.000Z' })])
+    transport.request.mockImplementation(() => new Promise(() => {}))
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    const pinned = await screen.findByRole('region', { name: 'Tin nhắn đã ghim' })
+    expect(pinned).toHaveTextContent('Phong: Chào cả nhóm')
+
+    const list = screen.getByRole('list', { name: 'Tin nhắn' })
+    await user.click(within(list).getByRole('button', { name: 'Trả lời' }))
+    expect(screen.getByRole('status', { name: 'Đang trả lời' })).toHaveTextContent('Trả lời Phong')
+    await user.type(screen.getByLabelText('Nội dung tin nhắn'), 'Chào Phong{Enter}')
+    expect(transport.request).toHaveBeenCalledWith('message:send', expect.objectContaining({ content: 'Chào Phong', replyToId: 'm1' }))
+    expect(screen.queryByRole('status', { name: 'Đang trả lời' })).not.toBeInTheDocument()
+    // Tin đang gửi đã hiện phần trích tin gốc.
+    expect(await screen.findByRole('button', { name: 'Tin được trả lời của Phong' })).toBeInTheDocument()
+  })
+
   it('gửi: hiện "Đang gửi…" rồi thành tin thật; ack + message:new không bị trùng', async () => {
     let ack!: (m: Message) => void
     transport.request.mockImplementationOnce(() => new Promise((resolve) => { ack = resolve as (m: Message) => void }))

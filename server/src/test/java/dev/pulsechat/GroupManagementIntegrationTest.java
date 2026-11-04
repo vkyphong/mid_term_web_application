@@ -309,6 +309,49 @@ class GroupManagementIntegrationTest {
         get("/api/rooms/" + room + "/media?kind=video", owner, 400);
     }
 
+    @Test void replyPinHideAndForwardMessages() throws Exception {
+        String room = room(), other = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        post("/api/rooms/" + other + "/members", owner, Map.of("userId", peer.id()), 200);
+        // Trả lời: tin mới mang trích tin gốc; tin ở phòng khác không trả lời được.
+        var original = chat.send(room, owner.id(), "Họp lúc 9h nhé", UUID.randomUUID().toString()).message();
+        var reply = chat.send(room, peer.id(), "Ok anh", UUID.randomUUID().toString(), null, List.of(), original.id()).message();
+        assertThat(reply.replyTo().id()).isEqualTo(original.id());
+        assertThat(reply.replyTo().content()).isEqualTo("Họp lúc 9h nhé");
+        assertThat(reply.replyTo().sender().id()).isEqualTo(owner.id());
+        var elsewhere = chat.send(other, owner.id(), "phòng khác", UUID.randomUUID().toString()).message();
+        assertThatThrownBy(() -> chat.send(room, peer.id(), "sai", UUID.randomUUID().toString(), null, List.of(), elsewhere.id())).isInstanceOf(ApiException.class);
+
+        // Ghim / bỏ ghim.
+        assertThat(call(HttpMethod.PUT, "/api/messages/" + original.id() + "/pin", peer, Map.of("pinned", true), 200).path("pinnedBy").asText()).isEqualTo(peer.id());
+        assertThat(get("/api/rooms/" + room + "/pins", owner, 200).path("messages").findValuesAsText("content")).containsExactly("Họp lúc 9h nhé");
+        call(HttpMethod.PUT, "/api/messages/" + original.id() + "/pin", outsider, Map.of("pinned", true), 403);
+        call(HttpMethod.PUT, "/api/messages/" + original.id() + "/pin", owner, Map.of("pinned", false), 200);
+        assertThat(get("/api/rooms/" + room + "/pins", owner, 200).path("messages")).isEmpty();
+
+        // Xoá chỉ ở phía tôi: người khác vẫn thấy.
+        post("/api/messages/" + reply.id() + "/hide", owner, null, 200);
+        assertThat(get("/api/rooms/" + room + "/messages", owner, 200).path("messages").findValuesAsText("id")).doesNotContain(reply.id());
+        assertThat(get("/api/rooms/" + room + "/messages", peer, 200).path("messages").findValuesAsText("id")).contains(reply.id());
+
+        // Chuyển tiếp ảnh sang phòng khác kèm lời nhắn: file được sao chép, tải được ở phòng đích.
+        String image = upload(room, owner, "so-do.png", png(), 201).path("id").asText();
+        var withImage = chat.send(room, owner.id(), "", UUID.randomUUID().toString(), image, List.of()).message();
+        assertThat(post("/api/messages/" + withImage.id() + "/forward", peer, Map.of("roomIds", List.of(other), "note", "Xem sơ đồ"), 200).path("forwarded").asInt()).isEqualTo(1);
+        var otherHistory = get("/api/rooms/" + other + "/messages", owner, 200).path("messages");
+        var forwarded = otherHistory.get(otherHistory.size() - 2);
+        assertThat(forwarded.path("sender").path("id").asText()).isEqualTo(peer.id());
+        assertThat(forwarded.path("attachment").path("filename").asText()).isEqualTo("so-do.png");
+        assertThat(forwarded.path("attachment").path("id").asText()).isNotEqualTo(image);
+        assertThat(otherHistory.get(otherHistory.size() - 1).path("content").asText()).isEqualTo("Xem sơ đồ");
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(forwarded.path("attachment").path("url").asText())
+            .header("Authorization", "Bearer " + owner.token())).andExpect(status().isOk());
+        // Chuyển tiếp sang phòng mình không ở → 403; không chọn phòng → 400.
+        String foreign = chat.createRoom(outsider.id(), new ChatDtos.CreateRoom("Fwd-" + UUID.randomUUID().toString().substring(0, 20), null)).id();
+        post("/api/messages/" + original.id() + "/forward", peer, Map.of("roomIds", List.of(foreign)), 403);
+        post("/api/messages/" + original.id() + "/forward", peer, Map.of("roomIds", List.of()), 400);
+    }
+
     @Test void creatorOwnsChannelAndAppointsUpToFiveDeputies() throws Exception {
         Account boss = account();
         String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Roles-" + UUID.randomUUID().toString().substring(0, 20), null)).id();

@@ -28,7 +28,20 @@ public class ChatService {
         rs.getString("client_msg_id"), new Sender(rs.getString("sender_id"), rs.getString("display_name")),
         rs.getString("content"), rs.getTimestamp("created_at").toInstant(), instant(rs,"edited_at"), instant(rs,"deleted_at"),
         attachment(rs.getString("id")), receipts(rs.getString("id")), reactions(rs.getString("id")), poll(rs.getString("id")),
-        activity(rs));
+        activity(rs), replyRef(rs.getString("reply_to_id")), instant(rs, "pinned_at"), rs.getString("pinned_by"));
+    /** Không hiện tin mình đã "Xoá chỉ ở phía tôi". */
+    private static final String NOT_HIDDEN = " AND NOT EXISTS (SELECT 1 FROM message_hidden h WHERE h.message_id=m.id AND h.user_id=?)";
+
+    private ReplyRef replyRef(String id) {
+        if (id == null) return null;
+        return db.query("SELECT m.id, m.sender_id, u.display_name, m.content, m.deleted_at, f.filename FROM messages m JOIN users u ON u.id=m.sender_id "
+                + "LEFT JOIN uploads f ON f.message_id=m.id WHERE m.id=?", (rs, n) -> {
+            boolean deleted = rs.getTimestamp(5) != null;
+            String content = deleted ? "" : rs.getString(4);
+            if (content.length() > 120) content = content.substring(0, 117) + "…";
+            return new ReplyRef(rs.getString(1), new Sender(rs.getString(2), rs.getString(3)), content, deleted ? null : rs.getString(6), deleted);
+        }, id).stream().findFirst().orElse(null);
+    }
 
     @Transactional(readOnly = true)
     public List<Room> listRooms(String user) {
@@ -131,6 +144,10 @@ public class ChatService {
         return send(room,user,content,clientMsgId,null,List.of());
     }
     public Delivery send(String room, String user, String content, String clientMsgId, String uploadId, List<String> mentions) {
+        return send(room, user, content, clientMsgId, uploadId, mentions, null);
+    }
+    /** replyToId: tin được trả lời, phải cùng phòng. */
+    public Delivery send(String room, String user, String content, String clientMsgId, String uploadId, List<String> mentions, String replyToId) {
         db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockRoom(room); requireMember(room, user);
         requireWritable(room);
@@ -146,8 +163,10 @@ public class ChatService {
         if (mentions.size()>20 || new HashSet<>(mentions).size()!=mentions.size()) throw field("mentions", "At most 20 distinct member IDs");
         for (String mentioned : mentions) requireMember(room,mentioned);
         String id = UUID.randomUUID().toString(); Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
-        db.update("INSERT INTO messages(id,room_id,sender_id,client_msg_id,content,created_at) VALUES (?,?,?,?,?,?)",
-            id, room, user, clientMsgId, content.trim(), Timestamp.from(now));
+        if (replyToId != null && db.queryForObject("SELECT COUNT(*) FROM messages WHERE id=? AND room_id=? AND activity IS NULL", Integer.class, replyToId, room) == 0)
+            throw field("replyToId", "Reply target must be a message in this room");
+        db.update("INSERT INTO messages(id,room_id,sender_id,client_msg_id,content,created_at,reply_to_id) VALUES (?,?,?,?,?,?,?)",
+            id, room, user, clientMsgId, content.trim(), Timestamp.from(now), replyToId);
         db.update("UPDATE rooms SET last_message_at=? WHERE id=?", Timestamp.from(now), room);
         if (uploadId != null && db.update("UPDATE uploads SET message_id=? WHERE id=? AND owner_id=? AND room_id=? AND message_id IS NULL", id, uploadId,user,room)!=1)
             throw field("uploadId", "Upload must be unused, owned by sender and belong to this room");
@@ -164,8 +183,8 @@ public class ChatService {
     public MessagePage history(String room, String user, int limit, String before) {
         if (limit < 1 || limit > 100) throw field("limit", "Limit must be between 1 and 100");
         room(room, user); requireMember(room, user);
-        String sql = MESSAGE_SELECT + "WHERE m.room_id=?";
-        var args = new ArrayList<Object>(); args.add(room);
+        String sql = MESSAGE_SELECT + "WHERE m.room_id=?" + NOT_HIDDEN;
+        var args = new ArrayList<Object>(); args.add(room); args.add(user);
         if (before != null) {
             try {
                 if (before.length() > 256) throw new IllegalArgumentException();
@@ -199,8 +218,8 @@ public class ChatService {
         if (q.isEmpty() || q.length() > 100) throw field("q", "Search must contain 1–100 characters");
         room(room, user); requireMember(room, user);
         String pattern = "%" + q.toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        String sql = MESSAGE_SELECT + "WHERE m.room_id=? AND m.deleted_at IS NULL AND m.activity IS NULL AND LOWER(m.content) LIKE ? ESCAPE '!'";
-        var args = new ArrayList<Object>(List.of(room, pattern));
+        String sql = MESSAGE_SELECT + "WHERE m.room_id=?" + NOT_HIDDEN + " AND m.deleted_at IS NULL AND m.activity IS NULL AND LOWER(m.content) LIKE ? ESCAPE '!'";
+        var args = new ArrayList<Object>(List.of(room, user, pattern));
         if (before != null) {
             var anchor = db.query("SELECT created_at FROM messages WHERE id=? AND room_id=?", (rs, n) -> rs.getTimestamp(1), before, room);
             if (anchor.isEmpty()) throw field("before", "Invalid search cursor");
@@ -224,7 +243,7 @@ public class ChatService {
         if (limit < 1 || limit > 50) throw field("limit", "Limit must be between 1 and 50");
         if (!Set.of("image", "file", "link").contains(kind)) throw field("kind", "Kind must be image, file or link");
         room(room, user); requireMember(room, user);
-        var args = new ArrayList<Object>(List.of(room));
+        var args = new ArrayList<Object>(List.of(room, user));
         String cursor = "";
         if (before != null) {
             var anchor = db.query("SELECT created_at FROM messages WHERE id=? AND room_id=?", (rs, n) -> rs.getTimestamp(1), before, room);
@@ -239,7 +258,7 @@ public class ChatService {
             // Lấy dư tin để gom đủ link (một tin có thể có nhiều link); cursor theo tin cuối đã quét hết.
             args.add(limit * 3 + 1);
             var rows = db.query("SELECT m.id, m.created_at, m.sender_id, u.display_name, m.content FROM messages m JOIN users u ON u.id=m.sender_id "
-                    + "WHERE m.room_id=? AND m.deleted_at IS NULL AND m.activity IS NULL AND LOWER(m.content) LIKE '%http%'" + cursor
+                    + "WHERE m.room_id=?" + NOT_HIDDEN + " AND m.deleted_at IS NULL AND m.activity IS NULL AND LOWER(m.content) LIKE '%http%'" + cursor
                     + " ORDER BY m.created_at DESC, m.id DESC LIMIT ?",
                 (rs, n) -> new Object[]{rs.getString(1), rs.getTimestamp(2).toInstant(), new Sender(rs.getString(3), rs.getString(4)), rs.getString(5)}, args.toArray());
             more = rows.size() > limit * 3;
@@ -253,7 +272,7 @@ public class ChatService {
         } else {
             args.add(limit + 1);
             var rows = db.query("SELECT m.id, m.created_at, m.sender_id, u.display_name FROM uploads f JOIN messages m ON m.id=f.message_id "
-                    + "JOIN users u ON u.id=m.sender_id WHERE m.room_id=? AND m.deleted_at IS NULL AND f.media_type "
+                    + "JOIN users u ON u.id=m.sender_id WHERE m.room_id=?" + NOT_HIDDEN + " AND m.deleted_at IS NULL AND f.media_type "
                     + (kind.equals("image") ? "LIKE" : "NOT LIKE") + " 'image/%'" + cursor + " ORDER BY m.created_at DESC, m.id DESC LIMIT ?",
                 (rs, n) -> new MediaItem(rs.getString(1), rs.getTimestamp(2).toInstant(), new Sender(rs.getString(3), rs.getString(4)),
                     attachment(rs.getString(1)), null), args.toArray());
@@ -262,6 +281,35 @@ public class ChatService {
             if (!items.isEmpty()) last = items.getLast().messageId();
         }
         return new MediaPage(items, more ? last : null);
+    }
+
+    /** Ghim / bỏ ghim tin: mọi thành viên (phòng chưa lưu trữ); cả phòng thấy qua message:pin. */
+    public Message pin(String messageId, String user, Pin input) {
+        if (input == null || input.pinned() == null) throw field("pinned", "pinned is required");
+        var message = message(messageId, user);
+        requireWritable(message.roomId());
+        if (message.deletedAt() != null || message.activity() != null) throw field("messageId", "This message cannot be pinned");
+        if (input.pinned()) db.update("UPDATE messages SET pinned_at=?, pinned_by=? WHERE id=?", now(), user, messageId);
+        else db.update("UPDATE messages SET pinned_at=NULL, pinned_by=NULL WHERE id=?", messageId);
+        var updated = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
+        events.send(recipients(message.roomId()), "/queue/events", "message:pin", updated);
+        return updated;
+    }
+    /** Tin đang ghim của phòng, ghim gần nhất trước (bỏ tin đã thu hồi / mình đã ẩn). */
+    @Transactional(readOnly = true)
+    public List<Message> pins(String room, String user) {
+        room(room, user); requireMember(room, user);
+        return db.query(MESSAGE_SELECT + "WHERE m.room_id=?" + NOT_HIDDEN + " AND m.pinned_at IS NOT NULL AND m.deleted_at IS NULL ORDER BY m.pinned_at DESC LIMIT 50",
+            MESSAGE, room, user);
+    }
+    /** "Xoá chỉ ở phía tôi": ẩn tin với riêng mình (mọi phiên của mình nhận message:hidden). */
+    public Map<String, String> hide(String messageId, String user) {
+        var message = message(messageId, user);
+        if (db.queryForObject("SELECT COUNT(*) FROM message_hidden WHERE message_id=? AND user_id=?", Integer.class, messageId, user) == 0)
+            db.update("INSERT INTO message_hidden(message_id,user_id,hidden_at) VALUES (?,?,?)", messageId, user, now());
+        var payload = Map.of("id", messageId, "roomId", message.roomId());
+        events.send(List.of(user), "/queue/events", "message:hidden", payload);
+        return payload;
     }
 
     static final int MAX_POLL_OPTIONS = 10;

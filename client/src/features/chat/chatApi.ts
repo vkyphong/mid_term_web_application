@@ -35,6 +35,13 @@ export interface ChatApi {
   /** Ảnh nhóm JPEG/PNG ≤ 2 MiB. */
   uploadRoomAvatar(roomId: string, file: File): Promise<Room>
   removeRoomAvatar(roomId: string): Promise<Room>
+  /** Chuyển tiếp tin (chữ / ảnh / file) sang các phòng, kèm lời nhắn tuỳ ý. */
+  forwardMessage(messageId: string, roomIds: string[], note?: string): Promise<{ forwarded: number }>
+  pinMessage(messageId: string, pinned: boolean): Promise<Message>
+  /** Tin đang ghim của phòng, ghim gần nhất trước. */
+  listPins(roomId: string): Promise<Message[]>
+  /** "Xoá chỉ ở phía tôi". */
+  hideMessage(messageId: string): Promise<{ id: string; roomId: string }>
   /** Ảnh / file / link đã gửi trong phòng, mới nhất trước (mục "Thông tin nhóm"). */
   listRoomMedia(roomId: string, kind: MediaKind, before?: string): Promise<MediaPage>
   /** Tìm tin trong phòng theo từ khoá, mới nhất trước; `before` = ID tin cuối trang trước. */
@@ -103,6 +110,11 @@ export const httpChatApi: ChatApi = {
     return authUpload(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, form)
   },
   removeRoomAvatar: (roomId) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, { method: 'DELETE' }),
+  forwardMessage: (messageId, roomIds, note) =>
+    authRequest(`/api/messages/${encodeURIComponent(messageId)}/forward`, { method: 'POST', body: { roomIds, note } }),
+  pinMessage: (messageId, pinned) => authRequest(`/api/messages/${encodeURIComponent(messageId)}/pin`, { method: 'PUT', body: { pinned } }),
+  listPins: async (roomId) => (await authRequest<{ messages: Message[] }>(`/api/rooms/${encodeURIComponent(roomId)}/pins`)).messages,
+  hideMessage: (messageId) => authRequest(`/api/messages/${encodeURIComponent(messageId)}/hide`, { method: 'POST' }),
   listRoomMedia: (roomId, kind, before) => {
     const params = new URLSearchParams({ kind, limit: '20' })
     if (before) params.set('before', before)

@@ -124,16 +124,20 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     await expect(b.getByText('Bản nháp đầu tiên')).toBeVisible()
     const before = await count(b)
     await bubble(a, 'Bản nháp đầu tiên').hover()
-    await bubble(a, 'Bản nháp đầu tiên').getByRole('button', { name: 'Sửa tin nhắn' }).click()
+    await bubble(a, 'Bản nháp đầu tiên').getByRole('button', { name: 'Thêm' }).click()
+    await bubble(a, 'Bản nháp đầu tiên').getByRole('menuitem', { name: /Sửa tin nhắn/ }).click()
     await a.getByRole('textbox', { name: 'Sửa tin nhắn' }).fill('Bản đã sửa')
     await a.getByRole('button', { name: 'Lưu', exact: true }).click()
     await expect(bubble(b, 'Bản đã sửa')).toContainText('(đã sửa)')
     expect(await count(b)).toBe(before) // thay tại chỗ, không thêm tin
     // Bob không có nút sửa/xoá tin của Alice.
     await bubble(b, 'Bản đã sửa').hover()
-    await expect(bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Sửa tin nhắn' })).toHaveCount(0)
+    await bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Thêm' }).click()
+    await expect(bubble(b, 'Bản đã sửa').getByRole('menuitem', { name: /Sửa tin nhắn|Thu hồi/ })).toHaveCount(0)
+    await b.keyboard.press('Escape')
 
-    // ---- F14: cảm xúc (gửi lại cùng trạng thái không đảo) ----
+    // ---- F14: cảm xúc (nút ở góc dưới bên phải của tin; gửi lại cùng trạng thái không đảo) ----
+    await bubble(b, 'Bản đã sửa').hover()
     await bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Thả cảm xúc' }).click()
     await b.getByRole('button', { name: 'Thả 👍' }).click()
     await expect(bubble(a, 'Bản đã sửa').getByRole('button', { name: `👍 1: ${bob.displayName}` })).toBeVisible()
@@ -144,13 +148,14 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     await bubble(b, 'Bản đã sửa').getByRole('button', { name: '👍 1: Bạn' }).click() // bỏ cảm xúc
     await expect(bubble(a, 'Bản đã sửa').locator('.reaction-chip')).toHaveCount(0)
 
-    // ---- F14: xoá (mềm, còn đúng trong lịch sử) ----
+    // ---- F14: thu hồi (xoá mềm, còn đúng trong lịch sử) ----
     await bubble(a, 'Bản đã sửa').hover()
-    await bubble(a, 'Bản đã sửa').getByRole('button', { name: 'Xoá tin nhắn' }).click()
-    await a.getByRole('button', { name: 'Xoá', exact: true }).click()
-    await expect(b.getByText('Tin nhắn đã bị xoá')).toBeVisible()
+    await bubble(a, 'Bản đã sửa').getByRole('button', { name: 'Thêm' }).click()
+    await bubble(a, 'Bản đã sửa').getByRole('menuitem', { name: /Thu hồi/ }).click()
+    await a.getByRole('button', { name: 'Thu hồi', exact: true }).click()
+    await expect(b.getByText('Tin nhắn đã được thu hồi')).toBeVisible()
     await b.reload()
-    await expect(b.getByText('Tin nhắn đã bị xoá')).toBeVisible()
+    await expect(b.getByText('Tin nhắn đã được thu hồi')).toBeVisible()
     await expect(b.getByText('Bản đã sửa')).toHaveCount(0)
 
     // ---- F11: nội dung độc hại chỉ là text ----

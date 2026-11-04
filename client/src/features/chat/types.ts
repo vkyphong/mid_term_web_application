@@ -109,6 +109,20 @@ export interface Message {
   poll?: Poll | null
   /** Tin hệ thống "X đã bình chọn ..." (không phải tin người dùng gõ). */
   activity?: MessageActivity | null
+  /** Trả lời tin nào (trích tin gốc). */
+  replyTo?: ReplyRef | null
+  /** Đang ghim (ai ghim, lúc nào). */
+  pinnedAt?: string | null
+  pinnedBy?: string | null
+}
+
+/** Trích tin được trả lời. */
+export interface ReplyRef {
+  id: string
+  sender: { id: string; displayName: string }
+  content: string
+  attachmentName: string | null
+  deleted: boolean
 }
 
 export interface PollOption {
@@ -237,7 +251,7 @@ export interface ClientEvents {
   'room:join': { payload: { roomId: string }; ack: Room }
   'room:leave': { payload: { roomId: string }; ack: { roomId: string } }
   'message:send': {
-    payload: { roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string }
+    payload: { roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string; replyToId?: string }
     ack: Message
   }
   'message:edit': { payload: { messageId: string; content: string }; ack: Message }
@@ -255,7 +269,7 @@ export type ClientEventType = keyof ClientEvents
 export type ServerEvent =
   | import('../whiteboard/types').BoardEvent
   | {
-      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react' | 'message:poll'
+      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react' | 'message:poll' | 'message:pin'
       payload: Message
       ts: string
     }
@@ -264,6 +278,8 @@ export type ServerEvent =
   | { type: 'room:added'; payload: Room; ts: string }
   /** Tên / ảnh nhóm đổi, hoặc mình đổi biệt danh (Room nhìn từ phía mình). */
   | { type: 'room:updated'; payload: Room; ts: string }
+  /** Mình "Xoá chỉ ở phía tôi" (đồng bộ các tab của mình). */
+  | { type: 'message:hidden'; payload: { id: string; roomId: string }; ts: string }
   /** Ai đó đổi / xoá ảnh đại diện. */
   | { type: 'user:avatar'; payload: UserAvatar; ts: string }
   | { type: 'notification:read'; payload: { id: string }; ts: string }
@@ -272,6 +288,6 @@ export type ServerEvent =
 
 export const SERVER_EVENT_TYPES: ReadonlySet<string> = new Set([
   'whiteboard:segment', 'whiteboard:cleared',
-  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react', 'message:poll', 'user:avatar',
+  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react', 'message:poll', 'message:pin', 'message:hidden', 'user:avatar',
   'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read', 'room:added', 'room:updated',
 ])

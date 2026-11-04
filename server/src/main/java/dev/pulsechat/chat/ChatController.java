@@ -67,6 +67,18 @@ public class ChatController {
                                @RequestParam(defaultValue = "30") int limit, @RequestParam(required = false) String before) {
         return chat.history(id, user.userId(), limit, before);
     }
+    @PutMapping("/messages/{id}/pin")
+    public Message pin(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody Pin input) {
+        return chat.pin(id, user.userId(), input);
+    }
+    @GetMapping("/rooms/{id}/pins")
+    public Object pins(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
+        return Map.of("messages", chat.pins(id, user.userId()));
+    }
+    @PostMapping("/messages/{id}/hide")
+    public Object hide(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
+        return chat.hide(id, user.userId());
+    }
     @GetMapping("/rooms/{id}/media")
     public MediaPage media(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestParam(defaultValue = "image") String kind,
                            @RequestParam(defaultValue = "20") int limit, @RequestParam(required = false) String before) {

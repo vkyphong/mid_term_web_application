@@ -219,6 +219,17 @@ export function useLoadOlder(roomId: string) {
   return { loadOlder, hasMore: Boolean(cursor), isLoading: isPending, error: mutation.error }
 }
 
+/** Trích tin để hiện ngay trong bản tạm khi trả lời. */
+export function toReplyRef(m: ChatMessage) {
+  return {
+    id: m.id,
+    sender: m.sender,
+    content: m.content.length > 120 ? `${m.content.slice(0, 117)}…` : m.content,
+    attachmentName: m.attachment?.filename ?? null,
+    deleted: Boolean(m.deletedAt),
+  }
+}
+
 /** Payload gốc của tin đang chờ, để gửi lại đúng clientMsgId + nội dung + mentions + uploadId (F10). */
 const outboxPayloads = new Map<string, OutboxItem>()
 
@@ -226,6 +237,8 @@ export interface SendOptions {
   mentions?: string[]
   /** F15: file đã upload xong; hiển thị ngay trong bản tạm. */
   upload?: Upload
+  /** Trả lời tin này. */
+  replyTo?: ChatMessage
 }
 
 /** Gửi tin: hiện ngay bản tạm rồi đưa vào hàng đợi (F10); thay bằng tin thật khi có ack hoặc message:new. */
@@ -244,6 +257,7 @@ export function useSendMessage(roomId: string) {
         clientMsgId,
         ...(options.mentions?.length ? { mentions: options.mentions } : {}),
         ...(upload ? { uploadId: upload.id } : {}),
+        ...(options.replyTo ? { replyToId: options.replyTo.id } : {}),
       }
       outboxPayloads.set(clientMsgId, item)
       applyMessage(queryClient, {
@@ -257,6 +271,7 @@ export function useSendMessage(roomId: string) {
         attachment: upload
           ? { id: upload.id, filename: upload.filename, mediaType: upload.mediaType, size: upload.size, url: upload.url }
           : null,
+        replyTo: options.replyTo ? toReplyRef(options.replyTo) : null,
       })
       enqueue(item)
     },
@@ -294,10 +309,32 @@ export function useMessageActions() {
     },
     [queryClient],
   )
+  /** Thao tác qua REST (ghim, ẩn phía mình): lỗi thì báo toast. */
+  const rest = useCallback(async (fn: () => Promise<void>) => {
+    try {
+      await fn()
+      return true
+    } catch (err) {
+      pushToast({ id: `action-${uuid()}`, title: 'Không thực hiện được', body: describeChatError(err), tone: 'error' })
+      return false
+    }
+  }, [])
   return {
     edit: (messageId: string, content: string) => run('message:edit', { messageId, content }),
     remove: (messageId: string) => run('message:delete', { messageId }),
     react: (messageId: string, emoji: string, active: boolean) => run('message:react', { messageId, emoji, active }),
+    pin: (messageId: string, pinned: boolean) =>
+      rest(async () => {
+        const message = await chatApi.pinMessage(messageId, pinned)
+        applyMessage(queryClient, message)
+        void queryClient.invalidateQueries({ queryKey: pinsKey(message.roomId) })
+      }),
+    hide: (messageId: string) =>
+      rest(async () => {
+        const { id, roomId } = await chatApi.hideMessage(messageId)
+        queryClient.setQueryData<ChatMessage[]>(chatKeys.messages(roomId), (list) => list?.filter((m) => m.id !== id))
+        void queryClient.invalidateQueries({ queryKey: pinsKey(roomId) })
+      }),
   }
 }
 
@@ -321,6 +358,43 @@ export function useCreatePoll(roomId: string) {
 }
 
 /** Khoá (closed=true) hoặc mở lại bình chọn. */
+export const pinsKey = (roomId: string) => ['chat', 'pins', roomId] as const
+
+/** Tin đang ghim của phòng (thanh ghim đầu đoạn chat). */
+export function usePins(roomId: string) {
+  return useQuery({ queryKey: pinsKey(roomId), queryFn: () => chatApi.listPins(roomId), staleTime: 30_000 })
+}
+
+export function usePinMessage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ messageId, pinned }: { messageId: string; pinned: boolean }) => chatApi.pinMessage(messageId, pinned),
+    onSuccess: (message) => {
+      applyMessage(queryClient, message)
+      void queryClient.invalidateQueries({ queryKey: pinsKey(message.roomId) })
+    },
+  })
+}
+
+/** "Xoá chỉ ở phía tôi": bỏ tin khỏi màn hình của mình ngay. */
+export function useHideMessage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (messageId: string) => chatApi.hideMessage(messageId),
+    onSuccess: ({ id, roomId }) => {
+      queryClient.setQueryData<ChatMessage[]>(chatKeys.messages(roomId), (list) => list?.filter((m) => m.id !== id))
+      void queryClient.invalidateQueries({ queryKey: pinsKey(roomId) })
+    },
+  })
+}
+
+export function useForwardMessage() {
+  return useMutation({
+    mutationFn: ({ messageId, roomIds, note }: { messageId: string; roomIds: string[]; note?: string }) =>
+      chatApi.forwardMessage(messageId, roomIds, note),
+  })
+}
+
 export function useClosePoll() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -522,6 +596,11 @@ export function useChatEvents() {
           return
         case 'user:avatar':
           return setUserAvatar(event.payload)
+        case 'message:hidden':
+          // "Xoá chỉ ở phía tôi" từ tab khác của mình.
+          return queryClient.setQueryData<ChatMessage[]>(chatKeys.messages(event.payload.roomId), (list) =>
+            list?.filter((m) => m.id !== event.payload.id),
+          )
         case 'room:added': {
           const room = event.payload
           const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.find((r) => r.id === room.id)
@@ -537,6 +616,7 @@ export function useChatEvents() {
       const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.some((r) => r.id === message.roomId)
       // message:delivered/seen/edit/delete/react mang Message đã cập nhật -> thay theo ID, không thêm tin.
       applyMessage(queryClient, message)
+      if (event.type === 'message:pin') void queryClient.invalidateQueries({ queryKey: pinsKey(message.roomId) })
       if (event.type === 'message:new') {
         if (selfId) markDelivered(message, selfId)
         // Đếm tin chưa đọc + âm báo cho tin của người khác ở phòng không đang xem.

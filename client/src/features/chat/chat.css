@@ -2448,3 +2448,300 @@ html.chat-page body {
   color: var(--primary);
   border-color: var(--primary);
 }
+
+/* ---------- Trả lời / chuyển tiếp / "…" kiểu Zalo ---------- */
+.message-tools {
+  gap: 4px;
+}
+
+.message-tools--open {
+  opacity: 1;
+}
+
+.tool-round {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+}
+
+.tool-round:hover,
+.tool-round[aria-expanded='true'] {
+  color: var(--primary);
+  border-color: var(--primary);
+}
+
+.tool-round svg {
+  width: 15px;
+  height: 15px;
+}
+
+.message-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  padding: 6px 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+}
+
+.message--own .message-menu {
+  left: auto;
+  right: 0;
+}
+
+.message-menu button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: none;
+  cursor: pointer;
+}
+
+.message-menu button:hover {
+  background: var(--bg);
+}
+
+.message-menu button > span {
+  width: 18px;
+  text-align: center;
+}
+
+.message-menu .danger {
+  color: var(--danger);
+}
+
+.message-menu hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+}
+
+.message-menu hr:last-child,
+.message-menu hr:first-child {
+  display: none;
+}
+
+/* Nút thả cảm xúc ở góc dưới bên phải của tin. */
+.message-stack {
+  position: relative;
+}
+
+.react-trigger {
+  position: absolute;
+  right: -8px;
+  bottom: -8px;
+  z-index: 3;
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  color: var(--muted);
+  background: var(--surface);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+
+.react-trigger svg {
+  width: 14px;
+  height: 14px;
+}
+
+.message:hover .react-trigger,
+.react-trigger:focus-visible,
+.react-trigger[aria-expanded='true'] {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .react-trigger {
+    opacity: 1;
+  }
+}
+
+/* Trích tin được trả lời, nằm trên nội dung. */
+.reply-quote {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  text-align: left;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--text);
+  background: var(--bg);
+  cursor: pointer;
+}
+
+.reply-quote span {
+  overflow: hidden;
+  max-width: 320px;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Khung "Trả lời …" trên ô nhập. */
+.reply-bar {
+  flex-basis: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 10px;
+  border-left: 3px solid var(--primary);
+  border-radius: 6px;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.reply-bar-icon {
+  color: var(--primary);
+  font-size: 1.2rem;
+}
+
+.reply-bar-text {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 0.85rem;
+}
+
+.reply-bar-text span {
+  overflow: hidden;
+  color: var(--muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Thanh tin ghim đầu đoạn chat. */
+.pinned-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pinned-bar ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pinned-bar li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.pinned-open {
+  flex: 1;
+  overflow: hidden;
+  padding: 4px 0;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--text);
+  background: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pinned-more {
+  align-self: flex-start;
+  font-size: 0.82rem;
+}
+
+/* Hộp "Chia sẻ". */
+.forward-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.forward-tabs button {
+  padding: 6px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--muted);
+  background: none;
+  cursor: pointer;
+}
+
+.forward-tabs button[aria-selected='true'] {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+  font-weight: 600;
+}
+
+.forward-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.forward-preview {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--bg);
+  min-width: 0;
+}
+
+.forward-preview > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.forward-preview-icon {
+  font-size: 1.5rem;
+}
+
+.forward-preview-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message-menu--up {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
