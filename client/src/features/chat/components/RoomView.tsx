@@ -18,6 +18,7 @@ import {
 } from '../hooks'
 import { setActiveRoom } from '../notifications'
 import { markViewed } from '../unread'
+import { openProfile } from '../profileViewer'
 import { onOutboxChange, outboxSize } from '../outbox'
 import { useRealtimeStatus } from '../../realtime/RealtimeContext'
 import { describePresence, usePresence } from '../presence'
@@ -170,7 +171,14 @@ function Conversation({ room }: { room: Room }) {
           ←
         </Link>
         {room.type === 'dm' ? (
-          <RoomAvatar room={room} online={peerPresence?.online ?? false} />
+          <button
+            type="button"
+            className="avatar-btn"
+            aria-label={`Xem thông tin ${room.peer?.displayName ?? room.name}`}
+            onClick={() => room.peer && openProfile(room.peer.id)}
+          >
+            <RoomAvatar room={room} online={peerPresence?.online ?? false} />
+          </button>
         ) : canAddMembers ? (
           <button type="button" className="room-avatar-btn" aria-label="Đổi ảnh nhóm" title="Đổi ảnh nhóm" onClick={() => setEditing('avatar')}>
             <RoomAvatar room={room} />
@@ -260,6 +268,7 @@ function Conversation({ room }: { room: Room }) {
         members={members.data}
         actions={actions}
         focusMessageId={focusMessageId}
+        onOpenMessage={(id) => void openSearchResult(id)}
         history={{
           hasMore: older.hasMore,
           isLoading: older.isLoading,

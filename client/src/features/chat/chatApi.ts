@@ -38,6 +38,10 @@ export interface ChatApi {
   uploadMyAvatar(file: File): Promise<UserAvatar>
   removeMyAvatar(): Promise<UserAvatar>
   getMyProfile(): Promise<Profile>
+  /** Hồ sơ người khác: giới tính / ngày sinh / điện thoại chỉ có khi họ để công khai. */
+  getUserProfile(userId: string): Promise<Profile>
+  /** Người tạo, trưởng nhóm, phó nhóm khoá bình chọn. */
+  closePoll(pollId: string): Promise<Message>
   /** Chuỗi rỗng = xoá thông tin tuỳ chọn. */
   updateMyProfile(input: ProfileInput): Promise<Profile>
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
@@ -98,6 +102,8 @@ export const httpChatApi: ChatApi = {
   },
   removeMyAvatar: () => authRequest('/api/me/avatar', { method: 'DELETE' }),
   getMyProfile: () => authRequest('/api/me/profile'),
+  getUserProfile: (userId) => authRequest(`/api/users/${encodeURIComponent(userId)}/profile`),
+  closePoll: (pollId) => authRequest(`/api/polls/${encodeURIComponent(pollId)}/close`, { method: 'POST' }),
   updateMyProfile: (input) => authRequest('/api/me/profile', { method: 'PUT', body: input }),
   listNotifications: (before) => {
     const params = new URLSearchParams({ limit: '30' })

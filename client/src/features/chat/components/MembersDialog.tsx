@@ -2,6 +2,7 @@ import { FormAlert } from '../../auth/components/FormAlert'
 import { describeChatError } from '../errors'
 import { useRoomMembers, useSetMemberRole } from '../hooks'
 import { MAX_DEPUTIES, ROLE_LABEL } from '../roles'
+import { openProfile } from '../profileViewer'
 import type { Room } from '../types'
 import { Avatar } from './Avatar'
 import { Modal } from './Modal'
@@ -18,7 +19,7 @@ export function MembersDialog(props: { room: Room; selfId: string; onClose: () =
     <Modal title={`Thành viên (${room.memberCount})`} onClose={onClose}>
       {setRole.error && <FormAlert>{describeChatError(setRole.error)}</FormAlert>}
       <p className="muted small">
-        🔑 vàng: trưởng nhóm · 🔑 bạc: phó nhóm ({deputies}/{MAX_DEPUTIES})
+        Chìa khoá vàng: trưởng nhóm · chìa khoá bạc: phó nhóm ({deputies}/{MAX_DEPUTIES})
         {isOwner ? '. Bạn có thể bổ nhiệm tối đa 5 phó nhóm.' : ''}
       </p>
       {members.isPending && <p className="muted small">Đang tải…</p>}
@@ -29,13 +30,15 @@ export function MembersDialog(props: { room: Room; selfId: string; onClose: () =
           const busy = setRole.isPending && setRole.variables?.userId === m.id
           return (
             <li key={m.id} className="member-role-row">
-              <Avatar name={m.displayName} userId={m.id} role={role} />
+              <button type="button" className="avatar-btn" aria-label={`Xem thông tin ${m.displayName}`} onClick={() => openProfile(m.id)}>
+                <Avatar name={m.displayName} userId={m.id} role={role} />
+              </button>
               <span className="member-role-text">
                 <strong>
                   {m.displayName}
                   {m.id === selfId && <span className="muted small"> (bạn)</span>}
                 </strong>
-                <span className={`muted small${role !== 'member' ? ' member-role-label' : ''}`}>
+                <span className={`muted small${role !== 'member' ? ` member-role-label member-role-label--${role}` : ''}`}>
                   {ROLE_LABEL[role]}
                   {m.enabled === false ? ' · đã khoá' : ''}
                 </span>

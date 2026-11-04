@@ -10,6 +10,7 @@ import { countUnreadRooms } from '../unread'
 import '../chat.css'
 import { Avatar } from './Avatar'
 import { ProfileAvatarDialog } from './ProfileAvatarDialog'
+import { UserProfileHost } from './UserProfileDialog'
 import { RoomView } from './RoomView'
 import { Sidebar } from './Sidebar'
 
@@ -94,6 +95,7 @@ export function ChatLayout() {
         </div>
       </header>
       <ToastHost />
+      <UserProfileHost />
       {profileOpen && <ProfileAvatarDialog user={user} onClose={() => setProfileOpen(false)} />}
       <div className="chat-body">
         <Sidebar />

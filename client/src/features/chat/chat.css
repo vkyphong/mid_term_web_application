@@ -1530,31 +1530,43 @@ html.chat-page body {
 
 .role-key {
   position: absolute;
-  right: -5px;
-  bottom: -4px;
+  right: -4px;
+  bottom: -3px;
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
-  font-size: 0.55rem;
-  line-height: 1;
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+  line-height: 0;
+  background: #262a36;
   border-radius: 50%;
   box-shadow: 0 0 0 1.5px var(--surface);
 }
 
+.role-key svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Vàng = trưởng nhóm, bạc = phó nhóm (khác hẳn nhau để không lẫn). */
 .role-key--owner {
-  background: #f5b301;
+  color: #f5b301;
 }
 
 .role-key--deputy {
-  background: #c7ccd6;
-  filter: grayscale(1) brightness(1.15);
+  color: #d5d9e0;
 }
 
 .avatar--sm .role-key {
-  width: 12px;
-  height: 12px;
-  font-size: 0.45rem;
+  width: 13px;
+  height: 13px;
+  padding: 2px;
+}
+
+.avatar--lg .role-key {
+  width: 26px;
+  height: 26px;
+  padding: 5px;
 }
 
 .chat-user-avatar {
@@ -1594,8 +1606,15 @@ html.chat-page body {
 }
 
 .member-role-label {
-  color: #c08a00;
   font-weight: 600;
+}
+
+.member-role-label--owner {
+  color: #e0a800;
+}
+
+.member-role-label--deputy {
+  color: #b8bec9;
 }
 
 .room-members-link {
@@ -1988,4 +2007,68 @@ html.chat-page body {
 
 .profile-genders .checkbox-row {
   margin-bottom: 0;
+}
+
+/* Bấm avatar để xem thông tin tài khoản */
+.avatar-btn {
+  padding: 0;
+  line-height: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.avatar-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.profile-avatar-static {
+  line-height: 0;
+}
+
+.profile-avatar-static .avatar--lg {
+  width: 84px;
+  height: 84px;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+/* Dòng hoạt động bình chọn ("X đã bình chọn: ...  Xem") */
+.message--activity {
+  display: flex;
+  justify-content: center;
+  margin: 6px 0;
+}
+
+.activity-line {
+  max-width: min(560px, 100%);
+  margin: 0;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  word-break: break-word;
+}
+
+.activity-line strong {
+  color: var(--text);
+}
+
+.activity-icon {
+  margin-right: 6px;
+}
+
+.activity-open {
+  margin-left: 8px;
+  padding: 0;
+  font-size: inherit;
+}
+
+.poll-close {
+  width: 100%;
+  margin-top: 10px;
 }

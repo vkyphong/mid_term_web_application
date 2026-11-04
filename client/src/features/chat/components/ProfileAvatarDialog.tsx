@@ -20,6 +20,39 @@ function formatBirthDate(value: string | null) {
   return `${d} tháng ${m}, ${y}`
 }
 
+/** Danh sách thông tin cá nhân (hồ sơ của mình, hoặc hồ sơ công khai của người khác). */
+export function ProfileDetails({ profile }: { profile: Profile }) {
+  const empty = <span className="muted">Chưa cập nhật</span>
+  return (
+    <section className="profile-info" aria-label="Thông tin cá nhân">
+      <h4>Thông tin cá nhân</h4>
+      <dl>
+        <dt>Giới tính</dt>
+        <dd>{profile.gender ? GENDER_LABEL[profile.gender] : empty}</dd>
+        <dt>Ngày sinh</dt>
+        <dd>{formatBirthDate(profile.birthDate) ?? empty}</dd>
+        <dt>Điện thoại</dt>
+        <dd>{profile.phone ?? empty}</dd>
+        <dt>Email</dt>
+        <dd>{profile.email}</dd>
+        {profile.self && (
+          <>
+            <dt>Chế độ</dt>
+            <dd>{profile.profilePublic ? '🌐 Công khai' : '🔒 Riêng tư'}</dd>
+          </>
+        )}
+      </dl>
+      {profile.self && (
+        <p className="muted small">
+          {profile.profilePublic
+            ? 'Mọi đồng nghiệp xem được giới tính, ngày sinh và điện thoại của bạn.'
+            : 'Chỉ bạn xem được giới tính, ngày sinh và điện thoại.'}
+        </p>
+      )}
+    </section>
+  )
+}
+
 function fieldError(error: unknown, field: string) {
   return error instanceof ApiError ? error.details.find((d) => d.field === field)?.message : undefined
 }
@@ -30,13 +63,14 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
   const [gender, setGender] = useState<Gender | ''>(profile.gender ?? '')
   const [birthDate, setBirthDate] = useState(profile.birthDate ?? '')
   const [phone, setPhone] = useState(profile.phone ?? '')
+  const [profilePublic, setProfilePublic] = useState(profile.profilePublic)
   const [nameError, setNameError] = useState<string>()
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     const name = displayName.trim()
     if (name.length < 2 || name.length > 50) return setNameError('Tên hiển thị cần 2–50 ký tự')
-    update.mutate({ displayName: name, gender, birthDate, phone: phone.trim() }, { onSuccess: onDone })
+    update.mutate({ displayName: name, gender, birthDate, phone: phone.trim(), profilePublic }, { onSuccess: onDone })
   }
   const general = update.error && !(update.error instanceof ApiError && update.error.details.length) ? describeChatError(update.error) : undefined
 
@@ -85,6 +119,19 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
         onChange={(e) => setPhone(e.target.value)}
         error={fieldError(update.error, 'phone')}
       />
+      <fieldset className="member-fieldset">
+        <legend>Ai xem được thông tin cá nhân</legend>
+        <div className="profile-genders">
+          <label className="checkbox-row">
+            <input type="radio" name="privacy" checked={profilePublic} onChange={() => setProfilePublic(true)} />
+            🌐 Công khai
+          </label>
+          <label className="checkbox-row">
+            <input type="radio" name="privacy" checked={!profilePublic} onChange={() => setProfilePublic(false)} />
+            🔒 Riêng tư
+          </label>
+        </div>
+      </fieldset>
       <div className="dialog-actions">
         <button type="button" className="btn-secondary" disabled={update.isPending} onClick={onDone}>
           Huỷ
@@ -161,27 +208,13 @@ export function ProfileAvatarDialog({ user, onClose }: { user: { id: string; dis
         {editing && data ? (
           <EditProfileForm profile={data} onDone={() => setEditing(false)} />
         ) : (
-          <section className="profile-info" aria-label="Thông tin cá nhân">
-            <h4>Thông tin cá nhân</h4>
-            {profile.isPending ? (
-              <p className="muted small">Đang tải…</p>
-            ) : (
-              <dl>
-                <dt>Giới tính</dt>
-                <dd>{data?.gender ? GENDER_LABEL[data.gender] : <span className="muted">Chưa cập nhật</span>}</dd>
-                <dt>Ngày sinh</dt>
-                <dd>{formatBirthDate(data?.birthDate ?? null) ?? <span className="muted">Chưa cập nhật</span>}</dd>
-                <dt>Điện thoại</dt>
-                <dd>{data?.phone ?? <span className="muted">Chưa cập nhật</span>}</dd>
-                <dt>Email</dt>
-                <dd>{data?.email}</dd>
-              </dl>
-            )}
-            <p className="muted small">Chỉ bạn xem được các thông tin này.</p>
+          <>
+            {profile.isPending && <p className="muted small">Đang tải…</p>}
+            {data && <ProfileDetails profile={{ ...data, self: true }} />}
             <button type="button" className="btn-secondary profile-update" disabled={!data} onClick={() => setEditing(true)}>
               ✏️ Cập nhật
             </button>
-          </section>
+          </>
         )}
       </div>
     </Modal>

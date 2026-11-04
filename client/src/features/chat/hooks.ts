@@ -315,6 +315,14 @@ export function useCreatePoll(roomId: string) {
   })
 }
 
+export function useClosePoll() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (pollId: string) => chatApi.closePoll(pollId),
+    onSuccess: (message) => applyMessage(queryClient, message),
+  })
+}
+
 export function useVote() {
   const queryClient = useQueryClient()
   return useMutation({
@@ -482,9 +490,12 @@ export function useChatEvents() {
       if (event.type === 'message:new') {
         if (selfId) markDelivered(message, selfId)
         // Đếm tin chưa đọc + âm báo cho tin của người khác ở phòng không đang xem.
-        if (message.sender.id !== selfId) {
+        // Dòng hoạt động bình chọn là tin hệ thống: không tính chưa đọc, không kêu.
+        if (message.sender.id !== selfId && !message.activity) {
+          // Như Messenger: tin của người khác luôn có âm báo, kể cả khi đang mở đúng phòng đó.
+          playMessageSound(message.id)
           if (isViewingRoom(message.roomId)) markViewed(queryClient, message.roomId, message.createdAt)
-          else if (bumpUnread(queryClient, message)) playMessageSound(message.id)
+          else bumpUnread(queryClient, message)
         }
         // Tin đến thì người đó hết "đang gõ".
         applyTyping({ roomId: message.roomId, userId: message.sender.id, typing: false, ttlMs: 0 })

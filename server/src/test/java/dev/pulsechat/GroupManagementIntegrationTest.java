@@ -171,6 +171,61 @@ class GroupManagementIntegrationTest {
         call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Hợp lệ", "phone", "gọi tôi"), 400);
     }
 
+    @Test void privateProfilesHidePersonalInfoFromOthers() throws Exception {
+        Account me = account(), other = account();
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Riêng Tư", "gender", "female", "birthDate", "2000-01-02", "phone", "0901234567"), 200);
+        var hidden = get("/api/users/" + me.id() + "/profile", other, 200);
+        assertThat(hidden.path("profilePublic").asBoolean()).isFalse();
+        assertThat(hidden.path("displayName").asText()).isEqualTo("Riêng Tư");
+        assertThat(hidden.path("gender").isNull()).isTrue();
+        assertThat(hidden.path("phone").isNull()).isTrue();
+        assertThat(get("/api/me/profile", me, 200).path("phone").asText()).isEqualTo("0901234567");
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Riêng Tư", "gender", "female", "birthDate", "2000-01-02", "phone", "0901234567", "profilePublic", true), 200);
+        var shown = get("/api/users/" + me.id() + "/profile", other, 200);
+        assertThat(shown.path("profilePublic").asBoolean()).isTrue();
+        assertThat(shown.path("gender").asText()).isEqualTo("female");
+        assertThat(shown.path("birthDate").asText()).isEqualTo("2000-01-02");
+        // Không gửi profilePublic thì giữ nguyên.
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Riêng Tư"), 200);
+        assertThat(get("/api/users/" + me.id() + "/profile", other, 200).path("profilePublic").asBoolean()).isTrue();
+        get("/api/users/" + UUID.randomUUID() + "/profile", other, 404);
+    }
+
+    @Test void pollVotesLeaveActivityLinesAndOnlyCreatorOrLeadersClose() throws Exception {
+        Account boss = account(), deputy = account(), voter = account(), maker = account();
+        String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Polls-" + UUID.randomUUID().toString().substring(0, 20), null)).id();
+        for (var a : List.of(deputy, voter, maker)) post("/api/rooms/" + room + "/members", boss, Map.of("userId", a.id()), 200);
+        call(HttpMethod.PUT, "/api/rooms/" + room + "/members/" + deputy.id() + "/role", boss, Map.of("role", "deputy"), 200);
+        var poll = post("/api/rooms/" + room + "/polls", maker, Map.of("question", "Họp lúc mấy giờ?", "options", List.of("20h", "21h")), 201).path("poll");
+        String pollId = poll.path("id").asText(), h20 = poll.path("options").get(0).path("id").asText(), h21 = poll.path("options").get(1).path("id").asText();
+        call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", voter, Map.of("optionIds", List.of(h20)), 200);
+        call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", voter, Map.of("optionIds", List.of(h20)), 200); // không đổi → không thêm dòng
+        call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", voter, Map.of("optionIds", List.of(h21)), 200);
+        // Thành viên thường (không phải người tạo) không khoá được.
+        post("/api/polls/" + pollId + "/close", voter, null, 403);
+        var closed = post("/api/polls/" + pollId + "/close", deputy, null, 200);
+        assertThat(closed.path("poll").path("closedBy").asText()).isEqualTo(deputy.id());
+        assertThat(call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", voter, Map.of("optionIds", List.of(h20)), 409).path("error").path("reason").asText()).isEqualTo("poll_closed");
+        var history = get("/api/rooms/" + room + "/messages", boss, 200).path("messages");
+        var activities = new ArrayList<String>();
+        for (JsonNode m : history) if (!m.path("activity").isMissingNode() && !m.path("activity").isNull()) {
+            activities.add(m.path("activity").path("type").asText());
+            assertThat(m.path("activity").path("pollMessageId").asText()).isEqualTo(history.get(0).path("id").asText());
+            assertThat(m.path("content").asText()).isEqualTo("Họp lúc mấy giờ?");
+        }
+        assertThat(activities).containsExactly("vote", "change", "close");
+        // Dòng hoạt động không tính tin chưa đọc, không tìm thấy khi tìm kiếm, không sửa được.
+        assertThat(listed(room, boss).unreadCount()).isEqualTo(1); // chỉ tin bình chọn
+        assertThat(get("/api/rooms/" + room + "/search?q=h%E1%BB%8Dp", boss, 200).path("messages")).hasSize(1);
+        String line = history.get(1).path("id").asText();
+        assertThatThrownBy(() -> actions.change(voter.id(), line, "delete", null, "", false)).isInstanceOf(ApiException.class);
+        // Trưởng nhóm cũng khoá được (bình chọn khác), người tạo cũng vậy.
+        var second = post("/api/rooms/" + room + "/polls", maker, Map.of("question", "Lần hai", "options", List.of("A", "B")), 201).path("poll").path("id").asText();
+        post("/api/polls/" + second + "/close", maker, null, 200);
+        var third = post("/api/rooms/" + room + "/polls", maker, Map.of("question", "Lần ba", "options", List.of("A", "B")), 201).path("poll").path("id").asText();
+        post("/api/polls/" + third + "/close", boss, null, 200);
+    }
+
     @Test void creatorOwnsChannelAndAppointsUpToFiveDeputies() throws Exception {
         Account boss = account();
         String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Roles-" + UUID.randomUUID().toString().substring(0, 20), null)).id();
@@ -237,7 +292,10 @@ class GroupManagementIntegrationTest {
         call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", peer, Map.of("optionIds", List.of("khong-co")), 400);
         // Lịch sử trả lại bình chọn kèm phiếu.
         var history = get("/api/rooms/" + room + "/messages", owner, 200).path("messages");
-        assertThat(history.get(history.size() - 1).path("poll").path("id").asText()).isEqualTo(pollId);
+        // Sau tin bình chọn là các dòng hoạt động "đã bình chọn / đổi lựa chọn".
+        assertThat(history.findValuesAsText("id")).isNotEmpty();
+        assertThat(history.get(0).path("poll").path("id").asText()).isEqualTo(pollId);
+        assertThat(history.get(0).path("poll").path("options").get(1).path("voters")).hasSize(1);
         // Một lựa chọn duy nhất khi tắt chọn nhiều.
         var single = post("/api/rooms/" + room + "/polls", owner, Map.of("question", "Chọn một", "options", List.of("A", "B"), "multiple", false), 201).path("poll");
         call(HttpMethod.PUT, "/api/polls/" + single.path("id").asText() + "/votes", peer,

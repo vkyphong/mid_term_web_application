@@ -3,6 +3,7 @@ import { MENTION_ALL, splitMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { REACTION_EMOJIS, type ChatMessage, type UserSummary } from '../types'
 import { roleOf } from '../roles'
+import { openProfile } from '../profileViewer'
 import { AttachmentView } from './AttachmentView'
 import { PollCard } from './Polls'
 import { Avatar } from './Avatar'
@@ -23,6 +24,8 @@ interface MessageItemProps {
   mentionAll?: boolean
   /** Vừa nhảy tới từ kết quả tìm kiếm: tô sáng một lúc. */
   highlight?: boolean
+  /** Dòng hoạt động "Xem": nhảy tới tin bình chọn. */
+  onOpenMessage?: (messageId: string) => void
   receipt: { label: string; detail: string } | null
   showReceipt: boolean
   trackSeen: boolean
@@ -69,7 +72,7 @@ function groupReactions(message: ChatMessage, selfId: string, members: readonly 
 }
 
 export function MessageItem(props: MessageItemProps) {
-  const { message: m, own, head, selfId, members, mentionAll, highlight, receipt, showReceipt, trackSeen, onRetry, actions } = props
+  const { message: m, own, head, selfId, members, mentionAll, highlight, onOpenMessage, receipt, showReceipt, trackSeen, onRetry, actions } = props
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(m.content)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -109,6 +112,25 @@ export function MessageItem(props: MessageItemProps) {
     if (actions) void actions.react(m.id, emoji, !mine)
   }
 
+  // Dòng hoạt động bình chọn (tin hệ thống) như Zalo: "X đã bình chọn: <câu hỏi>  Xem".
+  if (m.activity) {
+    const verb = { vote: 'đã bình chọn', change: 'đổi lựa chọn trong cuộc bình chọn', unvote: 'bỏ bình chọn', close: 'đã khoá bình chọn' }[m.activity.type]
+    const target = m.activity.pollMessageId
+    return (
+      <li className="message message--activity" id={`message-${m.id}`}>
+        <p className="activity-line">
+          <span className="activity-icon" aria-hidden="true">📊</span>
+          <strong>{own ? 'Bạn' : m.sender.displayName}</strong> {verb}: <strong>{m.content}</strong>
+          {target && onOpenMessage && (
+            <button type="button" className="link-btn activity-open" onClick={() => onOpenMessage(target)}>
+              Xem
+            </button>
+          )}
+        </p>
+      </li>
+    )
+  }
+
   // Bình chọn: nằm giữa khung chat như Zalo; thành viên khác thấy tên người tạo phía trên.
   if (m.poll && !deleted) {
     return (
@@ -137,7 +159,11 @@ export function MessageItem(props: MessageItemProps) {
       data-message-id={trackSeen ? m.id : undefined}
     >
       {/* Tin của mình: bong bóng bên phải, không avatar. Tin người khác: bên trái kèm avatar. */}
-      {!own && <div className="message-gutter">{head && <Avatar name={m.sender.displayName} userId={m.sender.id} role={mentionAll ? roleOf(members, m.sender.id) : undefined} />}</div>}
+      {!own && <div className="message-gutter">{head && (
+            <button type="button" className="avatar-btn" aria-label={`Xem thông tin ${m.sender.displayName}`} onClick={() => openProfile(m.sender.id)}>
+              <Avatar name={m.sender.displayName} userId={m.sender.id} role={mentionAll ? roleOf(members, m.sender.id) : undefined} />
+            </button>
+          )}</div>}
       <div className="message-body">
         {head && (
           <div className="message-meta">

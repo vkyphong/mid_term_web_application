@@ -21,9 +21,13 @@ public final class ChatDtos {
                        boolean joined, UserSummary peer, Instant lastMessageAt, boolean archived, int unreadCount,
                        String nickname, String avatarUrl, List<UserSummary> previewMembers, String myRole) {}
     public record Message(String id, String roomId, String clientMsgId, Sender sender, String content, Instant createdAt,
-                          Instant editedAt, Instant deletedAt, Object attachment, Object receipts, Object reactions, Poll poll) {}
+                          Instant editedAt, Instant deletedAt, Object attachment, Object receipts, Object reactions, Poll poll,
+                          Activity activity) {}
     public record PollOption(String id, String label, List<String> voters) {}
-    public record Poll(String id, String question, boolean multiple, String createdBy, List<PollOption> options) {}
+    public record Poll(String id, String question, boolean multiple, String createdBy, List<PollOption> options,
+                       Instant closedAt, String closedBy) {}
+    /** Dòng hoạt động bình chọn: type vote / change / unvote / close; content của tin là câu hỏi. */
+    public record Activity(String type, String pollId, String pollMessageId) {}
     public record CreatePoll(String question, List<String> options, Boolean multiple, String clientMsgId) {}
     public record Vote(List<String> optionIds) {}
     @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)

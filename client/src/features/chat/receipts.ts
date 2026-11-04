@@ -64,7 +64,7 @@ function enqueue(messageId: string, kind: Kind) {
 
 /** Có nên gửi receipt cho tin này không: tin của người khác, đã lưu, chưa bị xoá, và chưa đủ người xác nhận. */
 export function needsReceipt(message: ChatMessage, kind: Kind, selfId: string): boolean {
-  if (message.status || message.deletedAt || message.sender.id === selfId) return false
+  if (message.status || message.deletedAt || message.activity || message.sender.id === selfId) return false
   const r = message.receipts
   if (!r) return true
   if (r.recipients === 0) return false // mình không thuộc tập người nhận lúc gửi

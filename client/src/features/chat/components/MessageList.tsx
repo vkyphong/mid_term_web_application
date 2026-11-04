@@ -26,6 +26,8 @@ interface MessageListProps {
   actions?: MessageActionsApi
   /** Tin cần cuộn tới và tô sáng (từ kết quả tìm kiếm). */
   focusMessageId?: string | null
+  /** Nhảy tới một tin (dòng hoạt động bình chọn → tin bình chọn). */
+  onOpenMessage?: (messageId: string) => void
 }
 
 const NO_MEMBERS: readonly UserSummary[] = []
@@ -84,7 +86,7 @@ const GROUP_WINDOW_MS = 5 * 60 * 1000
 /** Tin liền nhau của cùng người trong 5 phút thì gộp, không lặp tên. */
 function startsGroup(prev: ChatMessage | undefined, m: ChatMessage) {
   // Bình chọn nằm giữa khung, nên tin ngay sau nó bắt đầu nhóm mới (hiện lại tên + avatar).
-  if (!prev || prev.poll || m.poll) return true
+  if (!prev || prev.poll || m.poll || prev.activity || m.activity) return true
   return prev.sender.id !== m.sender.id || Date.parse(m.createdAt) - Date.parse(prev.createdAt) > GROUP_WINDOW_MS
 }
 
@@ -99,6 +101,7 @@ export function MessageList({
   members = NO_MEMBERS,
   actions,
   focusMessageId,
+  onOpenMessage,
 }: MessageListProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -184,6 +187,7 @@ export function MessageList({
               members={members}
               mentionAll={roomType === 'channel'}
               highlight={m.id === focusMessageId}
+              onOpenMessage={onOpenMessage}
               receipt={own && !m.status ? describeReceipt(m, roomType) : null}
               showReceipt={m.id === lastOwnId}
               trackSeen={needsReceipt(m, 'seen', currentUserId)}

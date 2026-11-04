@@ -27,6 +27,10 @@ export interface Profile {
   birthDate: string | null
   phone: string | null
   avatarUrl: string | null
+  /** Công khai: người khác xem được giới tính / ngày sinh / điện thoại. */
+  profilePublic: boolean
+  /** Hồ sơ của chính mình. */
+  self?: boolean
 }
 
 export interface ProfileInput {
@@ -34,6 +38,7 @@ export interface ProfileInput {
   gender: Gender | ''
   birthDate: string
   phone: string
+  profilePublic?: boolean
 }
 
 /** Ảnh đại diện tài khoản; avatarUrl null = đã xoá ảnh. */
@@ -83,6 +88,8 @@ export interface Message {
   attachment?: Attachment | null
   /** Bình chọn gắn với tin này. */
   poll?: Poll | null
+  /** Tin hệ thống "X đã bình chọn ..." (không phải tin người dùng gõ). */
+  activity?: MessageActivity | null
 }
 
 export interface PollOption {
@@ -99,6 +106,16 @@ export interface Poll {
   multiple: boolean
   createdBy: string
   options: PollOption[]
+  /** Đã khoá: không bình chọn thêm được. */
+  closedAt?: string | null
+  closedBy?: string | null
+}
+
+/** Dòng hoạt động bình chọn trong khung chat; `content` của tin là câu hỏi. */
+export interface MessageActivity {
+  type: 'vote' | 'change' | 'unvote' | 'close'
+  pollId: string
+  pollMessageId: string | null
 }
 
 export interface CreatePollInput {

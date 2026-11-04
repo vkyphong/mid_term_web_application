@@ -434,6 +434,32 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await alicePoll.getByRole('checkbox', { name: 'Phở: 1 phiếu' }).hover()
     await expect(alicePoll.locator('.reaction-who')).toHaveText(bob.displayName)
 
+    // Dòng hoạt động: Alice thấy "Bob đã bình chọn: …  Xem".
+    const voteLine = a.locator('.activity-line', { hasText: 'đã bình chọn' })
+    await expect(voteLine).toContainText(`${bob.displayName} đã bình chọn: Ăn trưa ở đâu?`)
+    await expect(voteLine.getByRole('button', { name: 'Xem' })).toBeVisible()
+    // Khoá bình chọn: Alice (người tạo) và Bob (phó nhóm) đều thấy nút; Bob khoá.
+    await expect(alicePoll.getByRole('button', { name: '🔒 Khoá bình chọn' })).toBeVisible()
+    await bobPoll.getByRole('button', { name: '🔒 Khoá bình chọn' }).click()
+    await expect(alicePoll).toContainText('Đã khoá bình chọn')
+    await expect(alicePoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' })).toBeDisabled()
+    await expect(a.locator('.activity-line', { hasText: 'đã khoá bình chọn' })).toContainText(bob.displayName)
+
+    // ---- Hồ sơ riêng tư / công khai: Alice bấm avatar Bob trong danh sách thành viên ----
+    await bob.context.request.put('/api/me/profile', { headers: auth(bob), data: { displayName: bob.displayName, gender: 'male', birthDate: '2000-02-03', phone: '0901 234 567' } })
+    await a.getByRole('button', { name: '2 thành viên' }).click()
+    await a.getByRole('button', { name: `Xem thông tin ${bob.displayName}` }).click()
+    const bobProfile = a.getByRole('dialog', { name: 'Thông tin tài khoản' })
+    await expect(bobProfile).toContainText('chế độ riêng tư')
+    await expect(bobProfile).not.toContainText('0901 234 567')
+    await a.keyboard.press('Escape')
+    await bob.context.request.put('/api/me/profile', { headers: auth(bob), data: { displayName: bob.displayName, gender: 'male', birthDate: '2000-02-03', phone: '0901 234 567', profilePublic: true } })
+    await a.getByRole('button', { name: '2 thành viên' }).click()
+    await a.getByRole('button', { name: `Xem thông tin ${bob.displayName}` }).click()
+    await expect(a.getByRole('dialog', { name: 'Thông tin tài khoản' })).toContainText('0901 234 567')
+    await expect(a.getByRole('dialog', { name: 'Thông tin tài khoản' })).toContainText('03 tháng 02, 2000')
+    await a.keyboard.press('Escape')
+
     // ---- Ảnh đại diện tài khoản: Bob đổi ảnh, Alice thấy ngay ----
     await b.getByRole('button', { name: 'Thông tin tài khoản' }).click()
     await expect(b.getByRole('dialog', { name: 'Thông tin tài khoản' }).getByText('Thông tin cá nhân')).toBeVisible()

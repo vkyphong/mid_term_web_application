@@ -66,7 +66,7 @@ interface Store {
 /** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho file lớn). */
 const uploadBlobs = new Map<string, Blob>()
 /** Mock: giới tính / ngày sinh / điện thoại chỉ giữ trong bộ nhớ tab. */
-const mockProfiles = new Map<string, { gender: Gender | ''; birthDate: string; phone: string }>()
+const mockProfiles = new Map<string, { gender: Gender | ''; birthDate: string; phone: string; profilePublic: boolean }>()
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 /** Đuôi file BE chấp nhận → MIME (BE tự xác định MIME, không tin trình duyệt). */
 const UPLOAD_TYPES: Record<string, string> = {
@@ -535,14 +535,48 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         id: user.id, email: user.email, displayName: user.displayName, gender: extra?.gender || null,
         birthDate: extra?.birthDate || null, phone: extra?.phone || null,
         avatarUrl: uploadBlobs.has(`user:${user.id}`) ? `/api/users/${user.id}/avatar?v=1` : null,
+        profilePublic: Boolean(extra?.profilePublic), self: true,
       }
+    },
+
+    async getUserProfile(userId) {
+      await delay(40)
+      const me = currentUser()
+      if (userId === me.id) return { ...(await api.getMyProfile()), self: true }
+      const user = listMockUsers().find((u) => u.id === userId)
+      if (!user) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Employee not found' })
+      const extra = mockProfiles.get(userId)
+      const open = Boolean(extra?.profilePublic)
+      return {
+        id: user.id, email: user.email, displayName: user.displayName, gender: open ? extra?.gender || null : null,
+        birthDate: open ? extra?.birthDate || null : null, phone: open ? extra?.phone || null : null,
+        avatarUrl: uploadBlobs.has(`user:${userId}`) ? `/api/users/${userId}/avatar?v=1` : null, profilePublic: open, self: false,
+      }
+    },
+
+    async closePoll(pollId) {
+      await delay(60)
+      const user = currentUser()
+      const store = load()
+      const message = Object.values(store.messages).flat().find((m) => m.poll?.id === pollId)
+      if (!message?.poll) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Poll not found' })
+      const room = findRoom(store, message.roomId)
+      requireMember(room, user.id)
+      const role = room.roles?.[user.id]
+      if (message.poll.createdBy !== user.id && role !== 'owner' && role !== 'deputy') throw new ApiError(403, { code: 'forbidden', message: 'Not allowed' })
+      message.poll.closedAt ??= new Date().toISOString()
+      message.poll.closedBy ??= user.id
+      save(store)
+      const updated = withReceipts(store, message)
+      setTimeout(() => emit({ type: 'message:poll', payload: updated, ts: new Date().toISOString() }), 0)
+      return updated
     },
 
     async updateMyProfile(input) {
       await delay()
       const user = currentUser()
       if (input.displayName.trim().length < 2 || input.displayName.trim().length > 50) throw invalid('displayName', 'Tên hiển thị cần 2–50 ký tự')
-      mockProfiles.set(user.id, { gender: input.gender, birthDate: input.birthDate, phone: input.phone.trim() })
+      mockProfiles.set(user.id, { gender: input.gender, birthDate: input.birthDate, phone: input.phone.trim(), profilePublic: input.profilePublic ?? mockProfiles.get(user.id)?.profilePublic ?? false })
       return { ...(await api.getMyProfile()), displayName: input.displayName.trim() }
     },
 

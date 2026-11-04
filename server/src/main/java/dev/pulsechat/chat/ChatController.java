@@ -66,6 +66,10 @@ public class ChatController {
     public ResponseEntity<Message> createPoll(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody CreatePoll input) {
         return ResponseEntity.status(201).body(chat.createPoll(id, user.userId(), input));
     }
+    @PostMapping("/polls/{id}/close")
+    public Message closePoll(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id) {
+        return chat.closePoll(id, user.userId());
+    }
     @PutMapping("/polls/{id}/votes")
     public Message vote(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody Vote input) {
         return chat.vote(id, user.userId(), input);

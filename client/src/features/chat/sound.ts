@@ -60,20 +60,29 @@ export function unlockSound() {
   if (context.state === 'suspended') void context.resume()
 }
 
+/**
+ * Tiếng "bóp" hai nhịp kiểu Messenger, tự tổng hợp (không dùng file âm thanh có bản quyền):
+ * mỗi nhịp là sóng sine trượt cao độ lên nhanh, bật tức thì rồi tắt dần như bong bóng vỡ.
+ */
 function chime(ctx: AudioContext) {
   const start = ctx.currentTime
-  for (const [i, freq] of [880, 1318.5].entries()) {
-    const at = start + i * 0.12
+  const blips: [delay: number, from: number, to: number][] = [
+    [0, 520, 880],
+    [0.095, 780, 1260],
+  ]
+  for (const [delay, from, to] of blips) {
+    const at = start + delay
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
     osc.type = 'sine'
-    osc.frequency.value = freq
+    osc.frequency.setValueAtTime(from, at)
+    osc.frequency.exponentialRampToValueAtTime(to, at + 0.06)
     gain.gain.setValueAtTime(0.0001, at)
-    gain.gain.exponentialRampToValueAtTime(0.25, at + 0.015)
-    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.22)
+    gain.gain.exponentialRampToValueAtTime(0.32, at + 0.006)
+    gain.gain.exponentialRampToValueAtTime(0.0001, at + 0.14)
     osc.connect(gain).connect(ctx.destination)
     osc.start(at)
-    osc.stop(at + 0.25)
+    osc.stop(at + 0.16)
   }
 }
 

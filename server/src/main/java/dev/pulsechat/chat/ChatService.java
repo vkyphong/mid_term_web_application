@@ -27,7 +27,8 @@ public class ChatService {
     private final RowMapper<Message> MESSAGE = (rs, n) -> new Message(rs.getString("id"), rs.getString("room_id"),
         rs.getString("client_msg_id"), new Sender(rs.getString("sender_id"), rs.getString("display_name")),
         rs.getString("content"), rs.getTimestamp("created_at").toInstant(), instant(rs,"edited_at"), instant(rs,"deleted_at"),
-        attachment(rs.getString("id")), receipts(rs.getString("id")), reactions(rs.getString("id")), poll(rs.getString("id")));
+        attachment(rs.getString("id")), receipts(rs.getString("id")), reactions(rs.getString("id")), poll(rs.getString("id")),
+        activity(rs));
 
     @Transactional(readOnly = true)
     public List<Room> listRooms(String user) {
@@ -198,7 +199,7 @@ public class ChatService {
         if (q.isEmpty() || q.length() > 100) throw field("q", "Search must contain 1–100 characters");
         room(room, user); requireMember(room, user);
         String pattern = "%" + q.toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
-        String sql = MESSAGE_SELECT + "WHERE m.room_id=? AND m.deleted_at IS NULL AND LOWER(m.content) LIKE ? ESCAPE '!'";
+        String sql = MESSAGE_SELECT + "WHERE m.room_id=? AND m.deleted_at IS NULL AND m.activity IS NULL AND LOWER(m.content) LIKE ? ESCAPE '!'";
         var args = new ArrayList<Object>(List.of(room, pattern));
         if (before != null) {
             var anchor = db.query("SELECT created_at FROM messages WHERE id=? AND room_id=?", (rs, n) -> rs.getTimestamp(1), before, room);
@@ -238,32 +239,73 @@ public class ChatService {
         return message;
     }
     /** Đặt lại toàn bộ lựa chọn của mình (gửi lại cùng danh sách không đổi gì); danh sách rỗng = bỏ bình chọn. */
-    public Message vote(String pollId, String user, Vote input) {
-        var polls = db.query("SELECT room_id, message_id, multiple FROM polls WHERE id=? FOR UPDATE",
-            (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getBoolean(3)}, pollId);
+    /** Khoá dòng poll, kiểm tra thành viên / phòng / tin chưa xoá. Trả về [room_id, message_id, multiple, question, created_by, closed]. */
+    private Object[] lockPoll(String pollId, String user) {
+        var polls = db.query("SELECT room_id, message_id, multiple, question, created_by, closed_at FROM polls WHERE id=? FOR UPDATE",
+            (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4), rs.getString(5), rs.getTimestamp(6) != null}, pollId);
         if (polls.isEmpty()) throw new ApiException(404, "invalid_payload", "not_found", "Poll not found");
-        String room = (String) polls.getFirst()[0], messageId = (String) polls.getFirst()[1];
-        requireMember(room, user); requireWritable(room);
-        if (db.queryForObject("SELECT COUNT(*) FROM messages WHERE id=? AND deleted_at IS NOT NULL", Integer.class, messageId) > 0)
+        var poll = polls.getFirst();
+        requireMember((String) poll[0], user); requireWritable((String) poll[0]);
+        if (db.queryForObject("SELECT COUNT(*) FROM messages WHERE id=? AND deleted_at IS NOT NULL", Integer.class, poll[1]) > 0)
             throw field("pollId", "The poll was deleted");
+        return poll;
+    }
+    public Message vote(String pollId, String user, Vote input) {
+        var poll = lockPoll(pollId, user);
+        String room = (String) poll[0], messageId = (String) poll[1];
+        if ((Boolean) poll[5]) throw new ApiException(409, "invalid_payload", "poll_closed", "The poll is closed");
         var chosen = input == null || input.optionIds() == null ? List.<String>of() : List.copyOf(new LinkedHashSet<>(input.optionIds()));
-        if (!(Boolean) polls.getFirst()[2] && chosen.size() > 1) throw field("optionIds", "Choose one option");
+        if (!(Boolean) poll[2] && chosen.size() > 1) throw field("optionIds", "Choose one option");
         var valid = new HashSet<>(db.query("SELECT id FROM poll_options WHERE poll_id=?", (rs, n) -> rs.getString(1), pollId));
         if (!valid.containsAll(chosen)) throw field("optionIds", "Unknown poll option");
+        var before = new HashSet<>(db.query("SELECT option_id FROM poll_votes WHERE poll_id=? AND user_id=?", (rs, n) -> rs.getString(1), pollId, user));
         db.update("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", pollId, user);
         for (String option : chosen) db.update("INSERT INTO poll_votes(option_id,user_id,poll_id,created_at) VALUES (?,?,?,?)", option, user, pollId, now());
         var message = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
         events.send(recipients(room), "/queue/events", "message:poll", message);
+        // Dòng hoạt động "X đã bình chọn / đổi lựa chọn / bỏ bình chọn" (gửi lại cùng lựa chọn thì không tạo).
+        if (!before.equals(new HashSet<>(chosen)))
+            activity(room, user, before.isEmpty() ? "vote" : chosen.isEmpty() ? "unvote" : "change", pollId, (String) poll[3]);
         return message;
     }
+    /** Khoá bình chọn: người tạo, trưởng nhóm hoặc phó nhóm. Khoá lại lần nữa không đổi gì. */
+    public Message closePoll(String pollId, String user) {
+        var poll = lockPoll(pollId, user);
+        String room = (String) poll[0], messageId = (String) poll[1];
+        String role = role(room, user);
+        if (!user.equals(poll[4]) && !"owner".equals(role) && !"deputy".equals(role)) throw forbidden();
+        if (!(Boolean) poll[5]) {
+            db.update("UPDATE polls SET closed_at=?, closed_by=? WHERE id=?", now(), user, pollId);
+            var message = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
+            events.send(recipients(room), "/queue/events", "message:poll", message);
+            activity(room, user, "close", pollId, (String) poll[3]);
+            return message;
+        }
+        return db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
+    }
+    /** Tin hệ thống trong khung chat: không receipts / thông báo, không tính chưa đọc, không đổi thứ tự phòng. */
+    private void activity(String room, String user, String type, String pollId, String question) {
+        String id = UUID.randomUUID().toString();
+        db.update("INSERT INTO messages(id,room_id,sender_id,client_msg_id,content,created_at,activity,activity_poll_id) VALUES (?,?,?,?,?,?,?,?)",
+            id, room, user, UUID.randomUUID().toString(), question, now(), type, pollId);
+        events.send(recipients(room), "/queue/events", "message:new", db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, id));
+    }
+    private Activity activity(ResultSet rs) throws SQLException {
+        String type = rs.getString("activity");
+        if (type == null) return null;
+        String pollId = rs.getString("activity_poll_id");
+        String pollMessage = db.query("SELECT message_id FROM polls WHERE id=?", (r, n) -> r.getString(1), pollId).stream().findFirst().orElse(null);
+        return new Activity(type, pollId, pollMessage);
+    }
     private Poll poll(String messageId) {
-        var polls = db.query("SELECT id, question, multiple, created_by FROM polls WHERE message_id=?",
-            (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4)}, messageId);
+        var polls = db.query("SELECT id, question, multiple, created_by, closed_at, closed_by FROM polls WHERE message_id=?",
+            (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4), instant(rs, "closed_at"), rs.getString(6)}, messageId);
         if (polls.isEmpty()) return null;
-        String pollId = (String) polls.getFirst()[0];
+        var p = polls.getFirst();
+        String pollId = (String) p[0];
         var options = db.query("SELECT id, label FROM poll_options WHERE poll_id=? ORDER BY sort_order", (rs, n) -> new PollOption(rs.getString(1), rs.getString(2),
             db.query("SELECT user_id FROM poll_votes WHERE option_id=? ORDER BY created_at, user_id", (v, i) -> v.getString(1), rs.getString(1))), pollId);
-        return new Poll(pollId, (String) polls.getFirst()[1], (Boolean) polls.getFirst()[2], (String) polls.getFirst()[3], options);
+        return new Poll(pollId, (String) p[1], (Boolean) p[2], (String) p[3], options, (Instant) p[4], (String) p[5]);
     }
     private void requireChannel(String id) {
         if (!"channel".equals(lockRoom(id))) throw forbidden();

@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import { FormAlert } from '../../auth/components/FormAlert'
 import { TextField } from '../../auth/components/TextField'
 import { describeChatError } from '../errors'
-import { useCreatePoll, useVote } from '../hooks'
+import { useClosePoll, useCreatePoll, useVote } from '../hooks'
+import { roleOf } from '../roles'
 import type { Poll, UserSummary } from '../types'
 import { Modal } from './Modal'
 
@@ -86,6 +87,11 @@ export function CreatePollDialog({ roomId, onClose }: { roomId: string; onClose:
 export function PollCard(props: { poll: Poll; selfId: string; members: readonly UserSummary[]; disabled?: boolean }) {
   const { poll, selfId, members, disabled } = props
   const vote = useVote()
+  const close = useClosePoll()
+  const closed = Boolean(poll.closedAt)
+  // Khoá bình chọn: người tạo, trưởng nhóm, phó nhóm.
+  const myRole = roleOf(members, selfId)
+  const canClose = !closed && !disabled && (poll.createdBy === selfId || myRole === 'owner' || myRole === 'deputy')
   const mine = poll.options.filter((o) => o.voters.includes(selfId)).map((o) => o.id)
   const voters = new Set(poll.options.flatMap((o) => o.voters))
   const nameOf = (id: string) => (id === selfId ? 'Bạn' : (members.find((m) => m.id === id)?.displayName ?? 'Ai đó'))
@@ -100,7 +106,7 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
     <div className="poll-card" role="group" aria-label={`Bình chọn: ${poll.question}`}>
       <p className="poll-question">📊 {poll.question}</p>
       <p className="muted small">
-        {poll.multiple ? 'Chọn được nhiều phương án' : 'Chọn một phương án'} · {voters.size} người đã bình chọn
+        {closed ? '🔒 Đã khoá bình chọn' : poll.multiple ? 'Chọn được nhiều phương án' : 'Chọn một phương án'} · {voters.size} người đã bình chọn
       </p>
       <ul className="poll-options">
         {poll.options.map((o) => {
@@ -114,7 +120,7 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
                 role={poll.multiple ? 'checkbox' : 'radio'}
                 aria-checked={chosen}
                 aria-label={`${o.label}: ${o.voters.length} phiếu`}
-                disabled={disabled || vote.isPending}
+                disabled={disabled || closed || vote.isPending}
                 onClick={() => toggle(o.id)}
               >
                 <span className="poll-option-bar" style={{ width: `${percent}%` }} aria-hidden="true" />
@@ -131,7 +137,12 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
           )
         })}
       </ul>
-      {vote.error && <p className="field-error small">{describeChatError(vote.error)}</p>}
+      {canClose && (
+        <button type="button" className="btn-secondary poll-close" disabled={close.isPending} onClick={() => close.mutate(poll.id)}>
+          {close.isPending ? 'Đang khoá…' : '🔒 Khoá bình chọn'}
+        </button>
+      )}
+      {(vote.error || close.error) && <p className="field-error small">{describeChatError(vote.error ?? close.error)}</p>}
     </div>
   )
 }
