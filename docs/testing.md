@@ -43,7 +43,7 @@ npm run test:e2e
 
 Test F03/F04 dùng ba Chromium context độc lập để kiểm tra membership, DM, lưu lịch sử và reconnect. Workload gửi 5 tin khởi động (không tính) rồi đo 40 tin giữa hai thành viên, chờ ít nhất 550 ms trước mỗi lần gửi để tuân thủ F11. p95 của 40 mẫu là giá trị thứ 38, nên 1–2 gai lẻ trên máy CI dùng chung không quyết định kết quả; log in p50, p95, max và số mẫu ≥ 200 ms. Độ trễ đo từ STOMP SEND tới frame nhận bằng clock của test runner, không tính khoảng chờ; p95 mục tiêu dưới 200 ms trên localhost.
 
-Kết quả workload này không xác nhận tải 500/1000 client hoặc heartbeat blackhole F17/F18. Test chạy headless, tắt screenshot/video/trace và không tạo bộ bằng chứng demo riêng. `history.e2e.ts` kiểm tra UI F05; `realtime.e2e.ts` kiểm tra UI F06–F08 (presence nhiều tab, typing không lộ sang phòng khác, receipts DM). `collaboration.e2e.ts` kiểm tra UI F09 (mention, toast, badge, đồng bộ đã đọc), F10 (offline rồi gửi bù đúng thứ tự), F11 (vượt giới hạn tự chờ, XSS), F14 (sửa/xoá/cảm xúc) và F15 (ảnh, PDF, file quá 5 MB, người ngoài bị 403). E2E chưa nghiệm thu UI F12–F13.
+Kết quả workload này không xác nhận tải 500/1000 client hoặc heartbeat blackhole F17/F18. Test chạy headless, tắt screenshot/video/trace và không tạo bộ bằng chứng demo riêng. `history.e2e.ts` kiểm tra UI F05; `realtime.e2e.ts` kiểm tra UI F06–F08 (presence nhiều tab, typing không lộ sang phòng khác, receipts DM). `collaboration.e2e.ts` kiểm tra UI F09 (mention, toast, badge, đồng bộ đã đọc), F10 (offline rồi gửi bù đúng thứ tự), F11 (vượt giới hạn tự chờ, XSS), F14 (sửa/thu hồi/cảm xúc qua menu "…") và F15 (ảnh, PDF, file quá 100 MB, người ngoài bị 403). `groups.e2e.ts` kiểm tra nhóm, @All, file Office/TXT/CSV/ZIP, nhóm lưu trữ, tin chưa đọc, đổi tên / ảnh nhóm, bình chọn, phê duyệt thành viên, dán ảnh Ctrl+V, trả lời / chuyển tiếp / ghim / xoá chỉ ở phía tôi. E2E chưa nghiệm thu UI F12–F13.
 
 ## Bảng trắng cộng tác (F19)
 
@@ -97,22 +97,17 @@ Xác minh F13 local ngày 28/10/2026: lint + production build, **154 frontend te
 
 ## Admin Dashboard (F12)
 
-`src/features/admin/admin.test.tsx` kiểm tra chặn tài khoản thường, không tự ban, xác nhận/hủy kick/ban/broadcast, thông báo lỗi, giới hạn byte UTF-8 và đăng ký lại queue thống kê sau reconnect. `CollaborationIntegrationTest` kiểm tra phân quyền API, tìm kiếm literal `%`/`_`, phân trang, trạng thái tài khoản đã ban, kênh hoạt động không lộ DM, cùng các thao tác kick/ban/broadcast trên backend thật trong H2.
+`src/features/admin/admin.test.tsx` kiểm tra quản lý nhóm (lọc, tạo, sửa, trùng tên, lưu trữ, thêm / xoá thành viên), chặn tài khoản thường, không tự ban, xác nhận/hủy kick/ban/broadcast, thông báo lỗi, giới hạn byte UTF-8 và đăng ký lại queue thống kê sau reconnect. `CollaborationIntegrationTest` kiểm tra phân quyền API, tìm kiếm literal `%`/`_`, phân trang, trạng thái tài khoản đã ban, kênh hoạt động không lộ DM, cùng các thao tác kick/ban/broadcast trên backend thật trong H2.
 
-Browser smoke `e2e/admin.e2e.ts` dùng một tài khoản admin đã tồn tại trên app/MySQL local, kiểm tra login → `/admin`, push thống kê, biểu đồ, tìm kiếm, cấm tự ban, hộp thoại broadcast/hủy bằng Escape, reload và viewport mobile 390px. Test này không gửi broadcast hoặc kick/ban tài khoản thật; các thao tác đó được kiểm tra bằng component/integration tests. Nếu không cung cấp thông tin đăng nhập, browser smoke admin được bỏ qua.
+Browser smoke `e2e/admin.e2e.ts` mặc định đăng nhập bằng tài khoản admin demo `admin@dqgm.dev` / `Admin123456` (backend tự tạo khi khởi động), kiểm tra login → `/admin`, push thống kê, biểu đồ, tìm kiếm, cấm tự ban, hộp thoại broadcast/hủy bằng Escape, reload, viewport mobile 390px, và luồng quản lý nhóm thật: tạo, đổi tên, thêm / xoá thành viên, lưu trữ rồi khôi phục. Test không gửi broadcast hoặc kick/ban tài khoản thật. `DemoAdminAccountTest` kiểm tra việc tạo tài khoản admin demo không trùng lặp.
 
-Chạy trong `client/` bằng PowerShell, nhập thông tin tài khoản của bạn khi được hỏi:
+Chạy trong `client/`:
 
 ```powershell
-$env:ADMIN_TEST_EMAIL = Read-Host 'Email admin'
-$adminTestSecret = Read-Host 'Mật khẩu admin' -AsSecureString
-$env:ADMIN_TEST_PASSWORD = [System.Net.NetworkCredential]::new('', $adminTestSecret).Password
-try {
-    npm.cmd run test:e2e -- admin.e2e.ts
-} finally {
-    Remove-Item Env:ADMIN_TEST_EMAIL, Env:ADMIN_TEST_PASSWORD
-}
+npm.cmd run test:e2e -- admin.e2e.ts
 ```
+
+Để dùng tài khoản admin khác, đặt `$env:ADMIN_TEST_EMAIL` và `$env:ADMIN_TEST_PASSWORD` trước khi chạy.
 
 Mặc định dùng Chromium của Playwright. Có thể đặt `$env:PLAYWRIGHT_CHANNEL = 'chrome'` để dùng Chrome đã cài trên máy hoặc `'msedge'` cho Edge. Screenshot mặc định tắt; chỉ chụp nếu người chạy chủ động đặt `ADMIN_SCREENSHOT_PATH` đến một file local.
 

@@ -1,6 +1,27 @@
 # PulseChat
 
-Đồ án chat realtime dùng React + TypeScript, Java 21/Spring Boot và MySQL 8.4. Một Spring Boot instance phục vụ giao diện, REST và STOMP over WebSocket; ứng dụng và database chạy bằng Docker Compose.
+Đồ án giữa kỳ môn **Lập trình web và ứng dụng (503073)**, chủ đề **WebSockets và giao tiếp thời gian thực**. Ứng dụng chat nội bộ "Tập Đoàn M Chat" dùng React + TypeScript, Java 21/Spring Boot và MySQL 8.4. Một Spring Boot instance phục vụ giao diện, REST và STOMP over WebSocket; ứng dụng và database chạy bằng Docker Compose.
+
+## Thành viên nhóm
+
+| MSSV | Họ và tên | Phụ trách chính |
+| --- | --- | --- |
+| 52400260 | Võ Thành Đạt | Frontend chat: nhóm, thành viên, file, thông báo, thao tác tin nhắn |
+| 52400225 | Vòng Kỷ Phong | Backend: auth, realtime, chat, nhóm, file |
+| 52400001 | Nguyễn Thế An | Admin Live Dashboard, Protocol Lab, bảng trắng |
+
+## Yêu cầu hệ thống
+
+| Thành phần | Yêu cầu |
+| --- | --- |
+| Hệ điều hành | Windows 10/11 (đã kiểm tra), Linux hoặc macOS |
+| Docker | Docker Desktop 4.x trở lên (Docker Engine 24+ với Compose v2); đã kiểm tra với Docker 29.8 |
+| Phần cứng | RAM trống tối thiểu 4 GB cho Docker (khuyến nghị 8 GB), ổ đĩa trống khoảng 5 GB cho image và volume |
+| Mạng | Cần internet ở lần build đầu để tải image và thư viện |
+| Cổng | `8080` (ứng dụng); đổi bằng `APP_PORT` trong `.env` nếu bị trùng |
+| Trình duyệt | Chrome, Edge hoặc Firefox bản mới |
+
+Chạy ứng dụng **không** cần cài Java, Maven hay Node: mọi thứ được build trong Docker. Chỉ cần Node 22 khi muốn chạy Browser E2E hoặc frontend riêng bằng Vite.
 
 ## Chạy ứng dụng
 
@@ -11,11 +32,41 @@ powershell -ExecutionPolicy Bypass -File scripts/init-env.ps1
 docker compose up --build -d --wait
 ```
 
-Mở **http://localhost:8080**. Đăng ký email thuộc `@DQGM.dev`, mật khẩu ít nhất 8 ký tự, có chữ và số, tối đa 72 byte UTF-8. Mỗi người dùng tự tạo tài khoản; không có tài khoản mặc định.
+Trên Linux/macOS:
 
-Script tạo `.env` chứa secret ngẫu nhiên nếu file chưa tồn tại. Trên Linux/macOS, copy `.env.example` sang `.env` và thay các giá trị secret trước khi chạy Compose. Lần build đầu cần internet và sẽ chạy test frontend/backend; chạy ứng dụng không yêu cầu cài Java, Maven hay Node trên máy.
+```bash
+cp .env.example .env   # rồi thay các giá trị replace-with-... bằng chuỗi ngẫu nhiên
+docker compose up --build -d --wait
+```
 
-Flyway tự áp dụng migration khi backend khởi động. MySQL và file upload được giữ trong hai Docker volume riêng.
+Mở **http://localhost:8080**. Lần build đầu mất khoảng 5–10 phút vì chạy luôn lint, unit test frontend và test backend; lệnh trả về khi app đã healthy. Dừng bằng `docker compose down` (dữ liệu vẫn giữ); xoá toàn bộ dữ liệu bằng `docker compose down -v`.
+
+Script tạo `.env` chứa secret ngẫu nhiên nếu file chưa tồn tại. Flyway tự áp dụng migration (V1–V15) khi backend khởi động. MySQL và file upload được giữ trong hai Docker volume riêng.
+
+## Tài khoản demo
+
+| Vai trò | Email | Mật khẩu | Ghi chú |
+| --- | --- | --- | --- |
+| Admin | `admin@dqgm.dev` | `Admin123456` | Tạo tự động khi backend khởi động; đăng nhập sẽ vào thẳng `/admin` |
+| Nhân viên | Tự đăng ký tại `/register` | Tự đặt | Email phải thuộc `@DQGM.dev`; mật khẩu ≥ 8 ký tự, có chữ và số |
+
+Để thử chat realtime, đăng ký 2–3 tài khoản nhân viên và mở mỗi tài khoản ở một cửa sổ ẩn danh / trình duyệt khác nhau. Tài khoản admin demo cấu hình bằng `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD`, `DEMO_ADMIN_NAME` trong `.env`; đặt `DEMO_ADMIN_EMAIL=` (rỗng) để tắt khi triển khai thật. Nếu email đã được đăng ký trước đó, backend chỉ cấp quyền admin mà không đổi mật khẩu.
+
+## Kiểm thử nhanh
+
+```powershell
+# Unit test frontend (lint + Vitest) và backend (JUnit, MockMvc, WebSocket thật) trong Docker
+docker build --target frontend-test -f infra/Dockerfile .
+docker build --target backend-test -f infra/Dockerfile .
+
+# Browser E2E trên app đang chạy (cần Node 22)
+cd client
+npm ci
+npx playwright install chromium
+npm run test:e2e
+```
+
+E2E admin dùng sẵn tài khoản admin demo. Chi tiết từng bộ test, smoke test và cách đọc kết quả: [Kiểm thử](docs/testing.md).
 
 ## Admin Live Dashboard
 
@@ -26,7 +77,9 @@ Mở **http://localhost:8080/admin** và đăng nhập bằng tài khoản có r
 - Kênh hoạt động: tối đa 50 kênh có tin trong 60 giây, số thành viên và số tin/phút; cập nhật mỗi 5 giây. Chỉ số **phòng hoạt động** bao gồm cả kênh và DM, danh sách kênh không hiển thị DM.
 - **Broadcast** lưu thông báo hệ thống cho tất cả tài khoản đang được kích hoạt, kể cả offline; người đang kết nối nhận thông báo realtime. Nội dung tối đa 2048 byte UTF-8. Kick, Ban và Broadcast đều có bước xác nhận.
 
-Đăng ký tạo tài khoản `user`; không có mật khẩu admin mặc định trong source. Xem [cấp quyền admin](docs/operations.md#tài-khoản-admin) để cấp quyền cho tài khoản đã đăng ký, rồi đăng nhập lại. Dashboard dùng backend thật, không hỗ trợ chế độ mock.
+- **Quản lý nhóm:** tìm và lọc nhóm (tất cả / đang hoạt động / đã lưu trữ), tạo nhóm, đổi tên và mô tả, thêm / xoá thành viên (kể cả khi admin không ở trong nhóm), lưu trữ và khôi phục nhóm có xác nhận. Admin không đọc được nội dung chat.
+
+Đăng nhập bằng [tài khoản admin demo](#tài-khoản-demo), hoặc xem [cấp quyền admin](docs/operations.md#tài-khoản-admin) để cấp quyền cho tài khoản khác. Dashboard dùng backend thật, không hỗ trợ chế độ mock.
 
 ## Protocol Lab (F13)
 
@@ -55,8 +108,10 @@ Lần chạy `docker compose up --build -d --wait` tiếp theo tự áp dụng m
 - **F09:** chuông thông báo có số chưa đọc, toast khi được @mention hoặc có tin riêng (không cần tải lại), bấm để mở đúng hội thoại; gõ `@` để chọn thành viên phòng; đã đọc đồng bộ giữa các tab. Thông báo `system` (F12) hiển thị không kèm link.
 - **F10:** tin gửi khi mất mạng được xếp hàng ("Chờ kết nối để gửi…") và gửi bù đúng thứ tự khi có mạng lại; mất ack thì gửi lại cùng `clientMsgId` nên không trùng; banner báo mất kết nối và số tin đang chờ.
 - **F11:** gửi quá 10 tin / 5 giây thì tự chờ rồi gửi tiếp; lỗi `forbidden`/`invalid_payload` hiện lý do dưới tin kèm "Thử lại"; nội dung luôn hiển thị dạng text (không chạy HTML/script).
-- **F14:** di chuột vào tin để thả cảm xúc (👍 ❤️ 😂 😮 😢 🎉), sửa hoặc xoá tin của mình; thay đổi hiện ngay ở mọi người trong phòng, tin đã xoá hiện "Tin nhắn đã bị xoá".
-- **F15:** nút 📎 gửi ảnh JPEG/PNG hoặc PDF ≤ 5 MB, có thanh tiến trình; ảnh hiển thị trực tiếp, PDF có nút tải; chỉ thành viên phòng tải được. Thiết kế F09–F15: [notifications](docs/features/notifications-mentions.md), [offline queue and limits](docs/features/offline-queue-limits.md), [message actions and files](docs/features/message-actions-files.md).
+- **F14:** di chuột vào tin để hiện ba nút như Zalo: **Trả lời** (trích tin gốc, bấm để nhảy tới), **Chuyển tiếp** (hộp "Chia sẻ" tới nhiều nhóm / đồng nghiệp, kèm lời nhắn) và **…** (Lưu về máy, Ghim, Sửa, Thu hồi, Xoá chỉ ở phía tôi). Nút thả cảm xúc (👍 ❤️ 😂 😮 😢 🎉) ở góc dưới bên phải mọi tin. Tin ghim hiện trên đầu đoạn chat; tin thu hồi hiện "Tin nhắn đã được thu hồi" với mọi người. Mọi thay đổi đồng bộ realtime.
+- **F15:** gửi ảnh JPEG/PNG, PDF, Word, Excel, PowerPoint, TXT, CSV, ZIP tối đa 100 MB/file, có thanh tiến trình; Ctrl+V dán ảnh từ clipboard (khay tối đa 20 ảnh); ảnh hiển thị lớn trong khung chat, file có nút tải; chỉ thành viên phòng tải được. Thiết kế F09–F15: [notifications](docs/features/notifications-mentions.md), [offline queue and limits](docs/features/offline-queue-limits.md), [message actions and files](docs/features/message-actions-files.md).
+- **Nhóm:** tạo nhóm kèm thành viên, thêm người (trưởng nhóm có thể bật chế độ phê duyệt), đổi tên, ảnh nhóm hoặc avatar ghép từ thành viên, trưởng nhóm 🔑 vàng và tối đa 5 phó nhóm 🔑 bạc, `@All`, bình chọn realtime (khoá / mở lại), tìm tin nhắn cũ, mục "Thông tin nhóm" với lịch sử Ảnh/Video, File, Link. Tin nhắn riêng có biệt danh. API: [nhóm, thành viên, file](docs/api/groups-members-files.md).
+- **Tài khoản và thông báo:** ảnh đại diện, hồ sơ công khai / riêng tư, số tin chưa đọc do server tính (vòng tròn đỏ, tối đa 5+), âm báo tin mới; chuông chỉ dành cho @mention và thông báo hệ thống.
 - **F12:** Admin Live Dashboard, thống kê realtime, tài khoản có tìm kiếm/phân trang, kênh hoạt động, kick/ban và broadcast với xác nhận.
 - **F13:** Protocol Lab có giao diện chạy cùng workload qua bốn giao thức, biểu đồ, p50/p95, request/header/frame accounting và JSON export.
 - **F19:** Bảng trắng theo phòng, vẽ đồng thời, lưu/khôi phục nét, quyền thành viên và xóa bảng có xác nhận; xem phạm vi và giới hạn ở trên.
@@ -64,7 +119,7 @@ Lần chạy `docker compose up --build -d --wait` tiếp theo tự áp dụng m
 | Phần | Trạng thái triển khai |
 | --- | --- |
 | F01–F11, F14, F15 | Đã có frontend/backend và e2e trên backend thật |
-| F12 | Đã tích hợp Admin Live Dashboard với backend thật; xem cách chạy ở trên |
+| F12 | Đã tích hợp Admin Live Dashboard và quản lý nhóm với backend thật; xem cách chạy ở trên |
 | F13 | Đã tích hợp Protocol Lab với backend; xem cách chạy và phạm vi đo ở trên |
 | F16 | Ngoài phạm vi đồ án; dùng một backend, không Redis/Nginx |
 | F19 | Đã tích hợp bảng trắng; peer review/báo cáo và nghiệm thu tùy chọn theo backlog |

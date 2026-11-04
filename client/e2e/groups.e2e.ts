@@ -229,9 +229,9 @@ test('gửi file Word, CSV, TXT, ZIP; chặn định dạng không hỗ trợ tr
 })
 
 test('nhóm bị admin lưu trữ: vẫn đọc lịch sử, không còn ô soạn tin, BE chặn gửi file', async ({ browser }) => {
-  const email = process.env.ADMIN_TEST_EMAIL
-  const password = process.env.ADMIN_TEST_PASSWORD
-  test.skip(!email || !password, 'Set ADMIN_TEST_EMAIL and ADMIN_TEST_PASSWORD to run against a real admin account.')
+  // Mặc định là tài khoản admin demo backend tự tạo (xem README); đặt ADMIN_TEST_* để dùng tài khoản khác.
+  const email = process.env.ADMIN_TEST_EMAIL ?? 'admin@dqgm.dev'
+  const password = process.env.ADMIN_TEST_PASSWORD ?? 'Admin123456'
   const [alice, bob] = await Promise.all([account(browser, 'alice'), account(browser, 'bob')])
   const admin = await browser.newContext({ baseURL: 'http://localhost:8080' })
   try {

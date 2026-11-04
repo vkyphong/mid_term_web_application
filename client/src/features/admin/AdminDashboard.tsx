@@ -1,51 +1,15 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { config } from '../../config'
 import { ApiError } from '../../lib/apiError'
+import { describeError } from './adminErrors'
+import { AdminGroups } from './AdminGroups'
+import { Confirmation, Icon } from './adminUi'
 import { useLogout, useSession } from '../auth/hooks'
 import { adminApi, type AdminUser } from './adminApi'
 import { useAdminStats, type StatsSample } from './useAdminStats'
 import './admin.css'
-
-function describeError(error: unknown) {
-  if (error instanceof ApiError) {
-    if (error.status === 403) return 'Tài khoản không có quyền quản trị. Vui lòng đăng nhập lại sau khi được cấp quyền.'
-    if (error.status === 401) return 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
-    if (error.code === 'network_error') return 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.'
-    if (error.details.length) return error.details[0].message
-  }
-  return 'Chưa thực hiện được thao tác. Vui lòng thử lại.'
-}
-
-function Icon({ name }: { name: 'pulse' | 'users' | 'message' | 'channel' | 'shield' | 'broadcast' }) {
-  const paths = {
-    pulse: 'M3 12h4l3-8 4 16 3-8h4',
-    users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0',
-    message: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z',
-    channel: 'M4 9h16M3 15h16M10 3 8 21M16 3l-2 18',
-    shield: 'M12 22s8-4 8-11V5l-8-3-8 3v6c0 7 8 11 8 11ZM9 12l2 2 4-4',
-    broadcast: 'M3 10v4h4l12 5V5L7 10H3ZM7 14l2 7h4l-2-5M22 9v6',
-  }
-  return <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name]} /></svg>
-}
-
-function Confirmation({ title, busy, onClose, children }: { title: string; busy: boolean; onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLDialogElement>(null)
-  useEffect(() => {
-    const previous = document.activeElement as HTMLElement | null
-    const dialog = ref.current
-    dialog?.showModal()
-    return () => { dialog?.close(); previous?.focus() }
-  }, [])
-  return (
-    <dialog ref={ref} className="admin-dialog" aria-labelledby="admin-confirm-title" onCancel={(e) => { e.preventDefault(); if (!busy) onClose() }}>
-      <div className="admin-dialog-icon"><Icon name="shield" /></div>
-      <h2 id="admin-confirm-title">{title}</h2>
-      {children}
-    </dialog>
-  )
-}
 
 function TrafficChart({ samples, live }: { samples: StatsSample[]; live: boolean }) {
   const latest = samples.at(-1)?.at ?? Date.now()
@@ -126,7 +90,7 @@ export function AdminDashboard() {
         <Link className="brand" to="/"><span className="brand-dot" aria-hidden="true" />{config.appName}</Link>
         <div className="admin-workspace"><span className="admin-workspace-icon"><Icon name="shield" /></span><div><strong>IT Administration</strong><span>Không gian quản trị</span></div></div>
         <p className="admin-nav-label">ĐIỀU HÀNH</p>
-        <nav aria-label="Quản trị"><a href="#overview" className="admin-nav-active"><Icon name="pulse" />Live Dashboard</a><a href="#accounts"><Icon name="users" />Tài khoản</a><a href="#broadcast"><Icon name="broadcast" />Broadcast</a><Link to="/lab"><Icon name="pulse" />Protocol Lab</Link></nav>
+        <nav aria-label="Quản trị"><a href="#overview" className="admin-nav-active"><Icon name="pulse" />Live Dashboard</a><a href="#accounts"><Icon name="users" />Tài khoản</a><a href="#groups"><Icon name="channel" />Nhóm</a><a href="#broadcast"><Icon name="broadcast" />Broadcast</a><Link to="/lab"><Icon name="pulse" />Protocol Lab</Link></nav>
       </aside>
 
       <main className="admin-main" id="overview">
@@ -189,6 +153,7 @@ export function AdminDashboard() {
                 <section className="admin-panel admin-broadcast" id="broadcast" aria-labelledby="broadcast-title"><div className="admin-panel-heading"><div><h2 id="broadcast-title"><Icon name="broadcast" />Broadcast hệ thống</h2><p>Gửi thông báo đến mọi tài khoản đang được kích hoạt, kể cả người offline.</p></div></div><form onSubmit={submitBroadcast}><label htmlFor="broadcast-content" className="sr-only">Nội dung broadcast</label><textarea id="broadcast-content" rows={4} placeholder="VD: Hệ thống bảo trì lúc 22:00 hôm nay…" value={content} onChange={(e) => setContent(e.target.value)} aria-invalid={bytes > 2048} disabled={broadcast.isPending || !enabled} /><div className="admin-broadcast-bottom"><span className={bytes > 2048 ? 'admin-text-danger' : ''}>{bytes}/2048 byte</span><button className="admin-button admin-button--primary" type="submit" disabled={!enabled || bytes < 1 || bytes > 2048 || broadcast.isPending}><Icon name="broadcast" />Gửi broadcast</button></div>{bytes > 2048 && <p className="admin-inline-error">Nội dung vượt giới hạn 2048 byte UTF-8.</p>}</form></section>
               </div>
             </div>
+            <AdminGroups enabled={enabled} onNotice={setNotice} />
             <footer className="admin-footer"><span><Icon name="shield" />Chỉ dành cho IT Admin</span><span>{config.appName} · Live Operations</span></footer>
           </>}
         </div>

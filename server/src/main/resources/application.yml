@@ -45,3 +45,8 @@ app:
   allowed-email-domains: ${ALLOWED_EMAIL_DOMAINS:DQGM.dev}
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173}
   cookie-secure: ${COOKIE_SECURE:false}
+  # Tài khoản admin demo, tạo khi khởi động nếu chưa có (DEMO_ADMIN_EMAIL rỗng thì tắt).
+  demo-admin:
+    email: ${DEMO_ADMIN_EMAIL:}
+    password: ${DEMO_ADMIN_PASSWORD:}
+    name: ${DEMO_ADMIN_NAME:Quản trị viên}
