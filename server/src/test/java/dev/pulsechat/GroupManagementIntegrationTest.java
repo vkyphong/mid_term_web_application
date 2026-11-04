@@ -150,6 +150,27 @@ class GroupManagementIntegrationTest {
             .header("Authorization", "Bearer " + outsider.token())).andExpect(status().isNotFound());
     }
 
+    @Test void usersReadAndUpdateTheirOwnProfile() throws Exception {
+        Account me = account();
+        var profile = get("/api/me/profile", me, 200);
+        assertThat(profile.path("displayName").asText()).isEqualTo("Group Employee");
+        assertThat(profile.path("gender").isNull()).isTrue();
+        var updated = call(HttpMethod.PUT, "/api/me/profile", me,
+            Map.of("displayName", "  Võ Thành Đạt ", "gender", "male", "birthDate", "2006-05-18", "phone", "0901 234 567"), 200);
+        assertThat(updated.path("displayName").asText()).isEqualTo("Võ Thành Đạt");
+        assertThat(updated.path("birthDate").asText()).isEqualTo("2006-05-18");
+        assertThat(updated.path("phone").asText()).isEqualTo("0901 234 567");
+        assertThat(get("/api/auth/me", me, 200).path("displayName").asText()).isEqualTo("Võ Thành Đạt");
+        // Xoá thông tin tuỳ chọn bằng chuỗi rỗng.
+        updated = call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Võ Thành Đạt", "gender", "", "birthDate", "", "phone", ""), 200);
+        assertThat(updated.path("gender").isNull()).isTrue();
+        assertThat(updated.path("phone").isNull()).isTrue();
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "x"), 400);
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Hợp lệ", "gender", "robot"), 400);
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Hợp lệ", "birthDate", "2999-01-01"), 400);
+        call(HttpMethod.PUT, "/api/me/profile", me, Map.of("displayName", "Hợp lệ", "phone", "gọi tôi"), 400);
+    }
+
     @Test void creatorOwnsChannelAndAppointsUpToFiveDeputies() throws Exception {
         Account boss = account();
         String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Roles-" + UUID.randomUUID().toString().substring(0, 20), null)).id();

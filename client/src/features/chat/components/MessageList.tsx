@@ -83,7 +83,9 @@ const GROUP_WINDOW_MS = 5 * 60 * 1000
 
 /** Tin liền nhau của cùng người trong 5 phút thì gộp, không lặp tên. */
 function startsGroup(prev: ChatMessage | undefined, m: ChatMessage) {
-  return !prev || prev.sender.id !== m.sender.id || Date.parse(m.createdAt) - Date.parse(prev.createdAt) > GROUP_WINDOW_MS
+  // Bình chọn nằm giữa khung, nên tin ngay sau nó bắt đầu nhóm mới (hiện lại tên + avatar).
+  if (!prev || prev.poll || m.poll) return true
+  return prev.sender.id !== m.sender.id || Date.parse(m.createdAt) - Date.parse(prev.createdAt) > GROUP_WINDOW_MS
 }
 
 export function MessageList({

@@ -28,9 +28,8 @@ import { AddMembersDialog } from './AddMembersDialog'
 import { RoomAvatar } from './RoomAvatar'
 import { GroupAvatarDialog, NicknameDialog, RenameGroupDialog } from './RoomSettingsDialogs'
 import { MembersDialog } from './MembersDialog'
-import { MessageSearchDialog } from './MessageSearchDialog'
+import { MessageSearchBar } from './MessageSearchBar'
 import { CreatePollDialog } from './Polls'
-import { SearchIcon } from './icons'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
 import '../../whiteboard/whiteboard.css'
@@ -200,7 +199,7 @@ function Conversation({ room }: { room: Room }) {
           </div>
           <p className="muted small">
             {room.type === 'dm'
-              ? [room.nickname && room.peer ? `Tên thật: ${room.peer.displayName}` : null, describePresence(peerPresence), room.peer?.email]
+              ? [room.nickname && room.peer ? `Tên thật: ${room.peer.displayName}` : null, describePresence(peerPresence)]
                   .filter(Boolean)
                   .join(' · ')
               : (
@@ -213,9 +212,13 @@ function Conversation({ room }: { room: Room }) {
               )}
           </p>
         </div>
-        <button type="button" className="icon-btn room-search-btn" aria-label="Tìm tin nhắn" title="Tìm tin nhắn" onClick={() => setEditing('search')}>
-          <SearchIcon />
-        </button>
+        <MessageSearchBar
+          roomId={room.id}
+          open={editing === 'search'}
+          onOpen={() => setEditing('search')}
+          onClose={closeEditing}
+          onPick={(m) => void openSearchResult(m.id)}
+        />
         {canAddMembers && (
           <button type="button" className="btn-secondary room-add-members" onClick={() => setAdding(true)}>
             Thêm thành viên
@@ -240,7 +243,6 @@ function Conversation({ room }: { room: Room }) {
           onAddMembers={canAddMembers ? () => { setEditing(null); setAdding(true) } : undefined}
         />
       )}
-      {editing === 'search' && <MessageSearchDialog roomId={room.id} onClose={closeEditing} onPick={(m) => void openSearchResult(m.id)} />}
       {editing === 'poll' && <CreatePollDialog roomId={room.id} onClose={closeEditing} />}
       {jumpError && <FormAlert>{jumpError}</FormAlert>}
       <div className="room-tabs" role="tablist" aria-label="Nội dung phòng">

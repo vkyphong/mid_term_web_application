@@ -9,7 +9,7 @@ import { ApiError } from '../../lib/apiError'
 import { getMockCurrentUser, listMockUsers } from '../auth/mockAuthApi'
 import type { ChatApi } from './chatApi'
 import type { ChatTransport } from './transport'
-import { REACTION_EMOJIS, type MemberRole, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
+import { REACTION_EMOJIS, type Gender, type MemberRole, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
 
 const STORE_KEY = 'pulsechat.mock.chat'
 const PAGE_SIZE = 30 // = HISTORY_PAGE_SIZE (không import để tránh vòng chatApi ↔ mockChat)
@@ -65,6 +65,8 @@ interface Store {
 
 /** Nội dung file chỉ giữ trong bộ nhớ của tab đã upload (localStorage không đủ chỗ cho file lớn). */
 const uploadBlobs = new Map<string, Blob>()
+/** Mock: giới tính / ngày sinh / điện thoại chỉ giữ trong bộ nhớ tab. */
+const mockProfiles = new Map<string, { gender: Gender | ''; birthDate: string; phone: string }>()
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 /** Đuôi file BE chấp nhận → MIME (BE tự xác định MIME, không tin trình duyệt). */
 const UPLOAD_TYPES: Record<string, string> = {
@@ -523,6 +525,25 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       const avatar = { userId: user.id, avatarUrl: `/api/users/${user.id}/avatar?v=${Date.now()}` }
       emit({ type: 'user:avatar', payload: avatar, ts: new Date().toISOString() })
       return avatar
+    },
+
+    async getMyProfile() {
+      await delay(40)
+      const user = currentUser()
+      const extra = mockProfiles.get(user.id)
+      return {
+        id: user.id, email: user.email, displayName: user.displayName, gender: extra?.gender || null,
+        birthDate: extra?.birthDate || null, phone: extra?.phone || null,
+        avatarUrl: uploadBlobs.has(`user:${user.id}`) ? `/api/users/${user.id}/avatar?v=1` : null,
+      }
+    },
+
+    async updateMyProfile(input) {
+      await delay()
+      const user = currentUser()
+      if (input.displayName.trim().length < 2 || input.displayName.trim().length > 50) throw invalid('displayName', 'Tên hiển thị cần 2–50 ký tự')
+      mockProfiles.set(user.id, { gender: input.gender, birthDate: input.birthDate, phone: input.phone.trim() })
+      return { ...(await api.getMyProfile()), displayName: input.displayName.trim() }
     },
 
     async removeMyAvatar() {

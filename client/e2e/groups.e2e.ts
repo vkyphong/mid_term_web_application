@@ -354,6 +354,7 @@ test('đổi tên nhóm, ảnh nhóm thấy ngay ở mọi thành viên; biệt 
     await nick.getByRole('button', { name: 'Lưu', exact: true }).click()
     await expect(a.getByRole('heading', { level: 1, name: 'Bạn Bob' })).toBeVisible()
     await expect(a.locator('.room-title p')).toContainText(`Tên thật: ${bob.displayName}`)
+    await expect(a.locator('.room-title p')).not.toContainText('@')
     await expect(a.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${dm.id}"]`)).toContainText('Bạn Bob')
     await a.reload()
     await expect(a.getByRole('heading', { level: 1, name: 'Bạn Bob' })).toBeVisible()
@@ -384,8 +385,13 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(bubble(b, 'Tin thường 30')).toBeVisible()
     await expect(bubble(b, 'Báo cáo quý 1')).toHaveCount(0) // chưa tải trang cũ
     await b.getByRole('button', { name: 'Tìm tin nhắn' }).click()
+    // Ô tìm nằm ngang hàng với icon 🔍 trong đầu phòng.
+    const field = await b.locator('.room-search-field').boundingBox()
+    const header = await b.locator('.room-header').boundingBox()
+    expect(field!.y).toBeGreaterThanOrEqual(header!.y)
+    expect(field!.y + field!.height).toBeLessThanOrEqual(header!.y + header!.height)
     await b.getByLabel('Từ khoá').fill('báo cáo')
-    const result = b.getByRole('dialog', { name: 'Tìm tin nhắn' }).getByRole('button', { name: /Báo cáo quý 1 đã nộp/ })
+    const result = b.getByRole('search', { name: 'Tìm tin nhắn' }).getByRole('button', { name: /Báo cáo quý 1 đã nộp/ })
     await expect(result.locator('mark')).toHaveText('Báo cáo')
     await result.click()
     await expect(bubble(b, 'Báo cáo quý 1 đã nộp')).toBeInViewport()
@@ -416,6 +422,12 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await create.getByRole('button', { name: 'Tạo bình chọn' }).click()
     const bobPoll = b.getByRole('group', { name: 'Bình chọn: Ăn trưa ở đâu?' })
     await expect(bobPoll.getByRole('checkbox')).toHaveCount(3)
+    // Bình chọn nằm giữa khung chat; Bob thấy tên người tạo, Alice (người tạo) thì không.
+    await expect(b.locator('.message--poll .poll-caption')).toHaveText(`${alice.displayName} đã tạo cuộc bình chọn`)
+    await expect(a.locator('.message--poll .poll-caption')).toHaveCount(0)
+    const card = await bobPoll.boundingBox()
+    const list = await b.locator('.message-scroller').boundingBox()
+    expect(Math.abs(card!.x + card!.width / 2 - (list!.x + list!.width / 2))).toBeLessThan(24)
     await bobPoll.getByRole('checkbox', { name: 'Phở: 0 phiếu' }).click()
     const alicePoll = a.getByRole('group', { name: 'Bình chọn: Ăn trưa ở đâu?' })
     await expect(alicePoll.getByRole('checkbox', { name: 'Phở: 1 phiếu' })).toBeVisible()
@@ -423,7 +435,8 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(alicePoll.locator('.reaction-who')).toHaveText(bob.displayName)
 
     // ---- Ảnh đại diện tài khoản: Bob đổi ảnh, Alice thấy ngay ----
-    await b.getByRole('button', { name: 'Đổi ảnh đại diện' }).click()
+    await b.getByRole('button', { name: 'Thông tin tài khoản' }).click()
+    await expect(b.getByRole('dialog', { name: 'Thông tin tài khoản' }).getByText('Thông tin cá nhân')).toBeVisible()
     await b.getByTestId('profile-avatar-input').setInputFiles({ name: 'bob.png', mimeType: 'image/png', buffer: png(8, 8) })
     await expect(b.locator('.chat-user-avatar .avatar-image')).toBeVisible()
     await expect(a.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"] .avatar-image`)).toBeVisible()

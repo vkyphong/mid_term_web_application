@@ -15,7 +15,7 @@ vi.mock('./chatApi', () => ({
     listMembers: vi.fn(), addMember: vi.fn(), listNotifications: vi.fn(),
     renameRoom: vi.fn(), setNickname: vi.fn(), uploadRoomAvatar: vi.fn(), removeRoomAvatar: vi.fn(), downloadFile: vi.fn(),
     listUserAvatars: vi.fn(), uploadMyAvatar: vi.fn(), removeMyAvatar: vi.fn(), searchMessages: vi.fn(), setMemberRole: vi.fn(),
-    createPoll: vi.fn(), vote: vi.fn(),
+    createPoll: vi.fn(), vote: vi.fn(), getMyProfile: vi.fn(), updateMyProfile: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -323,6 +323,9 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     renderChat(`/rooms/${eng.id}`)
     expect(await screen.findByText('Chào cả nhóm')).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Tìm tin nhắn' }))
+    // Ô tìm nằm ngay trong đầu phòng, cạnh icon, không phải hộp thoại.
+    expect(screen.getByRole('search', { name: 'Tìm tin nhắn' }).closest('header')).toHaveClass('room-header')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     await user.type(screen.getByLabelText('Từ khoá'), 'báo cáo')
     await waitFor(() => expect(api.searchMessages).toHaveBeenCalledWith(eng.id, 'báo cáo', undefined))
     const result = await screen.findByRole('button', { name: /Báo cáo quý 1/ })
@@ -355,6 +358,41 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     expect(within(phongRow).getByRole('button', { name: 'Bỏ phó nhóm' })).toBeInTheDocument()
   })
 
+  it('thông tin tài khoản: xem giới tính, ngày sinh, điện thoại; Cập nhật thì đổi luôn tên ở đầu trang', async () => {
+    const base = { id: me.id, email: me.email, displayName: me.displayName, avatarUrl: null }
+    api.getMyProfile.mockResolvedValue({ ...base, gender: 'male', birthDate: '2006-05-18', phone: null })
+    api.updateMyProfile.mockResolvedValueOnce({ ...base, displayName: 'Võ Thành Đạt', gender: 'male', birthDate: '2006-05-18', phone: '0901 234 567' })
+    const user = userEvent.setup()
+    renderChat()
+    await user.click(await screen.findByRole('button', { name: 'Thông tin tài khoản' }))
+    const dialog = screen.getByRole('dialog', { name: 'Thông tin tài khoản' })
+    expect(await within(dialog).findByText('Nam')).toBeInTheDocument()
+    expect(within(dialog).getByText('18 tháng 05, 2006')).toBeInTheDocument()
+    expect(within(dialog).getByText('dat@dqgm.dev')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '✏️ Cập nhật' }))
+    await user.clear(within(dialog).getByLabelText('Tên hiển thị'))
+    await user.type(within(dialog).getByLabelText('Tên hiển thị'), 'Võ Thành Đạt')
+    await user.type(within(dialog).getByLabelText('Điện thoại'), '0901 234 567')
+    await user.click(within(dialog).getByRole('button', { name: 'Lưu' }))
+    expect(api.updateMyProfile).toHaveBeenCalledWith({ displayName: 'Võ Thành Đạt', gender: 'male', birthDate: '2006-05-18', phone: '0901 234 567' })
+    expect(await within(dialog).findByText('0901 234 567')).toBeInTheDocument()
+    expect(screen.getByText('Võ Thành Đạt', { selector: '.chat-user-name' })).toBeInTheDocument()
+  })
+
+  it('bình chọn của người khác nằm giữa, có tên người tạo; bình chọn của mình không có dòng này', async () => {
+    const theirs = message('p2', '📊 Họp ngày nào?', {
+      poll: { id: 'poll-2', question: 'Họp ngày nào?', multiple: false, createdBy: phong.id, options: [{ id: 'a', label: 'T2', voters: [] }, { id: 'b', label: 'T4', voters: [] }] },
+    })
+    api.listMessages.mockResolvedValue({ messages: [theirs, pollMessage()], nextCursor: null })
+    renderChat(`/rooms/${eng.id}`)
+    const polls = await screen.findAllByRole('group', { name: /Bình chọn/ })
+    expect(polls).toHaveLength(2)
+    expect(polls[0].closest('li')).toHaveClass('message--poll')
+    expect(polls[0].closest('li')).toHaveTextContent('Phong đã tạo cuộc bình chọn')
+    expect(polls[1].closest('li')).not.toHaveTextContent('đã tạo cuộc bình chọn')
+    expect(within(polls[0]).getAllByRole('radio')).toHaveLength(2)
+  })
+
   it('thành viên thường không thấy nút phân quyền', async () => {
     api.listRooms.mockResolvedValue([{ ...eng, myRole: 'member', memberCount: 2 }])
     api.listMembers.mockResolvedValue([{ ...phong, enabled: true, memberRole: 'owner' }, { ...me, enabled: true, memberRole: 'member' }])
@@ -370,8 +408,12 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     api.uploadMyAvatar.mockResolvedValueOnce({ userId: me.id, avatarUrl: '/api/users/u1/avatar?v=1' })
     api.downloadFile.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
     const user = userEvent.setup()
+    api.getMyProfile.mockResolvedValue({ id: me.id, email: me.email, displayName: me.displayName, gender: null, birthDate: null, phone: null, avatarUrl: null })
     const { container } = renderChat(`/rooms/${dm.id}`)
-    await user.click(await screen.findByRole('button', { name: 'Đổi ảnh đại diện' }))
+    await user.click(await screen.findByRole('button', { name: 'Thông tin tài khoản' }))
+    // Không có nút "Chọn ảnh": bấm vào avatar để mở thư viện ảnh.
+    expect(screen.queryByRole('button', { name: 'Chọn ảnh' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Đổi ảnh đại diện' })).toBeInTheDocument()
     const file = new File(['png'], 'toi.png', { type: 'image/png' })
     await user.upload(screen.getByTestId('profile-avatar-input'), file)
     expect(api.uploadMyAvatar).toHaveBeenCalledWith(file)

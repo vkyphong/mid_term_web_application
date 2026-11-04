@@ -83,7 +83,7 @@ export function ChatLayout() {
           <SoundToggle />
           <NotificationBell />
           <span className="chat-user">
-            <button type="button" className="chat-user-avatar" aria-label="Đổi ảnh đại diện" title="Đổi ảnh đại diện" onClick={() => setProfileOpen(true)}>
+            <button type="button" className="chat-user-avatar" aria-label="Thông tin tài khoản" title="Thông tin tài khoản" onClick={() => setProfileOpen(true)}>
               <Avatar name={user.displayName} userId={user.id} size="sm" />
             </button>
             <span className="chat-user-name">{user.displayName}</span>

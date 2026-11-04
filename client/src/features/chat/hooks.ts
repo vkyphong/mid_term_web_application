@@ -2,6 +2,8 @@ import { uuid } from '../../lib/uuid'
 import { useCallback, useEffect } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useSession } from '../auth/hooks'
+import { sessionQueryKey } from '../auth/session'
+import type { Session } from '../auth/types'
 import { chatApi, chatTransport } from './chatApi'
 import { compareTimestamps, mergeMessages, reconcileLatestPage, setPendingStatus, upsertMessage } from './messages'
 import { applyPresence } from './presence'
@@ -20,7 +22,7 @@ import { enqueue, pump, resetOutbox, setOutboxSink, type OutboxItem } from './ou
 import { playMessageSound, unlockSound } from './sound'
 import { bumpUnread, markViewed, resetUnread, withViewed } from './unread'
 import { resetUserAvatars, setUserAvatar, setUserAvatars } from './avatars'
-import type { ChatMessage, ClientEvents, CreatePollInput, CreateRoomInput, MemberRole, Message, Room, RoomMember, Upload } from './types'
+import type { ChatMessage, ClientEvents, CreatePollInput, ProfileInput, CreateRoomInput, MemberRole, Message, Room, RoomMember, Upload } from './types'
 
 export const chatKeys = {
   all: ['chat'] as const,
@@ -360,6 +362,26 @@ export function useJumpToMessage(roomId: string) {
 
 export function useUploadMyAvatar() {
   return useMutation({ mutationFn: (file: File) => chatApi.uploadMyAvatar(file), onSuccess: setUserAvatar })
+}
+
+export const profileKey = ['chat', 'profile'] as const
+
+export function useMyProfile() {
+  return useQuery({ queryKey: profileKey, queryFn: () => chatApi.getMyProfile(), staleTime: 60_000 })
+}
+
+/** Lưu thông tin tài khoản; tên mới cập nhật luôn vào phiên đăng nhập (đầu trang, tin mình gửi). */
+export function useUpdateProfile() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: ProfileInput) => chatApi.updateMyProfile(input),
+    onSuccess: (profile) => {
+      queryClient.setQueryData(profileKey, profile)
+      queryClient.setQueryData<Session | null>(sessionQueryKey, (session) =>
+        session ? { ...session, user: { ...session.user, displayName: profile.displayName } } : session,
+      )
+    },
+  })
 }
 
 export function useRemoveMyAvatar() {

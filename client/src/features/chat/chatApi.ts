@@ -2,7 +2,7 @@ import { config } from '../../config'
 import { authBlob, authRequest, authUpload } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, Presence, Room, RoomMember, Upload, UserAvatar, UserSummary } from './types'
+import type { CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, Presence, Profile, ProfileInput, Room, RoomMember, Upload, UserAvatar, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -37,6 +37,9 @@ export interface ChatApi {
   listUserAvatars(): Promise<UserAvatar[]>
   uploadMyAvatar(file: File): Promise<UserAvatar>
   removeMyAvatar(): Promise<UserAvatar>
+  getMyProfile(): Promise<Profile>
+  /** Chuỗi rỗng = xoá thông tin tuỳ chọn. */
+  updateMyProfile(input: ProfileInput): Promise<Profile>
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
   listNotifications(before?: string): Promise<NotificationPage>
   markNotificationRead(id: string): Promise<void>
@@ -94,6 +97,8 @@ export const httpChatApi: ChatApi = {
     return authUpload('/api/me/avatar', form)
   },
   removeMyAvatar: () => authRequest('/api/me/avatar', { method: 'DELETE' }),
+  getMyProfile: () => authRequest('/api/me/profile'),
+  updateMyProfile: (input) => authRequest('/api/me/profile', { method: 'PUT', body: input }),
   listNotifications: (before) => {
     const params = new URLSearchParams({ limit: '30' })
     if (before) params.set('before', before)

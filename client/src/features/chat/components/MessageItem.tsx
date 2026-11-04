@@ -109,6 +109,27 @@ export function MessageItem(props: MessageItemProps) {
     if (actions) void actions.react(m.id, emoji, !mine)
   }
 
+  // Bình chọn: nằm giữa khung chat như Zalo; thành viên khác thấy tên người tạo phía trên.
+  if (m.poll && !deleted) {
+    return (
+      <li
+        className={`message message--poll${highlight ? ' message--highlight' : ''}`}
+        id={`message-${m.id}`}
+        data-message-id={trackSeen ? m.id : undefined}
+      >
+        {!own && (
+          <p className="poll-caption">
+            <strong>{m.sender.displayName}</strong> đã tạo cuộc bình chọn
+          </p>
+        )}
+        <PollCard poll={m.poll} selfId={selfId} members={members} disabled={!stored} />
+        <time className="poll-time" dateTime={m.createdAt}>
+          {timeOf(m.createdAt)}
+        </time>
+      </li>
+    )
+  }
+
   return (
     <li
       className={`message${own ? ' message--own' : ''}${head ? ' message--head' : ''}${deleted ? ' message--deleted' : ''}${highlight ? ' message--highlight' : ''}`}
@@ -153,8 +174,6 @@ export function MessageItem(props: MessageItemProps) {
             </div>
           ) : deleted ? (
             <p className="message-content message-bubble message-bubble--deleted">Tin nhắn đã bị xoá</p>
-          ) : m.poll ? (
-            <PollCard poll={m.poll} selfId={selfId} members={members} disabled={!stored} />
           ) : (
             (m.content || !m.attachment) && (
               <p className="message-content message-bubble">

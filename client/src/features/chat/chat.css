@@ -1779,3 +1779,213 @@ html.chat-page body {
   margin: 0;
   accent-color: var(--primary);
 }
+
+/* Bình chọn nằm giữa khung chat */
+.message--poll {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.message--poll .poll-card {
+  width: min(380px, 100%);
+}
+
+.poll-caption {
+  margin: 0;
+  padding: 4px 12px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+}
+
+.poll-caption strong {
+  color: var(--text);
+}
+
+.poll-time {
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* Thanh tìm tin nằm ngang ngay cạnh icon 🔍 ở đầu phòng, kết quả xổ xuống */
+.room-header {
+  position: relative;
+}
+
+.room-search {
+  flex: 0 1 320px;
+  min-width: 180px;
+}
+
+.room-search-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 38px;
+  padding: 0 4px 0 10px;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--primary);
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.room-search-field input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.room-search-field input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--text);
+  background: none;
+  border: none;
+  outline: none;
+}
+
+.room-search-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 16px;
+  z-index: 20;
+  width: min(420px, calc(100vw - 32px));
+  max-height: 60vh;
+  padding: 10px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.room-search-results .search-results {
+  max-height: none;
+  overflow: visible;
+}
+
+@media (max-width: 720px) {
+  .room-search {
+    position: absolute;
+    inset: 8px 12px auto;
+    z-index: 21;
+    min-width: 0;
+  }
+}
+
+/* ---------- Thông tin tài khoản (như Zalo) ---------- */
+.profile-card {
+  margin: -4px -4px 0;
+}
+
+.profile-cover {
+  height: 120px;
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(255, 255, 255, 0.25), transparent 45%),
+    linear-gradient(135deg, #4f46e5 0%, #0e8a5f 55%, #e2a03f 100%);
+}
+
+.profile-head {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  margin: -40px 0 8px 12px;
+}
+
+.profile-avatar-btn {
+  position: relative;
+  flex: none;
+  padding: 0;
+  line-height: 0;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.profile-avatar-btn .avatar--lg {
+  width: 84px;
+  height: 84px;
+  box-shadow: 0 0 0 3px var(--surface);
+}
+
+.profile-avatar-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--focus);
+}
+
+.profile-avatar-camera {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+  line-height: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+}
+
+.profile-name {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+  word-break: break-word;
+}
+
+.profile-head .icon-btn {
+  margin-bottom: 6px;
+}
+
+.profile-remove-avatar {
+  margin: 0 0 8px 12px;
+  font-size: 0.82rem;
+}
+
+.profile-info {
+  padding-top: 12px;
+  border-top: 6px solid var(--bg);
+}
+
+.profile-info h4 {
+  margin: 0 0 10px;
+}
+
+.profile-info dl {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  gap: 10px 12px;
+  margin: 0 0 10px;
+}
+
+.profile-info dt {
+  color: var(--muted);
+}
+
+.profile-info dd {
+  margin: 0;
+  word-break: break-word;
+}
+
+.profile-update {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.profile-genders {
+  display: flex;
+  gap: 16px;
+}
+
+.profile-genders .checkbox-row {
+  margin-bottom: 0;
+}

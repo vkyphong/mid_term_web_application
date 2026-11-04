@@ -15,6 +15,27 @@ export interface RoomMember extends UserSummary {
 
 export type MemberRole = 'owner' | 'deputy' | 'member'
 
+export type Gender = 'male' | 'female' | 'other'
+
+/** Thông tin tài khoản của chính mình (GET/PUT /api/me/profile). */
+export interface Profile {
+  id: string
+  email: string
+  displayName: string
+  gender: Gender | null
+  /** yyyy-mm-dd */
+  birthDate: string | null
+  phone: string | null
+  avatarUrl: string | null
+}
+
+export interface ProfileInput {
+  displayName: string
+  gender: Gender | ''
+  birthDate: string
+  phone: string
+}
+
 /** Ảnh đại diện tài khoản; avatarUrl null = đã xoá ảnh. */
 export interface UserAvatar {
   userId: string

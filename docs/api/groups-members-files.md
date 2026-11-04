@@ -54,6 +54,15 @@ Response POST dùng model `Room` hiện có, bổ sung `archived: boolean` và `
 
 Đổi ảnh đại diện gửi `user:avatar` tới mọi nhân viên đang hoạt động. `RoomMember` có `memberRole` (`owner` / `deputy` / `member`; không đặt tên `role` để không lẫn với vai trò tài khoản), `Room` có `myRole`. Người tạo kênh là trưởng nhóm; Flyway V10 lấy người gửi tin đầu tiên (nếu còn trong kênh) làm trưởng nhóm cho kênh cũ. Trưởng nhóm rời đi hoặc bị admin xoá thì quyền chuyển cho phó nhóm vào sớm nhất, không có thì cho thành viên vào sớm nhất. Đổi vai trò gửi `room:updated` cho cả nhóm. Tìm tin so khớp chuỗi con, bỏ qua tin đã xoá; `%` và `_` là ký tự thường; collation MySQL bỏ qua hoa thường và dấu. Bình chọn là một tin nhắn (`content` = "📊 " + câu hỏi) kèm `poll { id, question, multiple, createdBy, options: [{ id, label, voters }] }`; tạo gửi `message:new`, bỏ phiếu gửi `message:poll` (Message đã cập nhật) tới thành viên phòng. Flyway V9 (ảnh đại diện), V10 (`room_members.role`, `joined_at`), V11 (`polls`, `poll_options`, `poll_votes`).
 
+### Thông tin tài khoản
+
+| Method | Endpoint | Body | Thành công | Quyền |
+| --- | --- | --- | --- | --- |
+| GET | `/api/me/profile` | — | `200 { id, email, displayName, gender, birthDate, phone, avatarUrl }` | Chính mình |
+| PUT | `/api/me/profile` | `{ "displayName", "gender": "male"\|"female"\|"other"\|"", "birthDate": "yyyy-mm-dd"\|"", "phone" }` | `200 Profile` | Chính mình |
+
+Tên hiển thị 2–50 ký tự; giới tính, ngày sinh (1900 tới hôm nay), điện thoại (8–20 ký tự số, có thể có `+`, khoảng trắng, `.`, `-`) là tuỳ chọn, chuỗi rỗng để xoá. Chỉ chủ tài khoản xem được các trường này; tên mới được dùng ngay cho tin nhắn và `/api/auth/me`. Flyway V12 thêm `users.gender`, `users.birth_date`, `users.phone`.
+
 ## 2. Gửi file
 
 Luồng gửi vẫn dùng upload HTTP trước, sau đó gửi tin bằng STOMP:
