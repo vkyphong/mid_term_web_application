@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type FormEvent, type KeyboardEvent, type ReactNode } from 'react'
 import type { SendOptions } from '../hooks'
 import { MENTION_ALL, filterMentionCandidates, insertMention, mentionQueryAt, resolveMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
-import { ACCEPTED_LABEL, ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, MAX_UPLOAD_LABEL, formatBytes, useFileUpload } from '../uploads'
+import { ACCEPTED_LABEL, ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, MAX_TRAY_IMAGES, MAX_UPLOAD_LABEL, formatBytes, normalizePastedImage, useFileUpload, useImageTray } from '../uploads'
 import type { RoomMember, UserSummary } from '../types'
 import { Avatar } from './Avatar'
 import { AtIcon, ImageIcon, PaperclipIcon, PollIcon, SmileIcon, ThumbsUpIcon, UserPlusIcon } from './icons'
@@ -67,6 +67,7 @@ export function Composer(props: ComposerProps) {
   const imageInput = useRef<HTMLInputElement>(null)
   const emojiArea = useRef<HTMLDivElement>(null)
   const upload = useFileUpload(roomId)
+  const tray = useImageTray(roomId)
   // Vị trí con trỏ cần đặt sau khi chèn @mention / emoji: đặt ngay sau commit (không chờ frame sau),
   // để phím gõ tiếp theo không chèn nhầm chỗ.
   const pendingCaret = useRef<number | null>(null)
@@ -91,10 +92,14 @@ export function Composer(props: ComposerProps) {
   const trimmed = value.trim()
   const bytes = contentBytes(trimmed)
   const tooLong = bytes > MAX_CONTENT_BYTES
-  const uploading = upload.state.status === 'uploading'
+  const trayUploading = tray.items.some((i) => i.status === 'uploading')
+  const trayReady = tray.items.filter((i) => i.status === 'done' && i.upload)
+  const uploading = upload.state.status === 'uploading' || trayUploading
   const ready = upload.state.status === 'done' ? upload.state.upload : undefined
-  const canSend = !disabled && !tooLong && !uploading && upload.state.status !== 'error' && (Boolean(trimmed) || Boolean(ready))
-  const idle = !trimmed && upload.state.status === 'idle'
+  // Ảnh lỗi trong khay không chặn gửi (bỏ qua, người dùng tự xoá); file lẻ lỗi thì phải bỏ trước.
+  const canSend =
+    !disabled && !tooLong && !uploading && upload.state.status !== 'error' && (Boolean(trimmed) || Boolean(ready) || trayReady.length > 0)
+  const idle = !trimmed && upload.state.status === 'idle' && tray.items.length === 0
   const candidates = mention ? filterMentionCandidates(members, mention.query, selfId, allowMentionAll) : []
   const othersCount = members.filter((m) => m.id !== selfId && m.enabled !== false).length
 
@@ -148,12 +153,26 @@ export function Composer(props: ComposerProps) {
     setMention(null)
     setEmojiOpen(false)
     upload.clear()
+    tray.clear()
   }
 
   const submit = () => {
     if (!canSend) return
-    onSend(trimmed, { mentions: resolveMentions(trimmed, picked, members, selfId), upload: ready })
+    // Như Zalo: các ảnh trước (mỗi ảnh một tin, đúng thứ tự), rồi lời nhắn / file kèm theo.
+    for (const image of trayReady) onSend('', { upload: image.upload })
+    if (trimmed || ready) onSend(trimmed, { mentions: resolveMentions(trimmed, picked, members, selfId), upload: ready })
     reset()
+  }
+
+  /** Ctrl+V: ảnh (và file) trong clipboard được thêm vào khay / tệp đính kèm thay vì dán chữ. */
+  const onPaste = (e: ClipboardEvent<HTMLTextAreaElement>) => {
+    const files = [...e.clipboardData.files]
+    if (files.length === 0 || disabled) return
+    e.preventDefault()
+    const images = files.filter((f) => f.type.startsWith('image/'))
+    const others = files.filter((f) => !f.type.startsWith('image/'))
+    if (images.length) void Promise.all(images.map((f, i) => normalizePastedImage(f, i))).then(tray.add)
+    if (others.length && upload.state.status === 'idle') upload.start(others[0])
   }
 
   /** Giống Zalo: ô trống thì nút gửi là 👍, bấm để gửi nhanh. */
@@ -197,10 +216,17 @@ export function Composer(props: ComposerProps) {
     }
   }
 
-  const onPickFile = (imagesOnly: boolean) => (e: ChangeEvent<HTMLInputElement>) => {
+  const onPickFile = (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = '' // cho phép chọn lại cùng một file
-    if (file) upload.start(file, imagesOnly)
+    if (file) upload.start(file)
+  }
+
+  /** Nút "Gửi hình ảnh" chọn được nhiều ảnh, vào chung khay với ảnh dán. */
+  const onPickImages = (e: ChangeEvent<HTMLInputElement>) => {
+    const files = [...(e.target.files ?? [])]
+    e.target.value = ''
+    if (files.length) tray.add(files)
   }
 
   const s = upload.state
@@ -253,10 +279,10 @@ export function Composer(props: ComposerProps) {
         <ToolButton label="Biểu tượng cảm xúc" pressed={emojiOpen} disabled={disabled} onClick={() => setEmojiOpen((o) => !o)}>
           <SmileIcon />
         </ToolButton>
-        <ToolButton label="Gửi hình ảnh" disabled={disabled || uploading} onClick={() => imageInput.current?.click()}>
+        <ToolButton label="Gửi hình ảnh" disabled={disabled || tray.items.length >= MAX_TRAY_IMAGES} onClick={() => imageInput.current?.click()}>
           <ImageIcon />
         </ToolButton>
-        <ToolButton label="Đính kèm tệp" disabled={disabled || uploading} onClick={() => fileInput.current?.click()}>
+        <ToolButton label="Đính kèm tệp" disabled={disabled || upload.state.status === 'uploading'} onClick={() => fileInput.current?.click()}>
           <PaperclipIcon />
         </ToolButton>
         <ToolButton label="Nhắc tên thành viên" disabled={disabled} onClick={startMention}>
@@ -291,8 +317,8 @@ export function Composer(props: ComposerProps) {
           </div>
         )}
       </div>
-      <input ref={imageInput} type="file" accept={IMAGE_ACCEPT_ATTR} hidden onChange={onPickFile(true)} data-testid="image-input" />
-      <input ref={fileInput} type="file" accept={ACCEPT_ATTR} hidden onChange={onPickFile(false)} data-testid="file-input" />
+      <input ref={imageInput} type="file" accept={IMAGE_ACCEPT_ATTR} multiple hidden onChange={onPickImages} data-testid="image-input" />
+      <input ref={fileInput} type="file" accept={ACCEPT_ATTR} hidden onChange={onPickFile} data-testid="file-input" />
 
       <div className="composer-row">
         <label htmlFor="composer-input" className="sr-only">
@@ -306,6 +332,7 @@ export function Composer(props: ComposerProps) {
           placeholder={placeholder}
           onChange={onChange}
           onKeyDown={onKeyDown}
+          onPaste={onPaste}
           onBlur={() => setMention(null)}
           disabled={disabled}
           aria-invalid={tooLong || undefined}
@@ -329,6 +356,45 @@ export function Composer(props: ComposerProps) {
           </button>
         )}
       </div>
+      {tray.items.length > 0 && (
+        <div className="image-tray" role="group" aria-label="Ảnh sẽ gửi">
+          <div className="image-tray-head">
+            <strong>{tray.items.length} ảnh</strong>
+            <button type="button" className="link-btn" onClick={tray.clear}>
+              Xoá tất cả
+            </button>
+          </div>
+          <ul className="image-tray-list">
+            {tray.items.map((item, i) => (
+              <li key={item.id} className={`tray-item tray-item--${item.status}`} title={item.error ?? item.file.name}>
+                <img src={item.preview} alt={`Ảnh ${i + 1}: ${item.file.name}`} />
+                {item.status === 'uploading' && (
+                  <span className="tray-progress" aria-label={`Đang tải lên ${Math.round(item.progress * 100)}%`}>
+                    {Math.round(item.progress * 100)}%
+                  </span>
+                )}
+                <button type="button" className="tray-remove" aria-label={`Bỏ ảnh ${i + 1}`} onClick={() => tray.remove(item.id)}>
+                  ×
+                </button>
+              </li>
+            ))}
+            {tray.items.length < MAX_TRAY_IMAGES && (
+              <li>
+                <button type="button" className="tray-add" aria-label="Thêm ảnh" onClick={() => imageInput.current?.click()}>
+                  +
+                </button>
+              </li>
+            )}
+          </ul>
+          {tray.items
+            .filter((item) => item.error)
+            .map((item) => (
+              <p key={item.id} className="field-error small">
+                {item.file.name}: <span>{item.error}</span>
+              </p>
+            ))}
+        </div>
+      )}
       {bytes > MAX_CONTENT_BYTES * 0.8 && (
         <p className={`composer-count${tooLong ? ' field-error' : ''}`}>
           {bytes}/{MAX_CONTENT_BYTES} byte

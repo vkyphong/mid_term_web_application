@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
+import { chatApi } from './chatApi'
 import { Composer } from './components/Composer'
 
 vi.mock('./chatApi', () => ({ chatApi: { uploadFile: vi.fn() } }))
@@ -70,5 +71,46 @@ describe('thanh công cụ soạn tin (kiểu Zalo)', () => {
     const user = userEvent.setup({ applyAccept: false })
     await user.upload(screen.getByTestId('image-input'), new File(['x'], 'bao-cao.pdf', { type: 'application/pdf' }))
     expect(screen.getByText('Chỉ gửi được ảnh JPG hoặc PNG.')).toBeInTheDocument()
+  })
+
+  it('Ctrl+V dán ảnh: hiện khay "N ảnh", tải lên ngay; gửi thì mỗi ảnh một tin rồi tới lời nhắn', async () => {
+    const upload = vi.mocked(chatApi.uploadFile)
+    upload.mockImplementation(async (_room, file) => ({
+      id: `up-${file.name}`, roomId: 'r1', filename: file.name, mediaType: file.type, size: file.size, url: `/api/uploads/up-${file.name}`,
+    }))
+    const { user, box, onSend } = setup()
+    const shot = new File(['png'], 'image.png', { type: 'image/png' })
+    const photo = new File(['jpg'], 'the-sinh-vien.jpg', { type: 'image/jpeg' })
+    fireEvent.paste(box, { clipboardData: { files: [shot, photo] } })
+
+    const trayBox = await screen.findByRole('group', { name: 'Ảnh sẽ gửi' })
+    expect(within(trayBox).getByText('2 ảnh')).toBeInTheDocument()
+    await waitFor(() => expect(upload).toHaveBeenCalledTimes(2))
+    // Ảnh dán không tên được đặt tên "anh-dan-…png".
+    expect(upload.mock.calls[0][1].name).toMatch(/^anh-dan-\d+\.png$/)
+    expect(upload.mock.calls[1][1].name).toBe('the-sinh-vien.jpg')
+    expect(box).toHaveValue('') // không dán chữ vào ô nhập
+
+    await user.type(box, 'Thẻ sinh viên nè')
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Gửi' })).toBeEnabled())
+    await user.click(screen.getByRole('button', { name: 'Gửi' }))
+    expect(onSend.mock.calls.map(([text, opts]) => [text, opts.upload?.filename])).toEqual([
+      ['', upload.mock.calls[0][1].name],
+      ['', 'the-sinh-vien.jpg'],
+      ['Thẻ sinh viên nè', undefined],
+    ])
+    expect(screen.queryByRole('group', { name: 'Ảnh sẽ gửi' })).not.toBeInTheDocument()
+  })
+
+  it('khay ảnh: bỏ từng ảnh, Xoá tất cả; nút + mở chọn ảnh', async () => {
+    vi.mocked(chatApi.uploadFile).mockImplementation(() => new Promise(() => {}))
+    const { user, box } = setup()
+    fireEvent.paste(box, { clipboardData: { files: [new File(['a'], 'a.png', { type: 'image/png' }), new File(['b'], 'b.png', { type: 'image/png' })] } })
+    const trayBox = await screen.findByRole('group', { name: 'Ảnh sẽ gửi' })
+    await user.click(within(trayBox).getByRole('button', { name: 'Bỏ ảnh 1' }))
+    expect(within(trayBox).getByText('1 ảnh')).toBeInTheDocument()
+    expect(within(trayBox).getByRole('button', { name: 'Thêm ảnh' })).toBeInTheDocument()
+    await user.click(within(trayBox).getByRole('button', { name: 'Xoá tất cả' }))
+    expect(screen.queryByRole('group', { name: 'Ảnh sẽ gửi' })).not.toBeInTheDocument()
   })
 })

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { chatApi } from './chatApi'
 import { describeChatError } from './errors'
 import type { Upload } from './types'
@@ -93,4 +93,101 @@ export function useFileUpload(roomId: string) {
   }, [])
 
   return { state, start, clear }
+}
+
+/** Tối đa ảnh trong một lần gửi (khay ảnh). */
+export const MAX_TRAY_IMAGES = 20
+
+export interface TrayImage {
+  id: string
+  file: File
+  /** blob URL để xem trước. */
+  preview: string
+  status: 'uploading' | 'done' | 'error'
+  progress: number
+  upload?: Upload
+  error?: string
+}
+
+let traySeq = 0
+
+/**
+ * Ảnh dán (Ctrl+V) hoặc chọn từ máy chờ gửi, như Zalo: mỗi ảnh tải lên ngay, xem trước dạng ô vuông,
+ * bỏ từng ảnh hoặc xoá tất cả. Khi gửi, mỗi ảnh là một tin (server gắn một file vào một tin).
+ */
+export function useImageTray(roomId: string) {
+  const [items, setItems] = useState<TrayImage[]>([])
+  const controllers = useRef(new Map<string, AbortController>())
+  const previews = useRef(new Map<string, string>())
+
+  const patch = (id: string, change: Partial<TrayImage>) =>
+    setItems((list) => list.map((item) => (item.id === id ? { ...item, ...change } : item)))
+
+  const add = useCallback(
+    (files: readonly File[]) => {
+      const room = MAX_TRAY_IMAGES - previews.current.size
+      for (const file of files.slice(0, Math.max(0, room))) {
+        const id = `img-${++traySeq}`
+        const preview = URL.createObjectURL(file)
+        previews.current.set(id, preview)
+        const invalid = validateFile(file, true)
+        if (invalid) {
+          setItems((list) => [...list, { id, file, preview, status: 'error', progress: 0, error: invalid }])
+          continue
+        }
+        const controller = new AbortController()
+        controllers.current.set(id, controller)
+        setItems((list) => [...list, { id, file, preview, status: 'uploading', progress: 0 }])
+        chatApi
+          .uploadFile(roomId, file, (progress) => !controller.signal.aborted && patch(id, { progress }), controller.signal)
+          .then((upload) => !controller.signal.aborted && patch(id, { status: 'done', upload, progress: 1 }))
+          .catch((err) => !controller.signal.aborted && patch(id, { status: 'error', error: describeChatError(err) }))
+          .finally(() => controllers.current.delete(id))
+      }
+    },
+    [roomId],
+  )
+
+  const remove = useCallback((id: string) => {
+    controllers.current.get(id)?.abort()
+    controllers.current.delete(id)
+    const preview = previews.current.get(id)
+    if (preview) URL.revokeObjectURL(preview)
+    previews.current.delete(id)
+    setItems((list) => list.filter((item) => item.id !== id))
+  }, [])
+
+  const clear = useCallback(() => {
+    controllers.current.forEach((c) => c.abort())
+    controllers.current.clear()
+    previews.current.forEach((url) => URL.revokeObjectURL(url))
+    previews.current.clear()
+    setItems([])
+  }, [])
+
+  // Rời phòng thì huỷ upload đang chạy và giải phóng ảnh xem trước.
+  useEffect(() => clear, [clear])
+
+  return { items, add, remove, clear }
+}
+
+/**
+ * Ảnh trong clipboard có thể là WebP / GIF / BMP (tuỳ nơi copy); server chỉ nhận JPG / PNG nên đổi sang
+ * PNG bằng canvas. Ảnh dán thường không có tên, đặt tên "anh-dan-<giờ>.png".
+ */
+export async function normalizePastedImage(file: File, index = 0): Promise<File> {
+  const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
+  const name = `anh-dan-${stamp}${index ? `-${index + 1}` : ''}`
+  if (file.type === 'image/png' || file.type === 'image/jpeg') {
+    const ext = file.type === 'image/png' ? '.png' : '.jpg'
+    return /\.(png|jpe?g)$/i.test(file.name) && file.name !== 'image.png' ? file : new File([file], name + ext, { type: file.type })
+  }
+  if (typeof createImageBitmap !== 'function') return file
+  const bitmap = await createImageBitmap(file)
+  const canvas = document.createElement('canvas')
+  canvas.width = bitmap.width
+  canvas.height = bitmap.height
+  canvas.getContext('2d')?.drawImage(bitmap, 0, 0)
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'))
+  return blob ? new File([blob], `${name}.png`, { type: 'image/png' }) : file
 }

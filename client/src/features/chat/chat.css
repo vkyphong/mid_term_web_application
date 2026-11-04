@@ -919,10 +919,49 @@ html.chat-page body {
 
 .attachment-image {
   display: block;
-  max-width: min(320px, 60vw);
-  max-height: 240px;
+  /* Ảnh hiện lớn như Zalo, giữ tỉ lệ gốc. */
+  max-width: min(360px, 62vw);
+  max-height: 440px;
   border-radius: 12px;
   border: 1px solid var(--border);
+}
+
+.attachment--image {
+  position: relative;
+}
+
+.attachment-image-link {
+  display: block;
+  line-height: 0;
+}
+
+.attachment-download {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  font-size: 1rem;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.55);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.attachment--image:hover .attachment-download,
+.attachment-download:focus-visible {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .attachment-download {
+    opacity: 1;
+  }
 }
 
 .attachment-placeholder {
@@ -2310,4 +2349,102 @@ html.chat-page body {
 .group-info-back {
   margin-bottom: 8px;
   padding: 0;
+}
+
+/* Khay ảnh dán / chọn chờ gửi (như Zalo) */
+.image-tray {
+  flex-basis: 100%;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.image-tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+}
+
+.image-tray-head .link-btn {
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.image-tray-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tray-item {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.tray-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tray-item--uploading img {
+  opacity: 0.55;
+}
+
+.tray-item--error {
+  border-color: var(--danger);
+}
+
+.tray-progress {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.tray-remove {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  font-size: 0.9rem;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.6);
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.tray-add {
+  width: 72px;
+  height: 72px;
+  font-size: 1.6rem;
+  color: var(--muted);
+  background: none;
+  border: 1.5px dashed var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.tray-add:hover {
+  color: var(--primary);
+  border-color: var(--primary);
 }

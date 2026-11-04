@@ -534,3 +534,47 @@ test('phê duyệt thành viên mới: thành viên thường thêm người th�
     await Promise.all([alice.context.close(), bob.context.close(), carol.context.close()])
   }
 })
+
+test('Ctrl+V dán ảnh vào ô nhập: khay "N ảnh", gửi mỗi ảnh một tin, người nhận thấy ảnh lớn như Zalo', async ({ browser }) => {
+  const [alice, bob] = await Promise.all([account(browser, 'alice'), account(browser, 'bob')])
+  try {
+    const roomId = await channelWith(alice, bob)
+    const a = await open(alice, `/rooms/${roomId}`)
+    const b = await open(bob, `/rooms/${roomId}`)
+    const images = [png(400, 300), png(300, 400)].map((buf) => buf.toString('base64'))
+    await expect(box(a)).toBeEnabled() // ô nhập mở khi lịch sử đã tải
+    // Mô phỏng Ctrl+V: sự kiện paste thật của trình duyệt mang 2 ảnh trong clipboard.
+    await box(a).evaluate((el, data) => {
+      const transfer = new DataTransfer()
+      data.forEach((b64, i) => {
+        const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
+        transfer.items.add(new File([bytes], i === 0 ? 'image.png' : 'chup-man-hinh.png', { type: 'image/png' }))
+      })
+      el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: transfer, bubbles: true, cancelable: true }))
+    }, images)
+    const tray = a.getByRole('group', { name: 'Ảnh sẽ gửi' })
+    await expect(tray.getByText('2 ảnh')).toBeVisible()
+    await expect(tray.locator('.tray-item--done')).toHaveCount(2)
+    await box(a).fill('Thẻ sinh viên nè')
+    await a.getByRole('button', { name: 'Gửi', exact: true }).click()
+    await expect(tray).toHaveCount(0)
+
+    // Bob: 2 ảnh hiện lớn (không kèm dòng tên file), rồi tới lời nhắn.
+    const imgs = b.locator('.message-list .attachment-image')
+    await expect(imgs).toHaveCount(2)
+    await expect(b.locator('.message-list .attachment--image .attachment-name')).toHaveCount(0)
+    const first = await imgs.first().boundingBox()
+    expect(first!.width).toBeGreaterThan(300)
+    await expect(bubble(b, 'Thẻ sinh viên nè')).toBeVisible()
+    const order = await b.locator('.message-list .message').evaluateAll((els) =>
+      els.map((el) => (el.querySelector('.attachment-image') ? 'ảnh' : el.textContent?.includes('Thẻ sinh viên nè') ? 'chữ' : '')).filter(Boolean))
+    expect(order).toEqual(['ảnh', 'ảnh', 'chữ'])
+    // Tải ảnh về bằng nút ⤓ khi rê chuột.
+    await imgs.first().hover()
+    const download = b.waitForEvent('download')
+    await b.locator('.message-list .attachment-download').first().click()
+    expect((await download).suggestedFilename()).toMatch(/^anh-dan-\d+\.png$/)
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close()])
+  }
+})

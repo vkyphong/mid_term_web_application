@@ -49,19 +49,36 @@ export function AttachmentView({ attachment, pending }: { attachment: Attachment
     downloadAttachment(attachment).catch((err) => setError(describeChatError(err)))
   }
 
-  return (
-    <div className="attachment">
-      {isImage && (
-        image.url ? (
-          <a href={image.url} target="_blank" rel="noopener noreferrer" title="Mở ảnh gốc">
+  // Ảnh hiện lớn như Zalo (không kèm dòng tên file); bấm để mở ảnh gốc, nút tải về hiện khi rê chuột.
+  if (isImage) {
+    return (
+      <div className="attachment attachment--image">
+        {image.url ? (
+          <a className="attachment-image-link" href={image.url} target="_blank" rel="noopener noreferrer" title="Mở ảnh gốc">
             <img className="attachment-image" src={image.url} alt={attachment.filename} />
           </a>
         ) : (
           <div className="attachment-placeholder">
             {image.error ? `Không tải được ảnh: ${describeChatError(image.error)}` : 'Đang tải ảnh…'}
           </div>
-        )
-      )}
+        )}
+        <button
+          type="button"
+          className="attachment-download"
+          aria-label={`Tải xuống ${attachment.filename} (${formatBytes(attachment.size)})`}
+          title="Tải xuống"
+          onClick={onDownload}
+          disabled={pending}
+        >
+          ⤓
+        </button>
+        {error && <span className="message-status message-status--failed">{error}</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="attachment">
       <button type="button" className="attachment-file" onClick={onDownload} disabled={pending}>
         <span aria-hidden="true">{FILE_ICONS[fileKind(attachment.filename, attachment.mediaType)]}</span>
         <span className="attachment-name">{attachment.filename}</span>
