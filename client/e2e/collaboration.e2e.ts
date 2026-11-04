@@ -1,8 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
 import { crc32, deflateSync } from 'node:zlib'
-import { rm, truncate, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 /** F09 thông báo/@mention, F14 sửa/xoá/cảm xúc, F15 file, F10 hàng đợi offline, F11 giới hạn & XSS — backend thật. */
 
@@ -165,11 +162,13 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     // ---- F15: chặn file quá 100 MB ngay ở client (không gửi request upload) ----
     let uploads = 0
     a.on('request', (r) => { if (r.url().endsWith('/api/uploads') && r.method() === 'POST') uploads++ })
-    // File thưa 100 MB + 1 byte trên đĩa (buffer của Playwright giới hạn 50 MB).
-    const big = join(tmpdir(), `pulsechat-big-${crypto.randomUUID()}.png`)
-    await truncate(big, 100 * 1024 * 1024 + 1).catch(async () => { await writeFile(big, ''); await truncate(big, 100 * 1024 * 1024 + 1) })
-    await a.getByTestId('file-input').setInputFiles(big)
-    await rm(big, { force: true })
+    // Chọn file "100 MB + 1 byte" ngay trong trình duyệt: File nhỏ báo kích thước giả, không tốn RAM/đĩa.
+    await a.getByTestId('file-input').evaluate((input: HTMLInputElement) => {
+      const file = new File(['x'], 'big.png', { type: 'image/png' })
+      Object.defineProperty(file, 'size', { value: 100 * 1024 * 1024 + 1 })
+      Object.defineProperty(input, 'files', { value: [file], configurable: true })
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+    })
     await expect(a.getByText(/vượt quá giới hạn 100 MB/)).toBeVisible()
     await a.getByRole('button', { name: 'Bỏ tệp đính kèm' }).click()
     expect(uploads).toBe(0)

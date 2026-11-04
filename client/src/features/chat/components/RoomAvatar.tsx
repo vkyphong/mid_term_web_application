@@ -38,7 +38,7 @@ export function RoomAvatar({ room, size = 'md', online }: RoomAvatarProps) {
   const image = useAvatarImage(room.type === 'channel' ? room.avatarUrl : null)
 
   if (room.type === 'dm') {
-    return <Avatar name={room.peer?.displayName ?? room.name} size={size === 'sm' ? 'sm' : 'md'} online={online} />
+    return <Avatar name={room.peer?.displayName ?? room.name} userId={room.peer?.id} size={size === 'sm' ? 'sm' : 'md'} online={online} />
   }
   if (image) {
     return (
@@ -51,14 +51,14 @@ export function RoomAvatar({ room, size = 'md', online }: RoomAvatarProps) {
   if (members.length === 1) {
     return (
       <span className={`group-avatar group-avatar--${size} group-avatar--n1`} aria-hidden="true">
-        <Avatar name={members[0].displayName} size="sm" />
+        <Avatar name={members[0].displayName} userId={members[0].id} size="sm" />
       </span>
     )
   }
   return (
     <span className={`group-avatar group-avatar--${size} group-avatar--n${members.length}`} aria-hidden="true">
       {members.map((m) => (
-        <Avatar key={m.id} name={m.displayName} size="sm" />
+        <Avatar key={m.id} name={m.displayName} userId={m.id} size="sm" />
       ))}
     </span>
   )

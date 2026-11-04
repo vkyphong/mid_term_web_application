@@ -41,7 +41,7 @@ export function NewDirectMessageDialog({ onClose }: { onClose: () => void }) {
         {users.data?.map((u) => (
           <li key={u.id}>
             <button type="button" className="user-result" disabled={openDm.isPending} onClick={() => start(u.id)}>
-              <Avatar name={u.displayName} />
+              <Avatar name={u.displayName} userId={u.id} />
               <span>
                 <strong>{u.displayName}</strong>
                 <span className="muted small">{u.email}</span>

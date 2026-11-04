@@ -69,7 +69,7 @@ public class GroupService {
         if (user == null || user.isBlank() || user.length() > 36) throw ChatService.field("userId", "Employee ID required");
         db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockGroup(id);
-        db.update("DELETE FROM room_members WHERE room_id=? AND user_id=?", id, user);
+        chat.removeMember(id, user); // chuyển quyền nếu người bị xoá là trưởng nhóm
         return group(id);
     }
     private void lockGroup(String id) {

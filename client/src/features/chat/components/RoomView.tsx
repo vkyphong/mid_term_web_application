@@ -7,6 +7,7 @@ import { describeChatError } from '../errors'
 import {
   useJoinRoom,
   useLeaveRoom,
+  useJumpToMessage,
   useLoadOlder,
   useMessageActions,
   useMessages,
@@ -26,6 +27,10 @@ import { chatKeys } from '../hooks'
 import { AddMembersDialog } from './AddMembersDialog'
 import { RoomAvatar } from './RoomAvatar'
 import { GroupAvatarDialog, NicknameDialog, RenameGroupDialog } from './RoomSettingsDialogs'
+import { MembersDialog } from './MembersDialog'
+import { MessageSearchDialog } from './MessageSearchDialog'
+import { CreatePollDialog } from './Polls'
+import { SearchIcon } from './icons'
 import { Composer } from './Composer'
 import { MessageList } from './MessageList'
 import '../../whiteboard/whiteboard.css'
@@ -105,7 +110,9 @@ function ConnectionBanner() {
 function Conversation({ room }: { room: Room }) {
   const [panel, setPanel] = useState<'chat' | 'whiteboard'>('chat')
   const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState<'name' | 'nickname' | 'avatar' | null>(null)
+  const [editing, setEditing] = useState<'name' | 'nickname' | 'avatar' | 'members' | 'search' | 'poll' | null>(null)
+  const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
+  const [jumpError, setJumpError] = useState<string>()
   const closeEditing = () => setEditing(null)
   const canAddMembers = room.type === 'channel' && !room.archived
   const { user } = useSession()
@@ -117,7 +124,26 @@ function Conversation({ room }: { room: Room }) {
   const leave = useLeaveRoom()
   const members = useRoomMembers(room.id)
   const actions = useMessageActions()
+  const jumpTo = useJumpToMessage(room.id)
   const peerPresence = presence.get(room.peer?.id)
+
+  // Kết quả tìm kiếm → tải dần lịch sử tới tin đó, cuộn tới và tô sáng vài giây.
+  const openSearchResult = async (messageId: string) => {
+    setEditing(null)
+    setPanel('chat')
+    setJumpError(undefined)
+    try {
+      if (!(await jumpTo(messageId))) return setJumpError('Không tìm thấy tin trong lịch sử (có thể đã bị xoá).')
+      setFocusMessageId(messageId)
+    } catch (err) {
+      setJumpError(describeChatError(err))
+    }
+  }
+  useEffect(() => {
+    if (!focusMessageId) return
+    const timer = setTimeout(() => setFocusMessageId(null), 4_000)
+    return () => clearTimeout(timer)
+  }, [focusMessageId])
 
   // F09: đang xem phòng này thì không bật toast cho thông báo của chính phòng này.
   useEffect(() => {
@@ -177,9 +203,19 @@ function Conversation({ room }: { room: Room }) {
               ? [room.nickname && room.peer ? `Tên thật: ${room.peer.displayName}` : null, describePresence(peerPresence), room.peer?.email]
                   .filter(Boolean)
                   .join(' · ')
-              : [room.description, `${room.memberCount} thành viên`].filter(Boolean).join(' · ')}
+              : (
+                <>
+                  {room.description && `${room.description} · `}
+                  <button type="button" className="link-btn room-members-link" title="Xem thành viên và phân quyền" onClick={() => setEditing('members')}>
+                    {room.memberCount} thành viên
+                  </button>
+                </>
+              )}
           </p>
         </div>
+        <button type="button" className="icon-btn room-search-btn" aria-label="Tìm tin nhắn" title="Tìm tin nhắn" onClick={() => setEditing('search')}>
+          <SearchIcon />
+        </button>
         {canAddMembers && (
           <button type="button" className="btn-secondary room-add-members" onClick={() => setAdding(true)}>
             Thêm thành viên
@@ -196,6 +232,17 @@ function Conversation({ room }: { room: Room }) {
       {editing === 'name' && <RenameGroupDialog room={room} onClose={closeEditing} />}
       {editing === 'nickname' && <NicknameDialog room={room} onClose={closeEditing} />}
       {editing === 'avatar' && <GroupAvatarDialog room={room} onClose={closeEditing} />}
+      {editing === 'members' && (
+        <MembersDialog
+          room={room}
+          selfId={user?.id ?? ''}
+          onClose={closeEditing}
+          onAddMembers={canAddMembers ? () => { setEditing(null); setAdding(true) } : undefined}
+        />
+      )}
+      {editing === 'search' && <MessageSearchDialog roomId={room.id} onClose={closeEditing} onPick={(m) => void openSearchResult(m.id)} />}
+      {editing === 'poll' && <CreatePollDialog roomId={room.id} onClose={closeEditing} />}
+      {jumpError && <FormAlert>{jumpError}</FormAlert>}
       <div className="room-tabs" role="tablist" aria-label="Nội dung phòng">
         <button type="button" role="tab" id="room-chat-tab" aria-controls="room-chat-panel" aria-selected={panel === 'chat'} onClick={() => setPanel('chat')}>Trò chuyện</button>
         <button type="button" role="tab" id="room-whiteboard-tab" aria-controls="room-whiteboard-panel" aria-selected={panel === 'whiteboard'} onClick={() => { typing.onSent(); setPanel('whiteboard') }}>Bảng trắng</button>
@@ -210,6 +257,7 @@ function Conversation({ room }: { room: Room }) {
         roomType={room.type}
         members={members.data}
         actions={actions}
+        focusMessageId={focusMessageId}
         history={{
           hasMore: older.hasMore,
           isLoading: older.isLoading,
@@ -233,6 +281,7 @@ function Conversation({ room }: { room: Room }) {
           onInput={typing.onInput}
           allowMentionAll={room.type === 'channel'}
           onAddMembers={canAddMembers ? () => setAdding(true) : undefined}
+          onCreatePoll={canAddMembers ? () => setEditing('poll') : undefined}
           // Chỉ khoá khi lịch sử chưa từng tải xong (để chèn bản tạm); tải lại lỗi lúc offline vẫn cho gõ (F10).
           disabled={messages.data === undefined}
         />

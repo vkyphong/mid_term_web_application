@@ -70,3 +70,17 @@ export const SendIcon = () => (
     <path d="m21 3-6.5 18-4.5-7-7-4.5L21 3Z" />
   </Icon>
 )
+
+export const PollIcon = () => (
+  <Icon>
+    <rect x="3" y="3" width="18" height="18" rx="3" />
+    <path d="M8 16v-4M12 16V8M16 16v-6" />
+  </Icon>
+)
+
+export const SearchIcon = () => (
+  <Icon>
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m20 20-4.2-4.2" />
+  </Icon>
+)

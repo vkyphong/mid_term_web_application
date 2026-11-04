@@ -37,7 +37,7 @@ export function MemberPicker({ selected, onChange, existingIds, disabled = false
         <ul className="member-chips" aria-label="Đã chọn">
           {selected.map((u) => (
             <li key={u.id} className="member-chip">
-              <Avatar name={u.displayName} size="sm" />
+              <Avatar name={u.displayName} userId={u.id} size="sm" />
               {u.displayName}
               <button type="button" className="icon-btn" aria-label={`Bỏ chọn ${u.displayName}`} disabled={disabled} onClick={() => toggle(u)}>
                 ×
@@ -57,7 +57,7 @@ export function MemberPicker({ selected, onChange, existingIds, disabled = false
             <li key={u.id}>
               <label className={`user-result member-option${existing ? ' member-option--existing' : ''}`}>
                 <input type="checkbox" checked={checked} disabled={disabled || existing} onChange={() => toggle(u)} />
-                <Avatar name={u.displayName} />
+                <Avatar name={u.displayName} userId={u.id} />
                 <span>
                   <strong>{u.displayName}</strong>
                   <span className="muted small">{existing ? 'Đã trong nhóm' : u.email}</span>

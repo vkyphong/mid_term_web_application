@@ -24,6 +24,8 @@ interface MessageListProps {
   members?: readonly UserSummary[]
   /** F14: sửa / xoá / thả cảm xúc. */
   actions?: MessageActionsApi
+  /** Tin cần cuộn tới và tô sáng (từ kết quả tìm kiếm). */
+  focusMessageId?: string | null
 }
 
 const NO_MEMBERS: readonly UserSummary[] = []
@@ -94,6 +96,7 @@ export function MessageList({
   roomType = 'channel',
   members = NO_MEMBERS,
   actions,
+  focusMessageId,
 }: MessageListProps) {
   const scroller = useRef<HTMLDivElement>(null)
   const stickToBottom = useRef(true)
@@ -129,6 +132,15 @@ export function MessageList({
   }, [])
 
   useSeenTracker(scroller, messages, currentUserId)
+
+  // Nhảy tới tin từ kết quả tìm kiếm: cuộn tới giữa khung, ngừng bám cuối danh sách.
+  useLayoutEffect(() => {
+    if (!focusMessageId) return
+    const target = document.getElementById(`message-${focusMessageId}`)
+    if (!target) return
+    stickToBottom.current = false
+    target.scrollIntoView?.({ block: 'center' })
+  }, [focusMessageId, messages])
 
   const showHistoryEnd = history && !history.hasMore && !isPending && (messages?.length ?? 0) > 0
   // Trạng thái nhận/xem chỉ hiện dưới tin đã lưu mới nhất của mình (như các app chat phổ biến).
@@ -169,6 +181,7 @@ export function MessageList({
               selfId={currentUserId}
               members={members}
               mentionAll={roomType === 'channel'}
+              highlight={m.id === focusMessageId}
               receipt={own && !m.status ? describeReceipt(m, roomType) : null}
               showReceipt={m.id === lastOwnId}
               trackSeen={needsReceipt(m, 'seen', currentUserId)}

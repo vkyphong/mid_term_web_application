@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { config } from '../../../config'
 import { useLogout, useSession } from '../../auth/hooks'
@@ -9,6 +9,7 @@ import { setSoundMuted, unlockSound, useSoundMuted } from '../sound'
 import { countUnreadRooms } from '../unread'
 import '../chat.css'
 import { Avatar } from './Avatar'
+import { ProfileAvatarDialog } from './ProfileAvatarDialog'
 import { RoomView } from './RoomView'
 import { Sidebar } from './Sidebar'
 
@@ -47,6 +48,7 @@ export function ChatLayout() {
   const { user } = useSession()
   const logout = useLogout()
   useChatEvents()
+  const [profileOpen, setProfileOpen] = useState(false)
   const unreadRooms = countUnreadRooms(useRooms().data)
   // App chat cao đúng bằng màn hình và tự cuộn bên trong: khoá cuộn cấp trang để không bao giờ
   // trượt xuống khoảng trống bên dưới khi có phần tử tạm thời tràn ra ngoài.
@@ -81,7 +83,9 @@ export function ChatLayout() {
           <SoundToggle />
           <NotificationBell />
           <span className="chat-user">
-            <Avatar name={user.displayName} size="sm" />
+            <button type="button" className="chat-user-avatar" aria-label="Đổi ảnh đại diện" title="Đổi ảnh đại diện" onClick={() => setProfileOpen(true)}>
+              <Avatar name={user.displayName} userId={user.id} size="sm" />
+            </button>
             <span className="chat-user-name">{user.displayName}</span>
           </span>
           <button type="button" className="btn-secondary" onClick={onLogout} disabled={logout.isPending}>
@@ -90,6 +94,7 @@ export function ChatLayout() {
         </div>
       </header>
       <ToastHost />
+      {profileOpen && <ProfileAvatarDialog user={user} onClose={() => setProfileOpen(false)} />}
       <div className="chat-body">
         <Sidebar />
         <main className="chat-main">{roomId ? <RoomView roomId={roomId} /> : <Welcome name={user.displayName} />}</main>

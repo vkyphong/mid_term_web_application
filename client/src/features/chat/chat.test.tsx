@@ -14,6 +14,8 @@ vi.mock('./chatApi', () => ({
     listRooms: vi.fn(), createRoom: vi.fn(), searchUsers: vi.fn(), openDm: vi.fn(), listMessages: vi.fn(), getPresence: vi.fn(),
     listMembers: vi.fn(), addMember: vi.fn(), listNotifications: vi.fn(),
     renameRoom: vi.fn(), setNickname: vi.fn(), uploadRoomAvatar: vi.fn(), removeRoomAvatar: vi.fn(), downloadFile: vi.fn(),
+    listUserAvatars: vi.fn(), uploadMyAvatar: vi.fn(), removeMyAvatar: vi.fn(), searchMessages: vi.fn(), setMemberRole: vi.fn(),
+    createPoll: vi.fn(), vote: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -68,6 +70,7 @@ beforeEach(() => {
   api.getPresence.mockResolvedValue([])
   api.searchUsers.mockResolvedValue([])
   api.listMembers.mockResolvedValue([])
+  api.listUserAvatars.mockResolvedValue([])
   api.listNotifications.mockResolvedValue({ notifications: [], nextCursor: null, unreadCount: 0 })
   transport.onEvent.mockImplementation((listener) => {
     emit = listener
@@ -270,6 +273,113 @@ describe('tin nhắn', () => {
     await user.type(box, 'dòng 1{Shift>}{Enter}{/Shift}dòng 2')
     expect(transport.request).not.toHaveBeenCalled()
     expect(box).toHaveValue('   dòng 1\ndòng 2')
+  })
+})
+
+describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
+  const an = { id: 'u3', email: 'an@dqgm.dev', displayName: 'Nguyễn An' }
+  const pollMessage = (voters: string[] = []): Message =>
+    message('p1', '📊 Ăn trưa ở đâu?', {
+      sender: { id: me.id, displayName: me.displayName },
+      poll: {
+        id: 'poll-1', question: 'Ăn trưa ở đâu?', multiple: true, createdBy: me.id,
+        options: [{ id: 'o1', label: 'Cơm', voters }, { id: 'o2', label: 'Phở', voters: [] }],
+      },
+    })
+
+  it('tạo bình chọn: 2 lựa chọn ban đầu, bấm + để thêm; bình chọn hiện trong khung chat và bấm để chọn', async () => {
+    api.createPoll.mockResolvedValueOnce(pollMessage())
+    api.vote.mockResolvedValueOnce(pollMessage([me.id]))
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: 'Tạo bình chọn' }))
+    const dialog = screen.getByRole('dialog', { name: 'Tạo bình chọn' })
+    expect(within(dialog).getAllByLabelText(/^Lựa chọn \d$/)).toHaveLength(2)
+    await user.type(within(dialog).getByLabelText('Câu hỏi'), 'Ăn trưa ở đâu?')
+    await user.type(within(dialog).getByLabelText('Lựa chọn 1'), 'Cơm')
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo bình chọn' }))
+    expect(within(dialog).getByText('Cần ít nhất 2 lựa chọn.')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '+ Thêm lựa chọn' }))
+    expect(within(dialog).getAllByLabelText(/^Lựa chọn \d$/)).toHaveLength(3)
+    await user.type(within(dialog).getByLabelText('Lựa chọn 2'), 'Phở')
+    await user.click(within(dialog).getByRole('button', { name: 'Tạo bình chọn' }))
+    expect(api.createPoll).toHaveBeenCalledWith(eng.id, { question: 'Ăn trưa ở đâu?', options: ['Cơm', 'Phở'], multiple: true })
+
+    const poll = await screen.findByRole('group', { name: 'Bình chọn: Ăn trưa ở đâu?' })
+    await user.click(within(poll).getByRole('checkbox', { name: 'Cơm: 0 phiếu' }))
+    expect(api.vote).toHaveBeenCalledWith('poll-1', ['o1'])
+    expect(await within(poll).findByRole('checkbox', { name: 'Cơm: 1 phiếu' })).toHaveAttribute('aria-checked', 'true')
+    // Bình chọn của người khác cập nhật realtime.
+    act(() => emit({ type: 'message:poll', payload: pollMessage([me.id, phong.id]), ts: '' }))
+    expect(await within(poll).findByRole('checkbox', { name: 'Cơm: 2 phiếu' })).toBeInTheDocument()
+  })
+
+  it('tìm tin nhắn: gõ từ khoá ra kết quả, chọn kết quả thì tải lịch sử cũ tới tin đó và tô sáng', async () => {
+    const old = message('old-1', 'Báo cáo quý 1 đã xong', { createdAt: '2026-10-01T08:00:00.000Z' })
+    api.listMessages.mockResolvedValueOnce({ messages: [message('m1', 'Chào cả nhóm')], nextCursor: 'c1' })
+    api.listMessages.mockResolvedValueOnce({ messages: [old], nextCursor: null })
+    api.searchMessages.mockResolvedValue({ messages: [old], nextCursor: null })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    expect(await screen.findByText('Chào cả nhóm')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Tìm tin nhắn' }))
+    await user.type(screen.getByLabelText('Từ khoá'), 'báo cáo')
+    await waitFor(() => expect(api.searchMessages).toHaveBeenCalledWith(eng.id, 'báo cáo', undefined))
+    const result = await screen.findByRole('button', { name: /Báo cáo quý 1/ })
+    expect(within(result).getByText('Báo cáo').tagName).toBe('MARK')
+    await user.click(result)
+    expect(api.listMessages).toHaveBeenLastCalledWith(eng.id, 'c1')
+    await waitFor(() => expect(document.getElementById('message-old-1')).toHaveClass('message--highlight'))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('trưởng nhóm có chìa khoá, bổ nhiệm phó nhóm; người khác chỉ xem', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, myRole: 'owner', memberCount: 3 }])
+    api.listMembers.mockResolvedValue([
+      { ...me, enabled: true, memberRole: 'owner' }, { ...phong, enabled: true, memberRole: 'member' }, { ...an, enabled: true, memberRole: 'member' },
+    ])
+    api.setMemberRole.mockResolvedValueOnce([
+      { ...me, enabled: true, memberRole: 'owner' }, { ...phong, enabled: true, memberRole: 'deputy' }, { ...an, enabled: true, memberRole: 'member' },
+    ])
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: '3 thành viên' }))
+    const dialog = screen.getByRole('dialog', { name: 'Thành viên (3)' })
+    expect(await within(dialog).findByText('Trưởng nhóm')).toBeInTheDocument()
+    expect(dialog.querySelector('.role-key--owner')).not.toBeNull()
+    const phongRow = within(dialog).getByText('Phong').closest('li')!
+    await user.click(within(phongRow).getByRole('button', { name: 'Bổ nhiệm phó nhóm' }))
+    expect(api.setMemberRole).toHaveBeenCalledWith(eng.id, phong.id, 'deputy')
+    expect(await within(phongRow).findByText('Phó nhóm')).toBeInTheDocument()
+    expect(phongRow.querySelector('.role-key--deputy')).not.toBeNull()
+    expect(within(phongRow).getByRole('button', { name: 'Bỏ phó nhóm' })).toBeInTheDocument()
+  })
+
+  it('thành viên thường không thấy nút phân quyền', async () => {
+    api.listRooms.mockResolvedValue([{ ...eng, myRole: 'member', memberCount: 2 }])
+    api.listMembers.mockResolvedValue([{ ...phong, enabled: true, memberRole: 'owner' }, { ...me, enabled: true, memberRole: 'member' }])
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: '2 thành viên' }))
+    const dialog = screen.getByRole('dialog', { name: 'Thành viên (2)' })
+    expect(await within(dialog).findByText('Trưởng nhóm')).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: /phó nhóm/ })).not.toBeInTheDocument()
+  })
+
+  it('đổi ảnh đại diện tài khoản; ảnh của người khác cập nhật qua user:avatar', async () => {
+    api.uploadMyAvatar.mockResolvedValueOnce({ userId: me.id, avatarUrl: '/api/users/u1/avatar?v=1' })
+    api.downloadFile.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
+    const user = userEvent.setup()
+    const { container } = renderChat(`/rooms/${dm.id}`)
+    await user.click(await screen.findByRole('button', { name: 'Đổi ảnh đại diện' }))
+    const file = new File(['png'], 'toi.png', { type: 'image/png' })
+    await user.upload(screen.getByTestId('profile-avatar-input'), file)
+    expect(api.uploadMyAvatar).toHaveBeenCalledWith(file)
+    await waitFor(() => expect(container.querySelector('.chat-user-avatar .avatar-image')).not.toBeNull())
+
+    act(() => emit({ type: 'user:avatar', payload: { userId: phong.id, avatarUrl: '/api/users/u2/avatar?v=2' }, ts: '' }))
+    await waitFor(() => expect(container.querySelector('.room-header .avatar-image')).not.toBeNull())
+    expect(api.downloadFile).toHaveBeenCalledWith('/api/users/u2/avatar?v=2')
   })
 })
 

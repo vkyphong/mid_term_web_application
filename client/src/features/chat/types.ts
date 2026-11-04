@@ -9,6 +9,16 @@ export interface UserSummary {
 /** Thành viên phòng (GET /api/rooms/{id}/members); gồm cả tài khoản bị khoá. */
 export interface RoomMember extends UserSummary {
   enabled?: boolean
+  /** Vai trò trong nhóm (kênh): trưởng nhóm / phó nhóm / thành viên. */
+  memberRole?: MemberRole
+}
+
+export type MemberRole = 'owner' | 'deputy' | 'member'
+
+/** Ảnh đại diện tài khoản; avatarUrl null = đã xoá ảnh. */
+export interface UserAvatar {
+  userId: string
+  avatarUrl: string | null
 }
 
 export type RoomType = 'channel' | 'dm'
@@ -32,6 +42,8 @@ export interface Room {
   avatarUrl?: string | null
   /** Kênh: tối đa 3 thành viên cho avatar mặc định, người khác trước mình. */
   previewMembers?: UserSummary[]
+  /** Kênh đã tham gia: vai trò của mình. */
+  myRole?: MemberRole | null
 }
 
 export interface Message {
@@ -48,6 +60,30 @@ export interface Message {
   reactions?: { userId: string; emoji: string }[]
   /** F15: tệp đính kèm (tải qua REST có Bearer). */
   attachment?: Attachment | null
+  /** Bình chọn gắn với tin này. */
+  poll?: Poll | null
+}
+
+export interface PollOption {
+  id: string
+  label: string
+  /** userId đã chọn phương án này. */
+  voters: string[]
+}
+
+export interface Poll {
+  id: string
+  question: string
+  /** Cho chọn nhiều phương án. */
+  multiple: boolean
+  createdBy: string
+  options: PollOption[]
+}
+
+export interface CreatePollInput {
+  question: string
+  options: string[]
+  multiple: boolean
 }
 
 export interface Attachment {
@@ -146,7 +182,7 @@ export type ClientEventType = keyof ClientEvents
 export type ServerEvent =
   | import('../whiteboard/types').BoardEvent
   | {
-      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react'
+      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react' | 'message:poll'
       payload: Message
       ts: string
     }
@@ -155,12 +191,14 @@ export type ServerEvent =
   | { type: 'room:added'; payload: Room; ts: string }
   /** Tên / ảnh nhóm đổi, hoặc mình đổi biệt danh (Room nhìn từ phía mình). */
   | { type: 'room:updated'; payload: Room; ts: string }
+  /** Ai đó đổi / xoá ảnh đại diện. */
+  | { type: 'user:avatar'; payload: UserAvatar; ts: string }
   | { type: 'notification:read'; payload: { id: string }; ts: string }
   | { type: 'presence:update'; payload: Presence; ts: string }
   | { type: 'typing:start' | 'typing:stop'; payload: TypingPayload; ts: string }
 
 export const SERVER_EVENT_TYPES: ReadonlySet<string> = new Set([
   'whiteboard:segment', 'whiteboard:cleared',
-  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react',
+  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react', 'message:poll', 'user:avatar',
   'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read', 'room:added', 'room:updated',
 ])

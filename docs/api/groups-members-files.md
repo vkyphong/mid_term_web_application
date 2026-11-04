@@ -40,6 +40,20 @@ Response POST dùng model `Room` hiện có, bổ sung `archived: boolean` và `
 
 `Room` bổ sung `nickname` (DM: biệt danh mình đặt cho người kia, khi có thì `name` là biệt danh và tên thật nằm ở `peer.displayName`; người kia không thấy), `avatarUrl` (kênh có ảnh: `/api/rooms/{id}/avatar?v=<thời điểm đổi>`, ngược lại `null`) và `previewMembers` (kênh đã tham gia: tối đa 3 thành viên, người khác trước mình, để ghép avatar mặc định). Đổi tên hoặc ảnh nhóm gửi `room:updated` tới mọi thành viên trên `/user/queue/events`, mỗi người nhận `Room` nhìn từ phía mình; đổi biệt danh chỉ gửi cho chính người đặt. Ảnh nhóm lưu trong thư mục upload, mục `room-avatars/<room-id>`; Flyway V8 thêm `rooms.avatar_media_type`, `rooms.avatar_updated_at` và bảng `room_nicknames`.
 
+### Ảnh đại diện, trưởng / phó nhóm, tìm tin, bình chọn
+
+| Method | Endpoint | Body / query | Thành công | Quyền |
+| --- | --- | --- | --- | --- |
+| POST / DELETE | `/api/me/avatar` | multipart `file` (JPEG/PNG ≤ 5 MiB) | `200 { userId, avatarUrl }` | Chính mình |
+| GET | `/api/users/avatars` | — | `200 { avatars: [{ userId, avatarUrl }] }` | Đã đăng nhập |
+| GET | `/api/users/{id}/avatar` | — | ảnh, `nosniff`, `sandbox` | Đã đăng nhập; chưa có ảnh → 404 |
+| PUT | `/api/rooms/{id}/members/{userId}/role` | `{ "role": "deputy" \| "member" }` | `200 { members: RoomMember[] }` | Trưởng nhóm; tối đa 5 phó nhóm → 409 `deputy_limit` |
+| GET | `/api/rooms/{id}/search` | `q` (1–100 ký tự), `limit` (≤ 50), `before` (ID tin cuối trang trước) | `200 { messages, nextCursor }` mới nhất trước | Thành viên |
+| POST | `/api/rooms/{id}/polls` | `{ "question", "options": [...2–10], "multiple": true }` | `201 Message` có `poll` | Thành viên, phòng chưa lưu trữ |
+| PUT | `/api/polls/{id}/votes` | `{ "optionIds": [...] }` (thay toàn bộ lựa chọn của mình; `[]` = bỏ) | `200 Message` | Thành viên |
+
+Đổi ảnh đại diện gửi `user:avatar` tới mọi nhân viên đang hoạt động. `RoomMember` có `memberRole` (`owner` / `deputy` / `member`; không đặt tên `role` để không lẫn với vai trò tài khoản), `Room` có `myRole`. Người tạo kênh là trưởng nhóm; Flyway V10 lấy người gửi tin đầu tiên (nếu còn trong kênh) làm trưởng nhóm cho kênh cũ. Trưởng nhóm rời đi hoặc bị admin xoá thì quyền chuyển cho phó nhóm vào sớm nhất, không có thì cho thành viên vào sớm nhất. Đổi vai trò gửi `room:updated` cho cả nhóm. Tìm tin so khớp chuỗi con, bỏ qua tin đã xoá; `%` và `_` là ký tự thường; collation MySQL bỏ qua hoa thường và dấu. Bình chọn là một tin nhắn (`content` = "📊 " + câu hỏi) kèm `poll { id, question, multiple, createdBy, options: [{ id, label, voters }] }`; tạo gửi `message:new`, bỏ phiếu gửi `message:poll` (Message đã cập nhật) tới thành viên phòng. Flyway V9 (ảnh đại diện), V10 (`room_members.role`, `joined_at`), V11 (`polls`, `poll_options`, `poll_votes`).
+
 ## 2. Gửi file
 
 Luồng gửi vẫn dùng upload HTTP trước, sau đó gửi tin bằng STOMP:

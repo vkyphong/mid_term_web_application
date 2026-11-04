@@ -39,7 +39,7 @@ export function PeopleSection() {
                 disabled={openDm.isPending}
                 onClick={() => openDm.mutate(u.id, { onSuccess: (room) => navigate(`/rooms/${room.id}`) })}
               >
-                <Avatar name={u.displayName} size="sm" online={p?.online ?? false} />
+                <Avatar name={u.displayName} userId={u.id} size="sm" online={p?.online ?? false} />
                 <span className="person-text">
                   <span className="room-link-name">{u.displayName}</span>
                   <span className="person-status">{describePresence(p)}</span>

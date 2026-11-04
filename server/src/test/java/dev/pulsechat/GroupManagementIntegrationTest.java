@@ -133,6 +133,99 @@ class GroupManagementIntegrationTest {
         mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/rooms/" + room + "/avatar").header("Authorization", "Bearer " + owner.token())).andExpect(status().isNotFound());
     }
 
+    @Test void usersSetProfileAvatarsVisibleToEveryEmployee() throws Exception {
+        Account me = account();
+        var uploaded = mapper.readTree(mvc.perform(multipart("/api/me/avatar").file(new MockMultipartFile("file", "toi.png", "application/octet-stream", png()))
+            .header("Authorization", "Bearer " + me.token())).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        String url = uploaded.path("avatarUrl").asText();
+        assertThat(url).startsWith("/api/users/" + me.id() + "/avatar?v=");
+        assertThat(get("/api/users/avatars", outsider, 200).path("avatars").findValuesAsText("userId")).contains(me.id());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get(url).header("Authorization", "Bearer " + outsider.token()))
+            .andExpect(status().isOk()).andExpect(header().string("Content-Type", "image/png"));
+        mvc.perform(multipart("/api/me/avatar").file(new MockMultipartFile("file", "a.pdf", "application/pdf", "%PDF-1.4".getBytes(StandardCharsets.UTF_8)))
+            .header("Authorization", "Bearer " + me.token())).andExpect(status().isBadRequest());
+        call(HttpMethod.DELETE, "/api/me/avatar", me, null, 200);
+        assertThat(get("/api/users/avatars", outsider, 200).path("avatars").findValuesAsText("userId")).doesNotContain(me.id());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/users/" + me.id() + "/avatar")
+            .header("Authorization", "Bearer " + outsider.token())).andExpect(status().isNotFound());
+    }
+
+    @Test void creatorOwnsChannelAndAppointsUpToFiveDeputies() throws Exception {
+        Account boss = account();
+        String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Roles-" + UUID.randomUUID().toString().substring(0, 20), null)).id();
+        var people = new ArrayList<Account>();
+        for (int i = 0; i < 6; i++) { var a = account(); people.add(a); post("/api/rooms/" + room + "/members", boss, Map.of("userId", a.id()), 200); }
+        assertThat(listed(room, boss).myRole()).isEqualTo("owner");
+        assertThat(listed(room, people.getFirst()).myRole()).isEqualTo("member");
+        String path = "/api/rooms/" + room + "/members/";
+        for (int i = 0; i < 5; i++) call(HttpMethod.PUT, path + people.get(i).id() + "/role", boss, Map.of("role", "deputy"), 200);
+        assertThat(call(HttpMethod.PUT, path + people.get(5).id() + "/role", boss, Map.of("role", "deputy"), 409).path("error").path("reason").asText()).isEqualTo("deputy_limit");
+        // Bổ nhiệm lại người đã là phó nhóm không tính thêm.
+        call(HttpMethod.PUT, path + people.getFirst().id() + "/role", boss, Map.of("role", "deputy"), 200);
+        call(HttpMethod.PUT, path + people.get(5).id() + "/role", people.getFirst(), Map.of("role", "deputy"), 403);
+        call(HttpMethod.PUT, path + boss.id() + "/role", boss, Map.of("role", "member"), 400);
+        call(HttpMethod.PUT, path + outsider.id() + "/role", boss, Map.of("role", "deputy"), 400);
+        var members = get("/api/rooms/" + room + "/members", boss, 200).path("members");
+        assertThat(members.get(0).path("id").asText()).isEqualTo(boss.id());
+        assertThat(members.get(0).path("memberRole").asText()).isEqualTo("owner");
+        assertThat(members.findValuesAsText("memberRole").stream().filter("deputy"::equals).count()).isEqualTo(5);
+        call(HttpMethod.PUT, path + people.get(1).id() + "/role", boss, Map.of("role", "member"), 200);
+        // Trưởng nhóm rời đi → phó nhóm vào sớm nhất lên làm trưởng nhóm.
+        chat.leave(room, boss.id());
+        assertThat(listed(room, people.getFirst()).myRole()).isEqualTo("owner");
+    }
+
+    @Test void searchFindsMatchingMessagesNewestFirstForMembersOnly() throws Exception {
+        String room = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        chat.send(room, owner.id(), "Báo cáo quý 1 đã xong", UUID.randomUUID().toString());
+        chat.send(room, peer.id(), "không liên quan", UUID.randomUUID().toString());
+        chat.send(room, owner.id(), "Gửi BÁO CÁO quý 2", UUID.randomUUID().toString());
+        var deleted = chat.send(room, owner.id(), "báo cáo cũ", UUID.randomUUID().toString()).message();
+        actions.change(owner.id(), deleted.id(), "delete", null, "", false);
+        chat.send(room, owner.id(), "giảm 50% phí", UUID.randomUUID().toString());
+        var page = get("/api/rooms/" + room + "/search?q=b%C3%A1o%20c%C3%A1o&limit=1", peer, 200);
+        assertThat(page.path("messages").findValuesAsText("content")).containsExactly("Gửi BÁO CÁO quý 2");
+        var next = get("/api/rooms/" + room + "/search?q=b%C3%A1o%20c%C3%A1o&limit=1&before=" + page.path("nextCursor").asText(), peer, 200);
+        assertThat(next.path("messages").findValuesAsText("content")).containsExactly("Báo cáo quý 1 đã xong");
+        assertThat(next.path("nextCursor").isNull()).isTrue();
+        // % là ký tự thường, không phải wildcard.
+        assertThat(get("/api/rooms/" + room + "/search?q=50%25", peer, 200).path("messages")).hasSize(1);
+        get("/api/rooms/" + room + "/search?q=b%C3%A1o", outsider, 403);
+        get("/api/rooms/" + room + "/search?q=", peer, 400);
+    }
+
+    @Test void pollsAreMessagesMembersVoteOnRealtime() throws Exception {
+        String room = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        var created = post("/api/rooms/" + room + "/polls", owner,
+            Map.of("question", "Ăn trưa ở đâu?", "options", List.of(" Cơm ", "Phở", "", "Bún")), 201);
+        assertThat(created.path("content").asText()).isEqualTo("📊 Ăn trưa ở đâu?");
+        var poll = created.path("poll");
+        assertThat(poll.path("options").findValuesAsText("label")).containsExactly("Cơm", "Phở", "Bún");
+        assertThat(poll.path("multiple").asBoolean()).isTrue();
+        String pollId = poll.path("id").asText();
+        String com = poll.path("options").get(0).path("id").asText(), pho = poll.path("options").get(1).path("id").asText();
+        var voted = call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", peer, Map.of("optionIds", List.of(com, pho)), 200);
+        assertThat(mapper.convertValue(voted.path("poll").path("options").get(0).path("voters"), List.class)).containsExactly(peer.id());
+        // Đổi lựa chọn: thay toàn bộ, không cộng dồn.
+        voted = call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", peer, Map.of("optionIds", List.of(pho)), 200);
+        assertThat(voted.path("poll").path("options").get(0).path("voters")).isEmpty();
+        assertThat(voted.path("poll").path("options").get(1).path("voters")).hasSize(1);
+        call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", outsider, Map.of("optionIds", List.of(pho)), 403);
+        call(HttpMethod.PUT, "/api/polls/" + pollId + "/votes", peer, Map.of("optionIds", List.of("khong-co")), 400);
+        // Lịch sử trả lại bình chọn kèm phiếu.
+        var history = get("/api/rooms/" + room + "/messages", owner, 200).path("messages");
+        assertThat(history.get(history.size() - 1).path("poll").path("id").asText()).isEqualTo(pollId);
+        // Một lựa chọn duy nhất khi tắt chọn nhiều.
+        var single = post("/api/rooms/" + room + "/polls", owner, Map.of("question", "Chọn một", "options", List.of("A", "B"), "multiple", false), 201).path("poll");
+        call(HttpMethod.PUT, "/api/polls/" + single.path("id").asText() + "/votes", peer,
+            Map.of("optionIds", List.of(single.path("options").get(0).path("id").asText(), single.path("options").get(1).path("id").asText())), 400);
+        post("/api/rooms/" + room + "/polls", owner, Map.of("question", "Thiếu", "options", List.of("A")), 400);
+        post("/api/rooms/" + room + "/polls", owner, Map.of("question", "Trùng", "options", List.of("A", "a")), 400);
+        post("/api/rooms/" + room + "/polls", outsider, Map.of("question", "Ngoài", "options", List.of("A", "B")), 403);
+    }
+
     @Test void unreadCountFollowsSeenReceiptsAndOwnReplies() throws Exception {
         String room = room();
         post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);

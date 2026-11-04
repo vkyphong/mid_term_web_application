@@ -9,7 +9,7 @@ import { ApiError } from '../../lib/apiError'
 import { getMockCurrentUser, listMockUsers } from '../auth/mockAuthApi'
 import type { ChatApi } from './chatApi'
 import type { ChatTransport } from './transport'
-import { REACTION_EMOJIS, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
+import { REACTION_EMOJIS, type MemberRole, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
 
 const STORE_KEY = 'pulsechat.mock.chat'
 const PAGE_SIZE = 30 // = HISTORY_PAGE_SIZE (không import để tránh vòng chatApi ↔ mockChat)
@@ -36,6 +36,8 @@ interface StoredRoom {
   nicknames?: Record<string, string>
   /** Thời điểm đổi ảnh nhóm; ảnh nằm trong uploadBlobs với khoá `avatar:<roomId>`. */
   avatarAt?: string | null
+  /** userId → vai trò (thiếu = thành viên). */
+  roles?: Record<string, MemberRole>
 }
 
 interface StoredReceipts {
@@ -146,6 +148,7 @@ function toRoom(room: StoredRoom, userId: string): Room {
     peer,
     lastMessageAt: room.lastMessageAt,
     archived: Boolean(room.archived),
+    myRole: room.type === 'channel' && joined ? (room.roles?.[userId] ?? 'member') : null,
     unreadCount: room.members.includes(userId) ? unreadCount(room.id, userId) : 0,
   }
 }
@@ -306,7 +309,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
         throw new ApiError(409, { code: 'invalid_payload', reason: 'room_name_taken', message: 'Channel exists' })
       }
       const room: StoredRoom = {
-        id: uuid(), type: 'channel', name, description, members: [user.id], lastMessageAt: null,
+        id: uuid(), type: 'channel', name, description, members: [user.id], lastMessageAt: null, roles: { [user.id]: 'owner' },
       }
       store.rooms.push(room)
       save(store)
@@ -376,7 +379,7 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       return room.members
         .map((id) => users.find((u) => u.id === id))
         .filter((u): u is UserSummary => Boolean(u))
-        .map((u) => ({ ...u, enabled: true }))
+        .map((u) => ({ ...u, enabled: true, memberRole: room.roles?.[u.id] ?? ('member' as const) }))
     },
 
     async addMember(roomId, userId) {
@@ -436,6 +439,101 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
       return setMockAvatar(roomId, file)
     },
 
+    async searchMessages(roomId, query, before) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      requireMember(findRoom(store, roomId), user.id)
+      const q = query.trim().toLowerCase()
+      if (!q) throw invalid('q', 'Search must contain 1–100 characters')
+      const matches = (store.messages[roomId] ?? []).filter((m) => !m.deletedAt && m.content.toLowerCase().includes(q)).reverse()
+      const start = before ? matches.findIndex((m) => m.id === before) + 1 : 0
+      const page = matches.slice(start, start + 20)
+      return { messages: page.map((m) => withReceipts(store, m)), nextCursor: start + 20 < matches.length ? page[page.length - 1].id : null }
+    },
+
+    async setMemberRole(roomId, userId, role) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      requireMember(room, user.id)
+      if (room.roles?.[user.id] !== 'owner') throw new ApiError(403, { code: 'forbidden', message: 'Owner only' })
+      if (!room.members.includes(userId) || room.roles?.[userId] === 'owner') throw invalid('userId', 'Invalid member')
+      const deputies = Object.values(room.roles ?? {}).filter((r) => r === 'deputy').length
+      if (role === 'deputy' && room.roles?.[userId] !== 'deputy' && deputies >= 5) {
+        throw new ApiError(409, { code: 'invalid_payload', reason: 'deputy_limit', message: 'At most 5 deputies' })
+      }
+      room.roles = { ...room.roles, [userId]: role }
+      save(store)
+      for (const member of room.members) emit({ type: 'room:updated', payload: toRoom(room, member), ts: new Date().toISOString() }, member)
+      return api.listMembers(roomId)
+    },
+
+    async createPoll(roomId, input) {
+      await delay()
+      const user = currentUser()
+      const store = load()
+      const room = findRoom(store, roomId)
+      requireMember(room, user.id)
+      requireWritable(room)
+      const options = input.options.map((o) => o.trim()).filter(Boolean)
+      if (!input.question.trim() || options.length < 2) throw invalid('options', 'A poll needs 2–10 options')
+      const message: Message = {
+        id: uuid(), roomId, clientMsgId: uuid(), sender: { id: user.id, displayName: user.displayName },
+        content: `📊 ${input.question.trim()}`, createdAt: new Date().toISOString(), reactions: [], attachment: null,
+        poll: { id: uuid(), question: input.question.trim(), multiple: input.multiple, createdBy: user.id, options: options.map((label) => ({ id: uuid(), label, voters: [] })) },
+      }
+      ;(store.messages[roomId] ??= []).push(message)
+      room.lastMessageAt = message.createdAt
+      ;(store.receipts ??= {})[message.id] = { recipients: room.members.filter((id) => id !== user.id), delivered: [], seen: [] }
+      save(store)
+      setTimeout(() => emit({ type: 'message:new', payload: message, ts: new Date().toISOString() }), 0)
+      return message
+    },
+
+    async vote(pollId, optionIds) {
+      await delay(60)
+      const user = currentUser()
+      const store = load()
+      const message = Object.values(store.messages).flat().find((m) => m.poll?.id === pollId)
+      if (!message?.poll) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Poll not found' })
+      requireMember(findRoom(store, message.roomId), user.id)
+      if (!message.poll.multiple && optionIds.length > 1) throw invalid('optionIds', 'Choose one option')
+      for (const option of message.poll.options) {
+        option.voters = option.voters.filter((id) => id !== user.id)
+        if (optionIds.includes(option.id)) option.voters.push(user.id)
+      }
+      save(store)
+      const updated = withReceipts(store, message)
+      setTimeout(() => emit({ type: 'message:poll', payload: updated, ts: new Date().toISOString() }), 0)
+      return updated
+    },
+
+    async listUserAvatars() {
+      await delay(40)
+      return [...uploadBlobs.keys()].filter((k) => k.startsWith('user:')).map((k) => ({ userId: k.slice(5), avatarUrl: `/api/users/${k.slice(5)}/avatar?v=1` }))
+    },
+
+    async uploadMyAvatar(file) {
+      await delay()
+      const user = currentUser()
+      if (!/\.(png|jpe?g)$/i.test(file.name) || file.size > 5 * 1024 * 1024) throw invalid('file', 'Avatar must be a JPEG or PNG image')
+      uploadBlobs.set(`user:${user.id}`, file)
+      const avatar = { userId: user.id, avatarUrl: `/api/users/${user.id}/avatar?v=${Date.now()}` }
+      emit({ type: 'user:avatar', payload: avatar, ts: new Date().toISOString() })
+      return avatar
+    },
+
+    async removeMyAvatar() {
+      await delay()
+      const user = currentUser()
+      uploadBlobs.delete(`user:${user.id}`)
+      const avatar = { userId: user.id, avatarUrl: null }
+      emit({ type: 'user:avatar', payload: avatar, ts: new Date().toISOString() })
+      return avatar
+    },
+
     async removeRoomAvatar(roomId) {
       await delay()
       return setMockAvatar(roomId, null)
@@ -491,6 +589,12 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     async downloadFile(url) {
       await delay(60)
       const user = currentUser()
+      const avatarUser = /^\/api\/users\/([^/]+)\/avatar/.exec(url)?.[1]
+      if (avatarUser) {
+        const blob = uploadBlobs.get(`user:${avatarUser}`)
+        if (!blob) throw new ApiError(404, { code: 'invalid_payload', reason: 'not_found', message: 'Avatar not found' })
+        return blob
+      }
       const avatarRoom = /^\/api\/rooms\/([^/]+)\/avatar/.exec(url)?.[1]
       if (avatarRoom) {
         requireMember(findRoom(load(), avatarRoom), user.id)

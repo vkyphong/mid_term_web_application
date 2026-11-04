@@ -1,3 +1,6 @@
+import { useAuthImage, useUserAvatarUrl } from '../avatars'
+import type { MemberRole } from '../types'
+
 const PALETTE = 6
 
 function initials(name: string): string {
@@ -19,16 +22,26 @@ function colorIndex(name: string): number {
 
 interface AvatarProps {
   name: string
-  size?: 'sm' | 'md'
+  /** Có userId thì hiện ảnh đại diện tài khoản (nếu đã đặt) thay cho chữ cái. */
+  userId?: string
+  size?: 'sm' | 'md' | 'lg'
   /** F06: undefined = không hiện chấm trạng thái. */
   online?: boolean
+  /** Trưởng nhóm (chìa vàng) / phó nhóm (chìa bạc) ở góc avatar. */
+  role?: MemberRole
 }
 
-export function Avatar({ name, size = 'md', online }: AvatarProps) {
+export function Avatar({ name, userId, size = 'md', online, role }: AvatarProps) {
+  const image = useAuthImage(useUserAvatarUrl(userId))
   return (
-    <span className={`avatar avatar--${size} avatar--c${colorIndex(name)}`} aria-hidden="true">
-      {initials(name)}
+    <span className={`avatar avatar--${size} avatar--c${colorIndex(name)}${image ? ' avatar--image' : ''}`} aria-hidden="true">
+      {image ? <img className="avatar-image" src={image} alt="" /> : initials(name)}
       {online !== undefined && <span className={`presence-dot${online ? ' presence-dot--online' : ''}`} />}
+      {(role === 'owner' || role === 'deputy') && (
+        <span className={`role-key role-key--${role}`} title={role === 'owner' ? 'Trưởng nhóm' : 'Phó nhóm'}>
+          🔑
+        </span>
+      )}
     </span>
   )
 }

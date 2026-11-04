@@ -2,7 +2,9 @@ import { useState, type KeyboardEvent } from 'react'
 import { MENTION_ALL, splitMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { REACTION_EMOJIS, type ChatMessage, type UserSummary } from '../types'
+import { roleOf } from '../roles'
 import { AttachmentView } from './AttachmentView'
+import { PollCard } from './Polls'
 import { Avatar } from './Avatar'
 
 export interface MessageActionsApi {
@@ -19,6 +21,8 @@ interface MessageItemProps {
   members: readonly UserSummary[]
   /** Kênh: tô "@All" (nhắc cả nhóm). */
   mentionAll?: boolean
+  /** Vừa nhảy tới từ kết quả tìm kiếm: tô sáng một lúc. */
+  highlight?: boolean
   receipt: { label: string; detail: string } | null
   showReceipt: boolean
   trackSeen: boolean
@@ -65,7 +69,7 @@ function groupReactions(message: ChatMessage, selfId: string, members: readonly 
 }
 
 export function MessageItem(props: MessageItemProps) {
-  const { message: m, own, head, selfId, members, mentionAll, receipt, showReceipt, trackSeen, onRetry, actions } = props
+  const { message: m, own, head, selfId, members, mentionAll, highlight, receipt, showReceipt, trackSeen, onRetry, actions } = props
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(m.content)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -107,11 +111,12 @@ export function MessageItem(props: MessageItemProps) {
 
   return (
     <li
-      className={`message${own ? ' message--own' : ''}${head ? ' message--head' : ''}${deleted ? ' message--deleted' : ''}`}
+      className={`message${own ? ' message--own' : ''}${head ? ' message--head' : ''}${deleted ? ' message--deleted' : ''}${highlight ? ' message--highlight' : ''}`}
+      id={`message-${m.id}`}
       data-message-id={trackSeen ? m.id : undefined}
     >
       {/* Tin của mình: bong bóng bên phải, không avatar. Tin người khác: bên trái kèm avatar. */}
-      {!own && <div className="message-gutter">{head && <Avatar name={m.sender.displayName} />}</div>}
+      {!own && <div className="message-gutter">{head && <Avatar name={m.sender.displayName} userId={m.sender.id} role={mentionAll ? roleOf(members, m.sender.id) : undefined} />}</div>}
       <div className="message-body">
         {head && (
           <div className="message-meta">
@@ -148,6 +153,8 @@ export function MessageItem(props: MessageItemProps) {
             </div>
           ) : deleted ? (
             <p className="message-content message-bubble message-bubble--deleted">Tin nhắn đã bị xoá</p>
+          ) : m.poll ? (
+            <PollCard poll={m.poll} selfId={selfId} members={members} disabled={!stored} />
           ) : (
             (m.content || !m.attachment) && (
               <p className="message-content message-bubble">

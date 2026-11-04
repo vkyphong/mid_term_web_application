@@ -1,6 +1,6 @@
 import { uuid } from '../../lib/uuid'
 import { useCallback, useEffect } from 'react'
-import { useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { useSession } from '../auth/hooks'
 import { chatApi, chatTransport } from './chatApi'
 import { compareTimestamps, mergeMessages, reconcileLatestPage, setPendingStatus, upsertMessage } from './messages'
@@ -19,7 +19,8 @@ import {
 import { enqueue, pump, resetOutbox, setOutboxSink, type OutboxItem } from './outbox'
 import { playMessageSound, unlockSound } from './sound'
 import { bumpUnread, markViewed, resetUnread, withViewed } from './unread'
-import type { ChatMessage, ClientEvents, CreateRoomInput, Message, Room, Upload } from './types'
+import { resetUserAvatars, setUserAvatar, setUserAvatars } from './avatars'
+import type { ChatMessage, ClientEvents, CreatePollInput, CreateRoomInput, MemberRole, Message, Room, RoomMember, Upload } from './types'
 
 export const chatKeys = {
   all: ['chat'] as const,
@@ -294,6 +295,77 @@ export function useMessageActions() {
 }
 
 /** F09: thành viên phòng để chọn @mention. */
+/** Trưởng nhóm bổ nhiệm / bỏ phó nhóm. */
+export function useSetMemberRole(roomId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ userId, role }: { userId: string; role: Exclude<MemberRole, 'owner'> }) => chatApi.setMemberRole(roomId, userId, role),
+    onSuccess: (members) => queryClient.setQueryData<RoomMember[]>(chatKeys.members(roomId), members),
+  })
+}
+
+/** Tạo bình chọn: tin bình chọn hiện ngay (ack REST), người khác nhận qua message:new. */
+export function useCreatePoll(roomId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: CreatePollInput) => chatApi.createPoll(roomId, input),
+    onSuccess: (message) => applyMessage(queryClient, message),
+  })
+}
+
+export function useVote() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ pollId, optionIds }: { pollId: string; optionIds: string[] }) => chatApi.vote(pollId, optionIds),
+    onSuccess: (message) => applyMessage(queryClient, message),
+  })
+}
+
+/** Tìm tin trong phòng: 20 kết quả mỗi trang, mới nhất trước. */
+export function useMessageSearch(roomId: string, query: string) {
+  return useInfiniteQuery({
+    queryKey: ['chat', 'search', roomId, query] as const,
+    queryFn: ({ pageParam }) => chatApi.searchMessages(roomId, query, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    enabled: query.length > 0,
+    staleTime: 10_000,
+  })
+}
+
+/**
+ * Nhảy tới một tin cũ (kết quả tìm kiếm): tải dần các trang lịch sử cho tới khi tin có trong cache.
+ * Trả về false nếu không tìm thấy (đã xoá hoặc quá xa).
+ */
+export function useJumpToMessage(roomId: string) {
+  const queryClient = useQueryClient()
+  return useCallback(
+    async (messageId: string) => {
+      for (let page = 0; page < 100; page++) {
+        const list = queryClient.getQueryData<ChatMessage[]>(chatKeys.messages(roomId)) ?? []
+        if (list.some((m) => m.id === messageId)) return true
+        const cursor = queryClient.getQueryData<string | null>(chatKeys.cursor(roomId))
+        if (!cursor) return false
+        const older = await chatApi.listMessages(roomId, cursor)
+        queryClient.setQueryData<ChatMessage[]>(chatKeys.messages(roomId), (current) =>
+          current ? mergeMessages(current, older.messages) : current,
+        )
+        queryClient.setQueryData<string | null>(chatKeys.cursor(roomId), older.nextCursor)
+      }
+      return false
+    },
+    [queryClient, roomId],
+  )
+}
+
+export function useUploadMyAvatar() {
+  return useMutation({ mutationFn: (file: File) => chatApi.uploadMyAvatar(file), onSuccess: setUserAvatar })
+}
+
+export function useRemoveMyAvatar() {
+  return useMutation({ mutationFn: () => chatApi.removeMyAvatar(), onSuccess: setUserAvatar })
+}
+
 export function useRoomMembers(roomId: string) {
   return useQuery({
     queryKey: chatKeys.members(roomId),
@@ -365,7 +437,11 @@ export function useChatEvents() {
           return applyNotificationRead(queryClient, event.payload.id)
         case 'room:updated':
           upsertRoom(queryClient, withViewed([event.payload])[0])
+          // Vai trò thành viên (trưởng / phó nhóm) có thể vừa đổi.
+          void queryClient.invalidateQueries({ queryKey: chatKeys.members(event.payload.id) })
           return
+        case 'user:avatar':
+          return setUserAvatar(event.payload)
         case 'room:added': {
           const room = event.payload
           const known = queryClient.getQueryData<Room[]>(chatKeys.rooms)?.find((r) => r.id === room.id)
@@ -395,7 +471,16 @@ export function useChatEvents() {
       if (!known) void queryClient.invalidateQueries({ queryKey: chatKeys.rooms })
     })
     // Có thể đã lỡ event khi mất kết nối -> tải lại; rồi gửi bù hàng đợi (F10).
+    // Ảnh đại diện: nạp danh sách, rồi cập nhật qua event user:avatar; nạp lại sau reconnect.
+    // Lỗi (kể cả API chưa có) chỉ làm avatar hiện chữ cái, không làm hỏng màn hình chat.
+    const loadAvatars = () =>
+      Promise.resolve()
+        .then(() => chatApi.listUserAvatars())
+        .then(setUserAvatars)
+        .catch(() => {})
+    void loadAvatars()
     const offConnected = chatTransport.onConnected(() => {
+      void loadAvatars()
       void queryClient.invalidateQueries({ queryKey: chatKeys.all })
       pump()
     })
@@ -407,6 +492,7 @@ export function useChatEvents() {
       window.removeEventListener('pointerdown', unlockSound)
       window.removeEventListener('keydown', unlockSound)
       resetUnread()
+      resetUserAvatars()
       offEvent()
       offConnected()
       setOutboxSink(null)

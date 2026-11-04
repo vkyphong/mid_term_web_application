@@ -363,3 +363,71 @@ test('đổi tên nhóm, ảnh nhóm thấy ngay ở mọi thành viên; biệt 
     await Promise.all([alice.context.close(), bob.context.close()])
   }
 })
+
+test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ nhiệm phó nhóm, ảnh đại diện tài khoản', async ({ browser }) => {
+  const [alice, bob] = await Promise.all([account(browser, 'alice'), account(browser, 'bob')])
+  try {
+    // Alice tạo kênh qua API → là trưởng nhóm.
+    const roomId = await channelWith(alice, bob)
+    const a = await open(alice, `/rooms/${roomId}`)
+    const b = await open(bob, `/rooms/${roomId}`)
+
+    // ---- Tìm tin: tin cần tìm bị đẩy ra ngoài trang 30 tin đầu ----
+    await box(a).fill('Báo cáo quý 1 đã nộp')
+    await a.keyboard.press('Enter')
+    for (let i = 0; i < 31; i++) {
+      await box(a).fill(`Tin thường ${i}`)
+      await a.keyboard.press('Enter')
+    }
+    await expect(bubble(b, 'Tin thường 30')).toBeVisible({ timeout: 40_000 })
+    await b.reload()
+    await expect(bubble(b, 'Tin thường 30')).toBeVisible()
+    await expect(bubble(b, 'Báo cáo quý 1')).toHaveCount(0) // chưa tải trang cũ
+    await b.getByRole('button', { name: 'Tìm tin nhắn' }).click()
+    await b.getByLabel('Từ khoá').fill('báo cáo')
+    const result = b.getByRole('dialog', { name: 'Tìm tin nhắn' }).getByRole('button', { name: /Báo cáo quý 1 đã nộp/ })
+    await expect(result.locator('mark')).toHaveText('Báo cáo')
+    await result.click()
+    await expect(bubble(b, 'Báo cáo quý 1 đã nộp')).toBeInViewport()
+    await expect(b.locator('.message--highlight')).toContainText('Báo cáo quý 1 đã nộp')
+
+    // ---- Trưởng / phó nhóm ----
+    await expect(b.locator('.message-list .message-gutter .role-key--owner').first()).toBeVisible()
+    await a.getByRole('button', { name: '2 thành viên' }).click()
+    const members = a.getByRole('dialog', { name: 'Thành viên (2)' })
+    await expect(members.locator('li', { hasText: alice.displayName })).toContainText('Trưởng nhóm')
+    await members.locator('li', { hasText: bob.displayName }).getByRole('button', { name: 'Bổ nhiệm phó nhóm' }).click()
+    await expect(members.locator('li', { hasText: bob.displayName })).toContainText('Phó nhóm')
+    await a.keyboard.press('Escape')
+    const bobView = await (await bob.context.request.get(`/api/rooms/${roomId}/members`, { headers: auth(bob) })).json()
+    expect(bobView.members.find((m: { id: string }) => m.id === bob.id).memberRole).toBe('deputy')
+    await b.getByRole('button', { name: '2 thành viên' }).click()
+    await expect(b.getByRole('dialog').getByRole('button', { name: /phó nhóm/ })).toHaveCount(0) // phó nhóm không phân quyền được
+    await b.keyboard.press('Escape')
+
+    // ---- Bình chọn ----
+    await a.getByRole('button', { name: 'Tạo bình chọn' }).click()
+    const create = a.getByRole('dialog', { name: 'Tạo bình chọn' })
+    await create.getByLabel('Câu hỏi').fill('Ăn trưa ở đâu?')
+    await create.getByLabel('Lựa chọn 1', { exact: true }).fill('Cơm')
+    await create.getByLabel('Lựa chọn 2', { exact: true }).fill('Phở')
+    await create.getByRole('button', { name: '+ Thêm lựa chọn' }).click()
+    await create.getByLabel('Lựa chọn 3', { exact: true }).fill('Bún')
+    await create.getByRole('button', { name: 'Tạo bình chọn' }).click()
+    const bobPoll = b.getByRole('group', { name: 'Bình chọn: Ăn trưa ở đâu?' })
+    await expect(bobPoll.getByRole('checkbox')).toHaveCount(3)
+    await bobPoll.getByRole('checkbox', { name: 'Phở: 0 phiếu' }).click()
+    const alicePoll = a.getByRole('group', { name: 'Bình chọn: Ăn trưa ở đâu?' })
+    await expect(alicePoll.getByRole('checkbox', { name: 'Phở: 1 phiếu' })).toBeVisible()
+    await alicePoll.getByRole('checkbox', { name: 'Phở: 1 phiếu' }).hover()
+    await expect(alicePoll.locator('.reaction-who')).toHaveText(bob.displayName)
+
+    // ---- Ảnh đại diện tài khoản: Bob đổi ảnh, Alice thấy ngay ----
+    await b.getByRole('button', { name: 'Đổi ảnh đại diện' }).click()
+    await b.getByTestId('profile-avatar-input').setInputFiles({ name: 'bob.png', mimeType: 'image/png', buffer: png(8, 8) })
+    await expect(b.locator('.chat-user-avatar .avatar-image')).toBeVisible()
+    await expect(a.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${roomId}"] .avatar-image`)).toBeVisible()
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close()])
+  }
+})

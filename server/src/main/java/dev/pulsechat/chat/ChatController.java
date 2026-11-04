@@ -53,4 +53,21 @@ public class ChatController {
                                @RequestParam(defaultValue = "30") int limit, @RequestParam(required = false) String before) {
         return chat.history(id, user.userId(), limit, before);
     }
+    @GetMapping("/rooms/{id}/search")
+    public MessagePage search(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestParam(defaultValue = "") String q,
+                              @RequestParam(defaultValue = "20") int limit, @RequestParam(required = false) String before) {
+        return chat.search(id, user.userId(), q, limit, before);
+    }
+    @PutMapping("/rooms/{id}/members/{userId}/role")
+    public Object role(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @PathVariable String userId, @RequestBody SetRole input) {
+        return Map.of("members", chat.setRole(id, user.userId(), userId, input));
+    }
+    @PostMapping("/rooms/{id}/polls")
+    public ResponseEntity<Message> createPoll(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody CreatePoll input) {
+        return ResponseEntity.status(201).body(chat.createPoll(id, user.userId(), input));
+    }
+    @PutMapping("/polls/{id}/votes")
+    public Message vote(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestBody Vote input) {
+        return chat.vote(id, user.userId(), input);
+    }
 }

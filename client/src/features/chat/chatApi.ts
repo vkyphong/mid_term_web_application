@@ -2,7 +2,7 @@ import { config } from '../../config'
 import { authBlob, authRequest, authUpload } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreateRoomInput, MessagePage, NotificationPage, Presence, Room, RoomMember, Upload, UserSummary } from './types'
+import type { CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, Presence, Room, RoomMember, Upload, UserAvatar, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -26,6 +26,17 @@ export interface ChatApi {
   /** Ảnh nhóm JPEG/PNG ≤ 2 MiB. */
   uploadRoomAvatar(roomId: string, file: File): Promise<Room>
   removeRoomAvatar(roomId: string): Promise<Room>
+  /** Tìm tin trong phòng theo từ khoá, mới nhất trước; `before` = ID tin cuối trang trước. */
+  searchMessages(roomId: string, query: string, before?: string): Promise<MessagePage>
+  /** Trưởng nhóm bổ nhiệm / bỏ phó nhóm; trả về danh sách thành viên mới. */
+  setMemberRole(roomId: string, userId: string, role: Exclude<MemberRole, 'owner'>): Promise<RoomMember[]>
+  createPoll(roomId: string, input: CreatePollInput): Promise<Message>
+  /** Đặt lại toàn bộ lựa chọn của mình; [] = bỏ bình chọn. */
+  vote(pollId: string, optionIds: string[]): Promise<Message>
+  /** Những tài khoản đã có ảnh đại diện. */
+  listUserAvatars(): Promise<UserAvatar[]>
+  uploadMyAvatar(file: File): Promise<UserAvatar>
+  removeMyAvatar(): Promise<UserAvatar>
   /** F09: thông báo mới nhất trước, kèm số chưa đọc. */
   listNotifications(before?: string): Promise<NotificationPage>
   markNotificationRead(id: string): Promise<void>
@@ -62,6 +73,27 @@ export const httpChatApi: ChatApi = {
     return authUpload(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, form)
   },
   removeRoomAvatar: (roomId) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, { method: 'DELETE' }),
+  searchMessages: (roomId, query, before) => {
+    const params = new URLSearchParams({ q: query, limit: '20' })
+    if (before) params.set('before', before)
+    return authRequest(`/api/rooms/${encodeURIComponent(roomId)}/search?${params}`)
+  },
+  setMemberRole: async (roomId, userId, role) =>
+    (
+      await authRequest<{ members: RoomMember[] }>(
+        `/api/rooms/${encodeURIComponent(roomId)}/members/${encodeURIComponent(userId)}/role`,
+        { method: 'PUT', body: { role } },
+      )
+    ).members,
+  createPoll: (roomId, input) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}/polls`, { method: 'POST', body: input }),
+  vote: (pollId, optionIds) => authRequest(`/api/polls/${encodeURIComponent(pollId)}/votes`, { method: 'PUT', body: { optionIds } }),
+  listUserAvatars: async () => (await authRequest<{ avatars: UserAvatar[] }>('/api/users/avatars')).avatars,
+  uploadMyAvatar: (file) => {
+    const form = new FormData()
+    form.append('file', file)
+    return authUpload('/api/me/avatar', form)
+  },
+  removeMyAvatar: () => authRequest('/api/me/avatar', { method: 'DELETE' }),
   listNotifications: (before) => {
     const params = new URLSearchParams({ limit: '30' })
     if (before) params.set('before', before)

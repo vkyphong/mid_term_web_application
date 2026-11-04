@@ -27,7 +27,7 @@ public class ChatService {
     private final RowMapper<Message> MESSAGE = (rs, n) -> new Message(rs.getString("id"), rs.getString("room_id"),
         rs.getString("client_msg_id"), new Sender(rs.getString("sender_id"), rs.getString("display_name")),
         rs.getString("content"), rs.getTimestamp("created_at").toInstant(), instant(rs,"edited_at"), instant(rs,"deleted_at"),
-        attachment(rs.getString("id")), receipts(rs.getString("id")), reactions(rs.getString("id")));
+        attachment(rs.getString("id")), receipts(rs.getString("id")), reactions(rs.getString("id")), poll(rs.getString("id")));
 
     @Transactional(readOnly = true)
     public List<Room> listRooms(String user) {
@@ -41,9 +41,11 @@ public class ChatService {
         String id = UUID.randomUUID().toString();
         // The unique index arbitrates concurrent requests; the controller maps duplicate keys.
         db.update("INSERT INTO rooms(id,type,name,name_key,description) VALUES (?,'channel',?,?,?)", id, name, name.toLowerCase(Locale.ROOT), description);
-        db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", id, user);
+        // Người tạo kênh là trưởng nhóm.
+        db.update("INSERT INTO room_members(room_id,user_id,role,joined_at) VALUES (?,?,'owner',?)", id, user, now());
         return room(id, user);
     }
+    private static Timestamp now() { return Timestamp.from(Instant.now().truncatedTo(ChronoUnit.MICROS)); }
     public static CreateRoom validateRoom(CreateRoom input) {
         String name = input == null || input.name() == null ? "" : input.name().trim();
         if (name.length() < 2 || name.length() > 40) throw field("name", "Channel name must contain 2–40 characters");
@@ -84,14 +86,45 @@ public class ChatService {
         lockRoom(id);
         requireChannel(id);
         requireWritable(id);
-        if (!member(id, user)) db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", id, user);
+        if (!member(id, user)) db.update("INSERT INTO room_members(room_id,user_id,joined_at) VALUES (?,?,?)", id, user, now());
         return room(id, user);
     }
     public void leave(String id, String user) {
         db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockRoom(id);
         requireChannel(id);
-        db.update("DELETE FROM room_members WHERE room_id=? AND user_id=?", id, user);
+        removeMember(id, user);
+    }
+    /** Xoá thành viên; nếu là trưởng nhóm thì chuyển quyền cho phó nhóm vào sớm nhất, không có thì thành viên vào sớm nhất. */
+    public void removeMember(String room, String user) {
+        boolean wasOwner = "owner".equals(role(room, user));
+        db.update("DELETE FROM room_members WHERE room_id=? AND user_id=?", room, user);
+        if (!wasOwner) return;
+        db.query("SELECT user_id FROM room_members WHERE room_id=? ORDER BY CASE WHEN role='deputy' THEN 0 ELSE 1 END, "
+                + "CASE WHEN joined_at IS NULL THEN 1 ELSE 0 END, joined_at, user_id LIMIT 1", (rs, n) -> rs.getString(1), room)
+            .forEach(next -> db.update("UPDATE room_members SET role='owner' WHERE room_id=? AND user_id=?", room, next));
+        broadcastRoom(room);
+    }
+    private String role(String room, String user) {
+        return db.query("SELECT role FROM room_members WHERE room_id=? AND user_id=?", (rs, n) -> rs.getString(1), room, user)
+            .stream().findFirst().orElse(null);
+    }
+    static final int MAX_DEPUTIES = 5;
+    /** Trưởng nhóm bổ nhiệm / bỏ phó nhóm (tối đa 5). */
+    public List<RoomMember> setRole(String room, String actor, String target, SetRole input) {
+        String role = input == null ? null : input.role();
+        if (!"deputy".equals(role) && !"member".equals(role)) throw field("role", "Role must be deputy or member");
+        requireChannel(room); requireMember(room, actor); requireWritable(room);
+        if (!"owner".equals(role(room, actor))) throw forbidden();
+        String current = role(room, target);
+        if (current == null) throw field("userId", "Employee is not a member of this channel");
+        if (current.equals("owner")) throw field("userId", "The owner's role cannot be changed");
+        if (role.equals("deputy") && !current.equals("deputy")
+                && db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=? AND role='deputy'", Integer.class, room) >= MAX_DEPUTIES)
+            throw new ApiException(409, "invalid_payload", "deputy_limit", "A channel has at most " + MAX_DEPUTIES + " deputies");
+        db.update("UPDATE room_members SET role=? WHERE room_id=? AND user_id=?", role, room, target);
+        broadcastRoom(room);
+        return memberList(room);
     }
     public Delivery send(String room, String user, String content, String clientMsgId) {
         return send(room,user,content,clientMsgId,null,List.of());
@@ -153,6 +186,85 @@ public class ChatService {
         }
         Collections.reverse(messages); return new MessagePage(messages, cursor);
     }
+
+    /**
+     * Tìm tin trong phòng theo từ khoá (chuỗi con, không phân biệt hoa thường; collation MySQL bỏ qua dấu).
+     * Kết quả mới nhất trước; `before` là ID tin cuối của trang trước.
+     */
+    @Transactional(readOnly = true)
+    public MessagePage search(String room, String user, String query, int limit, String before) {
+        if (limit < 1 || limit > 50) throw field("limit", "Limit must be between 1 and 50");
+        String q = query == null ? "" : query.trim();
+        if (q.isEmpty() || q.length() > 100) throw field("q", "Search must contain 1–100 characters");
+        room(room, user); requireMember(room, user);
+        String pattern = "%" + q.toLowerCase(Locale.ROOT).replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
+        String sql = MESSAGE_SELECT + "WHERE m.room_id=? AND m.deleted_at IS NULL AND LOWER(m.content) LIKE ? ESCAPE '!'";
+        var args = new ArrayList<Object>(List.of(room, pattern));
+        if (before != null) {
+            var anchor = db.query("SELECT created_at FROM messages WHERE id=? AND room_id=?", (rs, n) -> rs.getTimestamp(1), before, room);
+            if (anchor.isEmpty()) throw field("before", "Invalid search cursor");
+            sql += " AND (m.created_at<? OR (m.created_at=? AND m.id<?))";
+            args.add(anchor.getFirst()); args.add(anchor.getFirst()); args.add(before);
+        }
+        args.add(limit + 1);
+        var messages = new ArrayList<>(db.query(sql + " ORDER BY m.created_at DESC,m.id DESC LIMIT ?", MESSAGE, args.toArray()));
+        boolean more = messages.size() > limit;
+        if (more) messages.removeLast();
+        return new MessagePage(messages, more ? messages.getLast().id() : null);
+    }
+
+    static final int MAX_POLL_OPTIONS = 10;
+    /** Bình chọn = một tin nhắn kèm câu hỏi và các lựa chọn; mọi thành viên thấy realtime qua message:new. */
+    public Message createPoll(String room, String user, CreatePoll input) {
+        String question = input == null || input.question() == null ? "" : input.question().trim();
+        if (question.isEmpty() || question.length() > 200) throw field("question", "Question must contain 1–200 characters");
+        var options = input.options() == null ? List.<String>of() : input.options().stream()
+            .map(o -> o == null ? "" : o.trim()).filter(o -> !o.isEmpty()).toList();
+        if (options.size() < 2 || options.size() > MAX_POLL_OPTIONS) throw field("options", "A poll needs 2–" + MAX_POLL_OPTIONS + " options");
+        if (options.stream().anyMatch(o -> o.length() > 100)) throw field("options", "Each option must contain at most 100 characters");
+        if (new HashSet<>(options.stream().map(o -> o.toLowerCase(Locale.ROOT)).toList()).size() != options.size()) throw field("options", "Options must be different");
+        String clientMsgId = input.clientMsgId() == null ? UUID.randomUUID().toString() : input.clientMsgId();
+        var delivery = send(room, user, "📊 " + question, clientMsgId);
+        String messageId = delivery.message().id();
+        if (delivery.created()) {
+            String pollId = UUID.randomUUID().toString();
+            db.update("INSERT INTO polls(id,room_id,message_id,question,multiple,created_by,created_at) VALUES (?,?,?,?,?,?,?)",
+                pollId, room, messageId, question, input.multiple() == null || input.multiple(), user, now());
+            for (int i = 0; i < options.size(); i++)
+                db.update("INSERT INTO poll_options(id,poll_id,sort_order,label) VALUES (?,?,?,?)", UUID.randomUUID().toString(), pollId, i, options.get(i));
+        }
+        var message = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
+        if (delivery.created()) events.send(delivery.recipients(), "/queue/events", "message:new", message);
+        return message;
+    }
+    /** Đặt lại toàn bộ lựa chọn của mình (gửi lại cùng danh sách không đổi gì); danh sách rỗng = bỏ bình chọn. */
+    public Message vote(String pollId, String user, Vote input) {
+        var polls = db.query("SELECT room_id, message_id, multiple FROM polls WHERE id=? FOR UPDATE",
+            (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getBoolean(3)}, pollId);
+        if (polls.isEmpty()) throw new ApiException(404, "invalid_payload", "not_found", "Poll not found");
+        String room = (String) polls.getFirst()[0], messageId = (String) polls.getFirst()[1];
+        requireMember(room, user); requireWritable(room);
+        if (db.queryForObject("SELECT COUNT(*) FROM messages WHERE id=? AND deleted_at IS NOT NULL", Integer.class, messageId) > 0)
+            throw field("pollId", "The poll was deleted");
+        var chosen = input == null || input.optionIds() == null ? List.<String>of() : List.copyOf(new LinkedHashSet<>(input.optionIds()));
+        if (!(Boolean) polls.getFirst()[2] && chosen.size() > 1) throw field("optionIds", "Choose one option");
+        var valid = new HashSet<>(db.query("SELECT id FROM poll_options WHERE poll_id=?", (rs, n) -> rs.getString(1), pollId));
+        if (!valid.containsAll(chosen)) throw field("optionIds", "Unknown poll option");
+        db.update("DELETE FROM poll_votes WHERE poll_id=? AND user_id=?", pollId, user);
+        for (String option : chosen) db.update("INSERT INTO poll_votes(option_id,user_id,poll_id,created_at) VALUES (?,?,?,?)", option, user, pollId, now());
+        var message = db.queryForObject(MESSAGE_SELECT + "WHERE m.id=?", MESSAGE, messageId);
+        events.send(recipients(room), "/queue/events", "message:poll", message);
+        return message;
+    }
+    private Poll poll(String messageId) {
+        var polls = db.query("SELECT id, question, multiple, created_by FROM polls WHERE message_id=?",
+            (rs, n) -> new Object[]{rs.getString(1), rs.getString(2), rs.getBoolean(3), rs.getString(4)}, messageId);
+        if (polls.isEmpty()) return null;
+        String pollId = (String) polls.getFirst()[0];
+        var options = db.query("SELECT id, label FROM poll_options WHERE poll_id=? ORDER BY sort_order", (rs, n) -> new PollOption(rs.getString(1), rs.getString(2),
+            db.query("SELECT user_id FROM poll_votes WHERE option_id=? ORDER BY created_at, user_id", (v, i) -> v.getString(1), rs.getString(1))), pollId);
+        return new Poll(pollId, (String) polls.getFirst()[1], (Boolean) polls.getFirst()[2], (String) polls.getFirst()[3], options);
+    }
     private void requireChannel(String id) {
         if (!"channel".equals(lockRoom(id))) throw forbidden();
     }
@@ -170,8 +282,9 @@ public class ChatService {
         return memberList(room);
     }
     public List<RoomMember> memberList(String room) {
-        return db.query("SELECT u.id,u.display_name,u.email,u.enabled FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? ORDER BY u.display_name,u.id",
-            (rs, n) -> new RoomMember(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBoolean(4)), room);
+        return db.query("SELECT u.id,u.display_name,u.email,u.enabled,m.role FROM room_members m JOIN users u ON u.id=m.user_id WHERE m.room_id=? "
+                + "ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'deputy' THEN 1 ELSE 2 END, u.display_name,u.id",
+            (rs, n) -> new RoomMember(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBoolean(4), rs.getString(5)), room);
     }
     public Room addMember(String room, String actor, AddMember input) {
         String target = input == null ? null : input.userId();
@@ -187,7 +300,7 @@ public class ChatService {
     }
     public void insertMember(String room, String user) {
         if (member(room, user)) return;
-        db.update("INSERT INTO room_members(room_id,user_id) VALUES (?,?)", room, user);
+        db.update("INSERT INTO room_members(room_id,user_id,joined_at) VALUES (?,?,?)", room, user, now());
         // Người được thêm thấy nhóm ngay, không cần tải lại (gửi sau khi transaction commit).
         events.send(List.of(user), "/queue/events", "room:added", room(room, user));
     }
@@ -274,7 +387,8 @@ public class ChatService {
             String displayName = peer == null ? rs.getString("name") : nickname != null ? nickname : peer.displayName();
             return new Room(id, type, displayName, rs.getString("description"),
                 db.queryForObject("SELECT COUNT(*) FROM room_members WHERE room_id=?", Integer.class, id), joined, peer, instant(rs, "last_message_at"), rs.getBoolean("archived"),
-                joined ? unreadCount(id, user) : 0, nickname, avatarUrl, preview);
+                joined ? unreadCount(id, user) : 0, nickname, avatarUrl, preview,
+                joined && type.equals("channel") ? role(id, user) : null);
         }, id);
         if (rooms.isEmpty()) throw notFound(); return rooms.getFirst();
     }

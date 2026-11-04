@@ -5,7 +5,7 @@ import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { ACCEPTED_LABEL, ACCEPT_ATTR, IMAGE_ACCEPT_ATTR, MAX_UPLOAD_LABEL, formatBytes, useFileUpload } from '../uploads'
 import type { RoomMember, UserSummary } from '../types'
 import { Avatar } from './Avatar'
-import { AtIcon, ImageIcon, PaperclipIcon, SmileIcon, ThumbsUpIcon, UserPlusIcon } from './icons'
+import { AtIcon, ImageIcon, PaperclipIcon, PollIcon, SmileIcon, ThumbsUpIcon, UserPlusIcon } from './icons'
 
 interface ComposerProps {
   roomId: string
@@ -22,6 +22,8 @@ interface ComposerProps {
   allowMentionAll?: boolean
   /** Kênh: nút "Thêm thành viên" trên thanh công cụ. */
   onAddMembers?: () => void
+  /** Kênh: nút "Tạo bình chọn" trên thanh công cụ. */
+  onCreatePoll?: () => void
 }
 
 /** Emoji hay dùng; chèn vào vị trí con trỏ. */
@@ -54,7 +56,7 @@ function ToolButton(props: { label: string; onClick: () => void; disabled?: bool
 }
 
 export function Composer(props: ComposerProps) {
-  const { roomId, placeholder, onSend, disabled = false, onInput, members = [], selfId, allowMentionAll = false, onAddMembers } = props
+  const { roomId, placeholder, onSend, disabled = false, onInput, members = [], selfId, allowMentionAll = false, onAddMembers, onCreatePoll } = props
   const [value, setValue] = useState('')
   const [picked, setPicked] = useState<UserSummary[]>([])
   const [mention, setMention] = useState<{ start: number; query: string } | null>(null)
@@ -237,7 +239,7 @@ export function Composer(props: ComposerProps) {
                   </>
                 ) : (
                   <>
-                    <Avatar name={m.displayName} size="sm" />
+                    <Avatar name={m.displayName} userId={m.id} size="sm" />
                     {m.displayName}
                   </>
                 )}
@@ -260,6 +262,11 @@ export function Composer(props: ComposerProps) {
         <ToolButton label="Nhắc tên thành viên" disabled={disabled} onClick={startMention}>
           <AtIcon />
         </ToolButton>
+        {onCreatePoll && (
+          <ToolButton label="Tạo bình chọn" disabled={disabled} onClick={onCreatePoll}>
+            <PollIcon />
+          </ToolButton>
+        )}
         {onAddMembers && (
           <ToolButton label="Thêm thành viên" disabled={disabled} onClick={onAddMembers}>
             <UserPlusIcon />
