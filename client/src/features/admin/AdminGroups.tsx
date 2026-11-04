@@ -4,6 +4,7 @@ import { ApiError } from '../../lib/apiError'
 import { adminApi, type AdminGroup, type GroupMember, type GroupRole } from './adminApi'
 import { describeError } from './adminErrors'
 import { Confirmation } from './adminUi'
+import { Avatar } from '../chat/components/Avatar'
 
 type Status = 'all' | 'active' | 'archived'
 const ROLE_LABEL: Record<GroupRole, string> = { owner: 'Trưởng nhóm', deputy: 'Phó nhóm', member: 'Thành viên' }
@@ -155,7 +156,7 @@ function GroupMembers({ group, onClose, onNotice }: { group: AdminGroup; onClose
           {candidates.isSuccess && results.length === 0 && <li className="admin-empty">Không có tài khoản phù hợp ngoài nhóm.</li>}
           {results.map((u) => (
             <li key={u.id}>
-              <span className="admin-avatar">{u.displayName.slice(0, 1).toUpperCase()}</span>
+              <Avatar name={u.displayName} userId={u.id} size="sm" />
               <div><strong>{u.displayName}</strong><span>{u.email}</span></div>
               <button type="button" className="admin-button admin-button--small admin-button--primary" disabled={!u.enabled || busy} onClick={() => add.mutate(u.id)} aria-label={`Thêm ${u.email}`}>
                 {u.enabled ? 'Thêm' : 'Đã khóa'}
@@ -183,7 +184,7 @@ function GroupMembers({ group, onClose, onNotice }: { group: AdminGroup; onClose
         {members.isSuccess && members.data.length === 0 && <li className="admin-empty">Nhóm chưa có thành viên.</li>}
         {members.data?.map((m) => (
           <li key={m.id}>
-            <span className="admin-avatar">{m.displayName.slice(0, 1).toUpperCase()}</span>
+            <Avatar name={m.displayName} userId={m.id} size="sm" />
             <div>
               <strong>{m.displayName}</strong>
               <span>{m.email}{!m.enabled && ' · Đã khóa'}</span>

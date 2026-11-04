@@ -19,6 +19,12 @@ vi.mock('./adminApi', () => ({
     unban: vi.fn(), setRole: vi.fn(), setGroupMemberRole: vi.fn(), setGroupApproval: vi.fn(),
   },
 }))
+vi.mock('../chat/chatApi', () => ({
+  chatApi: {
+    listUserAvatars: vi.fn().mockResolvedValue([]),
+    getMyProfile: vi.fn().mockResolvedValue({ id: 'admin', email: 'admin@dqgm.dev', displayName: 'IT Admin', avatarUrl: null, gender: null, birthday: null, phone: null, isPublic: true }),
+  },
+}))
 const api = vi.mocked(adminApi)
 const stats = { connections: 3, onlineUsers: 2, msgPerSec: 4, activeRooms: 1 }
 const admin = { id: 'admin', email: 'admin@dqgm.dev', displayName: 'IT Admin', role: 'admin' }
@@ -245,5 +251,26 @@ describe('trưởng / phó nhóm và phê duyệt (admin)', () => {
     await user.click(approval)
     await waitFor(() => expect(api.setGroupApproval).toHaveBeenCalledWith('g1', true))
     expect(approval).toBeChecked()
+  })
+})
+
+describe('menu trái và avatar', () => {
+  it('bấm mục nào thì mục đó sáng; avatar mở Thông tin tài khoản như bên chat', async () => {
+    const user = userEvent.setup()
+    mount()
+    const nav = screen.getByRole('navigation', { name: 'Quản trị' })
+    expect(within(nav).getByRole('link', { name: 'Live Dashboard' })).toHaveAttribute('aria-current', 'location')
+    await user.click(within(nav).getByRole('link', { name: 'Nhóm' }))
+    expect(within(nav).getByRole('link', { name: 'Nhóm' })).toHaveClass('admin-nav-active')
+    expect(within(nav).getByRole('link', { name: 'Nhóm' })).toHaveAttribute('aria-current', 'location')
+    expect(within(nav).getByRole('link', { name: 'Live Dashboard' })).not.toHaveClass('admin-nav-active')
+    await user.click(within(nav).getByRole('link', { name: 'Broadcast' }))
+    expect(within(nav).getByRole('link', { name: 'Broadcast' })).toHaveClass('admin-nav-active')
+
+    // Avatar dùng chung với chat: 2 chữ cái đầu, bấm mở hộp thông tin tài khoản.
+    const avatar = screen.getByRole('button', { name: 'Thông tin tài khoản' })
+    expect(avatar).toHaveTextContent('IA')
+    await user.click(avatar)
+    expect(await screen.findByRole('dialog', { name: /Thông tin tài khoản/ })).toBeInTheDocument()
   })
 })
