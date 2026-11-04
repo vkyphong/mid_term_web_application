@@ -38,7 +38,7 @@ export function ProfileDetails({ profile }: { profile: Profile }) {
         {profile.self && (
           <>
             <dt>Chế độ</dt>
-            <dd>{profile.profilePublic ? '🌐 Công khai' : '🔒 Riêng tư'}</dd>
+            <dd>{profile.profilePublic ? 'Công khai' : 'Riêng tư'}</dd>
           </>
         )}
       </dl>
@@ -124,11 +124,11 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
         <div className="profile-genders">
           <label className="checkbox-row">
             <input type="radio" name="privacy" checked={profilePublic} onChange={() => setProfilePublic(true)} />
-            🌐 Công khai
+            Công khai
           </label>
           <label className="checkbox-row">
             <input type="radio" name="privacy" checked={!profilePublic} onChange={() => setProfilePublic(false)} />
-            🔒 Riêng tư
+            Riêng tư
           </label>
         </div>
       </fieldset>

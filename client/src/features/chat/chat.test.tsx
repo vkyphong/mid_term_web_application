@@ -403,12 +403,12 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     renderChat(`/rooms/${dm.id}`)
     await user.click(await screen.findByRole('button', { name: 'Thông tin tài khoản' }))
     const dialog = screen.getByRole('dialog', { name: 'Thông tin tài khoản' })
-    expect(await within(dialog).findByText('🔒 Riêng tư')).toBeInTheDocument()
+    expect(await within(dialog).findByText('Riêng tư')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: '✏️ Cập nhật' }))
-    await user.click(within(dialog).getByLabelText('🌐 Công khai'))
+    await user.click(within(dialog).getByLabelText('Công khai'))
     await user.click(within(dialog).getByRole('button', { name: 'Lưu' }))
     expect(api.updateMyProfile).toHaveBeenLastCalledWith(expect.objectContaining({ profilePublic: true }))
-    expect(await within(dialog).findByText('🌐 Công khai')).toBeInTheDocument()
+    expect(await within(dialog).findByText('Công khai')).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Đóng' }))
 
     // Bấm avatar người kia ở đầu chat 1:1 → hồ sơ riêng tư: không có giới tính / ngày sinh / điện thoại.
@@ -431,7 +431,7 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     const view = renderChat(`/rooms/${eng.id}`)
     const poll = await screen.findByRole('group', { name: 'Bình chọn: Họp T7?' })
     await waitFor(() => expect(api.listMembers).toHaveBeenCalled())
-    expect(within(poll).queryByRole('button', { name: '🔒 Khoá bình chọn' })).not.toBeInTheDocument()
+    expect(within(poll).queryByRole('button', { name: 'Khoá bình chọn' })).not.toBeInTheDocument()
     const activity = document.querySelector<HTMLElement>('.activity-line')!
     expect(activity).toHaveTextContent('Nguyễn An đã bình chọn: Họp T7?')
     await user.click(within(activity).getByRole('button', { name: 'Xem' }))
@@ -443,17 +443,17 @@ describe('bình chọn, tìm tin, phân quyền, ảnh đại diện', () => {
     api.closePoll.mockResolvedValueOnce(theirs('2026-11-04T10:00:00Z'))
     renderChat(`/rooms/${eng.id}`)
     const poll2 = await screen.findByRole('group', { name: 'Bình chọn: Họp T7?' })
-    await user.click(await within(poll2).findByRole('button', { name: '🔒 Khoá bình chọn' }))
+    await user.click(await within(poll2).findByRole('button', { name: 'Khoá bình chọn' }))
     expect(api.closePoll).toHaveBeenCalledWith('poll-3')
     expect(await within(poll2).findByText(/Đã khoá bình chọn/)).toBeInTheDocument()
     expect(within(poll2).getByRole('checkbox', { name: '20h: 0 phiếu' })).toBeDisabled()
-    expect(within(poll2).queryByRole('button', { name: '🔒 Khoá bình chọn' })).not.toBeInTheDocument()
+    expect(within(poll2).queryByRole('button', { name: 'Khoá bình chọn' })).not.toBeInTheDocument()
 
     // Mở lại được ngay, rồi bình chọn tiếp.
     api.reopenPoll.mockResolvedValueOnce(theirs(null))
-    await user.click(within(poll2).getByRole('button', { name: '🔓 Mở lại bình chọn' }))
+    await user.click(within(poll2).getByRole('button', { name: 'Mở lại bình chọn' }))
     expect(api.reopenPoll).toHaveBeenCalledWith('poll-3')
-    expect(await within(poll2).findByRole('button', { name: '🔒 Khoá bình chọn' })).toBeInTheDocument()
+    expect(await within(poll2).findByRole('button', { name: 'Khoá bình chọn' })).toBeInTheDocument()
     expect(within(poll2).getByRole('checkbox', { name: '20h: 0 phiếu' })).toBeEnabled()
   })
 

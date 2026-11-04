@@ -106,7 +106,7 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
     <div className="poll-card" role="group" aria-label={`Bình chọn: ${poll.question}`}>
       <p className="poll-question">📊 {poll.question}</p>
       <p className="muted small">
-        {closed ? '🔒 Đã khoá bình chọn' : poll.multiple ? 'Chọn được nhiều phương án' : 'Chọn một phương án'} · {voters.size} người đã bình chọn
+        {closed ? 'Đã khoá bình chọn' : poll.multiple ? 'Chọn được nhiều phương án' : 'Chọn một phương án'} · {voters.size} người đã bình chọn
       </p>
       <ul className="poll-options">
         {poll.options.map((o) => {
@@ -144,7 +144,7 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
           disabled={close.isPending}
           onClick={() => close.mutate({ pollId: poll.id, closed: !closed })}
         >
-          {close.isPending ? 'Đang lưu…' : closed ? '🔓 Mở lại bình chọn' : '🔒 Khoá bình chọn'}
+          {close.isPending ? 'Đang lưu…' : closed ? 'Mở lại bình chọn' : 'Khoá bình chọn'}
         </button>
       )}
       {(vote.error || close.error) && <p className="field-error small">{describeChatError(vote.error ?? close.error)}</p>}

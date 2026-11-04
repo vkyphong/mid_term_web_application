@@ -40,7 +40,7 @@ export function UserProfileHost() {
           data && (
             <section className="profile-info" aria-label="Thông tin cá nhân">
               <h4>Thông tin cá nhân</h4>
-              <p className="muted">🔒 {data.displayName} để thông tin cá nhân ở chế độ riêng tư.</p>
+              <p className="muted">{data.displayName} để thông tin cá nhân ở chế độ riêng tư.</p>
             </section>
           )
         )}

@@ -440,18 +440,18 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(voteLine).toContainText(`${bob.displayName} đã bình chọn: Ăn trưa ở đâu?`)
     await expect(voteLine.getByRole('button', { name: 'Xem' })).toBeVisible()
     // Khoá bình chọn: Alice (người tạo) và Bob (phó nhóm) đều thấy nút; Bob khoá.
-    await expect(alicePoll.getByRole('button', { name: '🔒 Khoá bình chọn' })).toBeVisible()
-    await bobPoll.getByRole('button', { name: '🔒 Khoá bình chọn' }).click()
+    await expect(alicePoll.getByRole('button', { name: 'Khoá bình chọn' })).toBeVisible()
+    await bobPoll.getByRole('button', { name: 'Khoá bình chọn' }).click()
     await expect(alicePoll).toContainText('Đã khoá bình chọn')
     await expect(alicePoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' })).toBeDisabled()
     await expect(a.locator('.activity-line', { hasText: 'đã khoá bình chọn' })).toContainText(bob.displayName)
     // Mở lại: Alice (người tạo) bấm "Mở lại", Bob bình chọn tiếp được; khoá / mở thoải mái.
-    await alicePoll.getByRole('button', { name: '🔓 Mở lại bình chọn' }).click()
+    await alicePoll.getByRole('button', { name: 'Mở lại bình chọn' }).click()
     await expect(bobPoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' })).toBeEnabled()
     await expect(b.locator('.activity-line', { hasText: 'đã mở lại bình chọn' })).toContainText(alice.displayName)
     await bobPoll.getByRole('checkbox', { name: 'Cơm: 0 phiếu' }).click()
     await expect(alicePoll.getByRole('checkbox', { name: 'Cơm: 1 phiếu' })).toBeVisible()
-    await alicePoll.getByRole('button', { name: '🔒 Khoá bình chọn' }).click()
+    await alicePoll.getByRole('button', { name: 'Khoá bình chọn' }).click()
     await expect(bobPoll).toContainText('Đã khoá bình chọn')
 
     // ---- Hồ sơ riêng tư / công khai: Alice bấm avatar Bob trong danh sách thành viên ----
