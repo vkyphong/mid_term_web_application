@@ -9,7 +9,7 @@ import { ApiError } from '../../lib/apiError'
 import { getMockCurrentUser, listMockUsers } from '../auth/mockAuthApi'
 import type { ChatApi } from './chatApi'
 import type { ChatTransport } from './transport'
-import { REACTION_EMOJIS, type Gender, type MemberRole, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
+import { REACTION_EMOJIS, type MediaItem, type Gender, type MemberRole, type Message, type Notification, type Presence, type Room, type ServerEvent, type UserSummary } from './types'
 
 const STORE_KEY = 'pulsechat.mock.chat'
 const PAGE_SIZE = 30 // = HISTORY_PAGE_SIZE (không import để tránh vòng chatApi ↔ mockChat)
@@ -499,6 +499,24 @@ export function createMockChat(): { api: ChatApi; transport: ChatTransport } {
     async uploadRoomAvatar(roomId, file) {
       await delay()
       return setMockAvatar(roomId, file)
+    },
+
+    async listRoomMedia(roomId, kind, before) {
+      await delay(40)
+      const user = currentUser()
+      const store = load()
+      requireMember(findRoom(store, roomId), user.id)
+      const live = (store.messages[roomId] ?? []).filter((m) => !m.deletedAt && !m.activity).reverse()
+      const items = live.flatMap((m): MediaItem[] => {
+        const base = { messageId: m.id, createdAt: m.createdAt, sender: m.sender }
+        if (kind === 'link') return (m.content.match(/https?:\/\/[^\s<>"']+/gi) ?? []).map((url) => ({ ...base, attachment: null, url }))
+        const a = m.attachment
+        if (!a || a.mediaType.startsWith('image/') !== (kind === 'image')) return []
+        return [{ ...base, attachment: a, url: null }]
+      })
+      const start = before ? items.findIndex((i) => i.messageId === before) + 1 : 0
+      const page = items.slice(start, start + 20)
+      return { items: page, nextCursor: start + 20 < items.length ? page[page.length - 1].messageId : null }
     },
 
     async searchMessages(roomId, query, before) {

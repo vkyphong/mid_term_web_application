@@ -204,6 +204,22 @@ export interface ChatMessage extends Message {
   error?: string
 }
 
+/** Một mục trong "Ảnh/Video", "File", "Link" của phòng. */
+export interface MediaItem {
+  messageId: string
+  createdAt: string
+  sender: { id: string; displayName: string }
+  attachment: Attachment | null
+  url: string | null
+}
+
+export type MediaKind = 'image' | 'file' | 'link'
+
+export interface MediaPage {
+  items: MediaItem[]
+  nextCursor: string | null
+}
+
 export interface MessagePage {
   messages: Message[]
   nextCursor: string | null

@@ -81,6 +81,10 @@ Mỗi lần bình chọn / đổi lựa chọn / bỏ bình chọn / khoá, serv
 
 Khi `requireApproval` bật, `POST /api/rooms/{id}/members` của thành viên thường trả `202 { pending: true, request, room }` và chỉ tạo yêu cầu (gửi lại cùng người không tạo trùng); trưởng / phó nhóm vẫn thêm thẳng (`200 Room`). Duyệt thì người đó vào nhóm và nhận `room:added`. `Room` có thêm `requireApproval` và `pendingRequests` (chỉ khác 0 với trưởng / phó nhóm); mỗi thay đổi gửi `room:updated` cho cả nhóm. Admin thêm người qua API admin không cần duyệt. Flyway V14 thêm `rooms.require_approval` và bảng `member_requests`.
 
+### Ảnh, file, link đã gửi (Thông tin nhóm)
+
+`GET /api/rooms/{id}/media?kind=image|file|link&limit=20&before=<messageId>` trả `200 { items: [{ messageId, createdAt, sender, attachment, url }], nextCursor }`, mới nhất trước, chỉ cho thành viên phòng. `image` là file đính kèm có MIME `image/*`, `file` là các file còn lại (có `attachment`), `link` là các đường `http(s)://` tách từ nội dung tin (có `url`; một tin có nhiều link thì có nhiều mục). Tin đã xoá và dòng hoạt động bình chọn không được tính. `nextCursor` là ID tin cuối đã đọc, truyền vào `before` để lấy trang sau.
+
 ## 2. Gửi file
 
 Luồng gửi vẫn dùng upload HTTP trước, sau đó gửi tin bằng STOMP:

@@ -214,6 +214,56 @@ public class ChatService {
         return new MessagePage(messages, more ? messages.getLast().id() : null);
     }
 
+    private static final java.util.regex.Pattern LINK = java.util.regex.Pattern.compile("https?://[^\\s<>\"']+", java.util.regex.Pattern.CASE_INSENSITIVE);
+    /**
+     * Lịch sử trong phòng cho "Thông tin nhóm": kind = image (ảnh), file (tệp khác), link (đường link
+     * trong nội dung tin). Mới nhất trước, bỏ tin đã xoá; `before` là ID tin cuối của trang trước.
+     */
+    @Transactional(readOnly = true)
+    public MediaPage media(String room, String user, String kind, int limit, String before) {
+        if (limit < 1 || limit > 50) throw field("limit", "Limit must be between 1 and 50");
+        if (!Set.of("image", "file", "link").contains(kind)) throw field("kind", "Kind must be image, file or link");
+        room(room, user); requireMember(room, user);
+        var args = new ArrayList<Object>(List.of(room));
+        String cursor = "";
+        if (before != null) {
+            var anchor = db.query("SELECT created_at FROM messages WHERE id=? AND room_id=?", (rs, n) -> rs.getTimestamp(1), before, room);
+            if (anchor.isEmpty()) throw field("before", "Invalid media cursor");
+            cursor = " AND (m.created_at<? OR (m.created_at=? AND m.id<?))";
+            args.add(anchor.getFirst()); args.add(anchor.getFirst()); args.add(before);
+        }
+        var items = new ArrayList<MediaItem>();
+        String last = null;
+        boolean more;
+        if (kind.equals("link")) {
+            // Lấy dư tin để gom đủ link (một tin có thể có nhiều link); cursor theo tin cuối đã quét hết.
+            args.add(limit * 3 + 1);
+            var rows = db.query("SELECT m.id, m.created_at, m.sender_id, u.display_name, m.content FROM messages m JOIN users u ON u.id=m.sender_id "
+                    + "WHERE m.room_id=? AND m.deleted_at IS NULL AND m.activity IS NULL AND LOWER(m.content) LIKE '%http%'" + cursor
+                    + " ORDER BY m.created_at DESC, m.id DESC LIMIT ?",
+                (rs, n) -> new Object[]{rs.getString(1), rs.getTimestamp(2).toInstant(), new Sender(rs.getString(3), rs.getString(4)), rs.getString(5)}, args.toArray());
+            more = rows.size() > limit * 3;
+            for (var row : rows) {
+                if (items.size() >= limit) { more = true; break; }
+                var matcher = LINK.matcher((String) row[3]);
+                while (matcher.find()) items.add(new MediaItem((String) row[0], (Instant) row[1], (Sender) row[2], null,
+                    matcher.group().replaceAll("[.,;:!?)]+$", "")));
+                last = (String) row[0];
+            }
+        } else {
+            args.add(limit + 1);
+            var rows = db.query("SELECT m.id, m.created_at, m.sender_id, u.display_name FROM uploads f JOIN messages m ON m.id=f.message_id "
+                    + "JOIN users u ON u.id=m.sender_id WHERE m.room_id=? AND m.deleted_at IS NULL AND f.media_type "
+                    + (kind.equals("image") ? "LIKE" : "NOT LIKE") + " 'image/%'" + cursor + " ORDER BY m.created_at DESC, m.id DESC LIMIT ?",
+                (rs, n) -> new MediaItem(rs.getString(1), rs.getTimestamp(2).toInstant(), new Sender(rs.getString(3), rs.getString(4)),
+                    attachment(rs.getString(1)), null), args.toArray());
+            more = rows.size() > limit;
+            items.addAll(more ? rows.subList(0, limit) : rows);
+            if (!items.isEmpty()) last = items.getLast().messageId();
+        }
+        return new MediaPage(items, more ? last : null);
+    }
+
     static final int MAX_POLL_OPTIONS = 10;
     /** Bình chọn = một tin nhắn kèm câu hỏi và các lựa chọn; mọi thành viên thấy realtime qua message:new. */
     public Message createPoll(String room, String user, CreatePoll input) {

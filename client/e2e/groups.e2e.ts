@@ -197,6 +197,19 @@ test('gửi file Word, CSV, TXT, ZIP; chặn định dạng không hỗ trợ tr
       await expect(b.locator('.message-list .attachment-name', { hasText: file.name })).toBeVisible()
     }
 
+    // Thông tin nhóm: mục File liệt kê file đã gửi, mục Link liệt kê link trong tin nhắn.
+    await box(a).fill('Tài liệu tại https://example.com/tai-lieu nhé')
+    await a.keyboard.press('Enter')
+    await b.getByRole('button', { name: 'Thông tin nhóm' }).click()
+    const info = b.getByRole('dialog', { name: 'Thông tin nhóm' })
+    await expect(info.getByRole('region', { name: 'File' })).toContainText('tai-lieu.zip')
+    await info.getByRole('region', { name: 'File' }).getByRole('button', { name: 'Xem tất cả' }).click()
+    const allFiles = b.getByRole('dialog', { name: 'File' })
+    for (const file of files) await expect(allFiles).toContainText(file.name)
+    await allFiles.getByRole('button', { name: '← Thông tin nhóm' }).click()
+    await expect(info.getByRole('region', { name: 'Link' })).toContainText('example.com')
+    await b.keyboard.press('Escape')
+
     const download = b.waitForEvent('download')
     await b.locator('.attachment-file', { hasText: 'bao-cao.docx' }).click()
     expect((await download).suggestedFilename()).toBe('bao-cao.docx')
@@ -335,14 +348,15 @@ test('đổi tên nhóm, ảnh nhóm thấy ngay ở mọi thành viên; biệt 
     await expect(bobLink).toContainText(newName)
 
     // Ảnh nhóm → hiện ở cả hai người.
-    await a.getByRole('button', { name: 'Đổi ảnh nhóm' }).click()
+    await a.getByRole('button', { name: 'Thông tin nhóm' }).click()
+    const info = a.getByRole('dialog', { name: 'Thông tin nhóm' })
+    await expect(info.getByRole('button', { name: 'Đổi ảnh nhóm' })).toBeVisible()
     await a.getByTestId('group-avatar-input').setInputFiles({ name: 'nhom.png', mimeType: 'image/png', buffer: png(8, 8) })
-    await expect(a.getByRole('dialog', { name: 'Ảnh nhóm' })).toHaveCount(0)
     await expect(a.locator('.room-header .group-avatar-image')).toBeVisible()
     await expect(bobLink.locator('.group-avatar-image')).toBeVisible()
     // Quay lại ảnh ghép.
-    await a.getByRole('button', { name: 'Đổi ảnh nhóm' }).click()
-    await a.getByRole('button', { name: 'Dùng ảnh ghép thành viên' }).click()
+    await info.getByRole('button', { name: 'Dùng ảnh ghép thành viên' }).click()
+    await a.keyboard.press('Escape')
     await expect(bobLink.locator('.group-avatar-image')).toHaveCount(0)
     await expect(bobLink.locator('.group-avatar--n2')).toBeVisible()
 

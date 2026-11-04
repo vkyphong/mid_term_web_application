@@ -280,6 +280,35 @@ class GroupManagementIntegrationTest {
         assertThat(listed(room, guest3).joined()).isTrue();
     }
 
+    @Test void roomMediaListsImagesFilesAndLinksNewestFirst() throws Exception {
+        String room = room();
+        post("/api/rooms/" + room + "/members", owner, Map.of("userId", peer.id()), 200);
+        String image = upload(room, owner, "anh.png", png(), 201).path("id").asText();
+        String text = upload(room, peer, "ghi-chu.txt", "Ghi chú".getBytes(StandardCharsets.UTF_8), 201).path("id").asText();
+        chat.send(room, owner.id(), "", UUID.randomUUID().toString(), image, List.of());
+        chat.send(room, peer.id(), "file đây", UUID.randomUUID().toString(), text, List.of());
+        chat.send(room, owner.id(), "Xem https://example.com/a và http://docs.dqgm.dev/b.", UUID.randomUUID().toString());
+        var deleted = chat.send(room, owner.id(), "link cũ https://old.example.com", UUID.randomUUID().toString()).message();
+        actions.change(owner.id(), deleted.id(), "delete", null, "", false);
+        chat.send(room, peer.id(), "https://example.com/c", UUID.randomUUID().toString());
+
+        var images = get("/api/rooms/" + room + "/media?kind=image", peer, 200).path("items");
+        assertThat(images).hasSize(1);
+        assertThat(images.get(0).path("attachment").path("filename").asText()).isEqualTo("anh.png");
+        var files = get("/api/rooms/" + room + "/media?kind=file", peer, 200).path("items");
+        assertThat(files.findValuesAsText("filename")).containsExactly("ghi-chu.txt");
+        assertThat(files.get(0).path("sender").path("id").asText()).isEqualTo(peer.id());
+        var links = get("/api/rooms/" + room + "/media?kind=link", owner, 200);
+        assertThat(links.path("items").findValuesAsText("url")).containsExactly("https://example.com/c", "https://example.com/a", "http://docs.dqgm.dev/b");
+        // Phân trang: 1 link mỗi trang theo tin.
+        var first = get("/api/rooms/" + room + "/media?kind=link&limit=1", owner, 200);
+        assertThat(first.path("items").findValuesAsText("url")).containsExactly("https://example.com/c");
+        var second = get("/api/rooms/" + room + "/media?kind=link&limit=1&before=" + first.path("nextCursor").asText(), owner, 200);
+        assertThat(second.path("items").findValuesAsText("url")).containsExactly("https://example.com/a", "http://docs.dqgm.dev/b");
+        get("/api/rooms/" + room + "/media?kind=image", outsider, 403);
+        get("/api/rooms/" + room + "/media?kind=video", owner, 400);
+    }
+
     @Test void creatorOwnsChannelAndAppointsUpToFiveDeputies() throws Exception {
         Account boss = account();
         String room = chat.createRoom(boss.id(), new ChatDtos.CreateRoom("Roles-" + UUID.randomUUID().toString().substring(0, 20), null)).id();

@@ -67,6 +67,11 @@ public class ChatController {
                                @RequestParam(defaultValue = "30") int limit, @RequestParam(required = false) String before) {
         return chat.history(id, user.userId(), limit, before);
     }
+    @GetMapping("/rooms/{id}/media")
+    public MediaPage media(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestParam(defaultValue = "image") String kind,
+                           @RequestParam(defaultValue = "20") int limit, @RequestParam(required = false) String before) {
+        return chat.media(id, user.userId(), kind, limit, before);
+    }
     @GetMapping("/rooms/{id}/search")
     public MessagePage search(@AuthenticationPrincipal SessionPrincipal user, @PathVariable String id, @RequestParam(defaultValue = "") String q,
                               @RequestParam(defaultValue = "20") int limit, @RequestParam(required = false) String before) {

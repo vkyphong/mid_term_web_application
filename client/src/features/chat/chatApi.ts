@@ -2,7 +2,7 @@ import { config } from '../../config'
 import { authBlob, authRequest, authUpload } from '../../lib/apiClient'
 import { createMockChat } from './mockChat'
 import { createStompTransport, type ChatTransport } from './transport'
-import type { CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, PendingAdd, Presence, Profile, ProfileInput, Room, RoomMember, MemberRequest, Upload, UserAvatar, UserSummary } from './types'
+import type { MediaKind, MediaPage, CreatePollInput, CreateRoomInput, MemberRole, Message, MessagePage, NotificationPage, PendingAdd, Presence, Profile, ProfileInput, Room, RoomMember, MemberRequest, Upload, UserAvatar, UserSummary } from './types'
 
 export const HISTORY_PAGE_SIZE = 30
 
@@ -35,6 +35,8 @@ export interface ChatApi {
   /** Ảnh nhóm JPEG/PNG ≤ 2 MiB. */
   uploadRoomAvatar(roomId: string, file: File): Promise<Room>
   removeRoomAvatar(roomId: string): Promise<Room>
+  /** Ảnh / file / link đã gửi trong phòng, mới nhất trước (mục "Thông tin nhóm"). */
+  listRoomMedia(roomId: string, kind: MediaKind, before?: string): Promise<MediaPage>
   /** Tìm tin trong phòng theo từ khoá, mới nhất trước; `before` = ID tin cuối trang trước. */
   searchMessages(roomId: string, query: string, before?: string): Promise<MessagePage>
   /** Trưởng nhóm bổ nhiệm / bỏ phó nhóm; trả về danh sách thành viên mới. */
@@ -101,6 +103,11 @@ export const httpChatApi: ChatApi = {
     return authUpload(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, form)
   },
   removeRoomAvatar: (roomId) => authRequest(`/api/rooms/${encodeURIComponent(roomId)}/avatar`, { method: 'DELETE' }),
+  listRoomMedia: (roomId, kind, before) => {
+    const params = new URLSearchParams({ kind, limit: '20' })
+    if (before) params.set('before', before)
+    return authRequest(`/api/rooms/${encodeURIComponent(roomId)}/media?${params}`)
+  },
   searchMessages: (roomId, query, before) => {
     const params = new URLSearchParams({ q: query, limit: '20' })
     if (before) params.set('before', before)

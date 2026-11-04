@@ -16,7 +16,7 @@ vi.mock('./chatApi', () => ({
     renameRoom: vi.fn(), setNickname: vi.fn(), uploadRoomAvatar: vi.fn(), removeRoomAvatar: vi.fn(), downloadFile: vi.fn(),
     listUserAvatars: vi.fn(), uploadMyAvatar: vi.fn(), removeMyAvatar: vi.fn(), searchMessages: vi.fn(), setMemberRole: vi.fn(),
     createPoll: vi.fn(), vote: vi.fn(), getMyProfile: vi.fn(), updateMyProfile: vi.fn(), getUserProfile: vi.fn(), closePoll: vi.fn(), reopenPoll: vi.fn(),
-    updateRoomSettings: vi.fn(), listMemberRequests: vi.fn(), decideMemberRequest: vi.fn(),
+    updateRoomSettings: vi.fn(), listMemberRequests: vi.fn(), decideMemberRequest: vi.fn(), listRoomMedia: vi.fn(),
   },
   chatTransport: { request: vi.fn(), onEvent: vi.fn(), onConnected: vi.fn(), isConnected: vi.fn() },
 }))
@@ -72,6 +72,7 @@ beforeEach(() => {
   api.searchUsers.mockResolvedValue([])
   api.listMembers.mockResolvedValue([])
   api.listUserAvatars.mockResolvedValue([])
+  api.listRoomMedia.mockResolvedValue({ items: [], nextCursor: null })
   api.listNotifications.mockResolvedValue({ notifications: [], nextCursor: null, unreadCount: 0 })
   transport.onEvent.mockImplementation((listener) => {
     emit = listener
@@ -621,8 +622,9 @@ describe('tên nhóm, biệt danh, ảnh nhóm', () => {
     api.downloadFile.mockResolvedValue(new Blob(['png'], { type: 'image/png' }))
     const user = userEvent.setup({ applyAccept: false })
     const { container } = renderChat(`/rooms/${eng.id}`)
-    await user.click(await screen.findByRole('button', { name: 'Đổi ảnh nhóm' }))
-    const dialog = screen.getByRole('dialog', { name: 'Ảnh nhóm' })
+    await user.click(await screen.findByRole('button', { name: 'Thông tin nhóm' }))
+    const dialog = screen.getByRole('dialog', { name: 'Thông tin nhóm' })
+    expect(within(dialog).getByRole('button', { name: 'Đổi ảnh nhóm' })).toBeInTheDocument()
     await user.upload(within(dialog).getByTestId('group-avatar-input'), new File(['x'], 'a.pdf'))
     expect(within(dialog).getByText('Chỉ dùng được ảnh JPG hoặc PNG.')).toBeInTheDocument()
     expect(api.uploadRoomAvatar).not.toHaveBeenCalled()
@@ -630,9 +632,43 @@ describe('tên nhóm, biệt danh, ảnh nhóm', () => {
     const file = new File(['png'], 'nhom.png', { type: 'image/png' })
     await user.upload(within(dialog).getByTestId('group-avatar-input'), file)
     expect(api.uploadRoomAvatar).toHaveBeenCalledWith(eng.id, file)
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(container.querySelector('.room-header .group-avatar-image')).not.toBeNull())
+    expect(within(dialog).getByRole('button', { name: 'Dùng ảnh ghép thành viên' })).toBeInTheDocument()
     expect(api.downloadFile).toHaveBeenCalledWith('/api/rooms/r-eng/avatar?v=1')
+  })
+
+  it('thông tin nhóm: thành viên, Ảnh/Video, File, Link đã gửi; Xem tất cả; Quản lý nhóm; Rời nhóm', async () => {
+    const att = (id: string, filename: string, mediaType: string) => ({ id, filename, mediaType, size: 2048, url: `/api/uploads/${id}` })
+    const item = (n: number, extra: object) => ({ messageId: `m${n}`, createdAt: '2026-11-04T08:00:00Z', sender: { id: phong.id, displayName: 'Phong' }, attachment: null, url: null, ...extra })
+    api.listMembers.mockResolvedValue([{ ...me, enabled: true, memberRole: 'owner' }, { ...phong, enabled: true, memberRole: 'member' }])
+    api.listRoomMedia.mockImplementation(async (_room, kind) => {
+      if (kind === 'file') return { items: [1, 2, 3, 4].map((n) => item(n, { attachment: att(`f${n}`, `bao-cao-${n}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') })), nextCursor: null }
+      if (kind === 'link') return { items: [item(9, { url: 'https://example.com/tai-lieu' })], nextCursor: null }
+      return { items: [], nextCursor: null }
+    })
+    api.listRooms.mockResolvedValue([{ ...eng, myRole: 'owner', memberCount: 2 }])
+    transport.request.mockResolvedValue({ roomId: eng.id })
+    const user = userEvent.setup()
+    renderChat(`/rooms/${eng.id}`)
+    await user.click(await screen.findByRole('button', { name: 'Thông tin nhóm' }))
+    const dialog = screen.getByRole('dialog', { name: 'Thông tin nhóm' })
+    expect(within(dialog).getByText('Thành viên (2)')).toBeInTheDocument()
+    const files = within(dialog).getByRole('region', { name: 'File' })
+    expect(await within(files).findByText('bao-cao-1.docx')).toBeInTheDocument()
+    expect(within(files).queryByText('bao-cao-4.docx')).not.toBeInTheDocument() // chỉ xem trước 3
+    expect(within(within(dialog).getByRole('region', { name: 'Link' })).getByText('example.com')).toBeInTheDocument()
+    expect(within(within(dialog).getByRole('region', { name: 'Ảnh/Video' })).getByText('Chưa có ảnh nào được gửi trong nhóm.')).toBeInTheDocument()
+    await user.click(within(files).getByRole('button', { name: 'Xem tất cả' }))
+    const all = screen.getByRole('dialog', { name: 'File' })
+    expect(within(all).getByText('bao-cao-4.docx')).toBeInTheDocument()
+    await user.click(within(all).getByRole('button', { name: '← Thông tin nhóm' }))
+
+    await user.click(within(screen.getByRole('dialog', { name: 'Thông tin nhóm' })).getByRole('button', { name: /Quản lý nhóm/ }))
+    expect(screen.getByRole('dialog', { name: 'Thành viên (2)' })).toBeInTheDocument()
+    await user.click(within(screen.getByRole('dialog', { name: 'Thành viên (2)' })).getByRole('button', { name: 'Đóng' }))
+    await user.click(screen.getByRole('button', { name: 'Thông tin nhóm' }))
+    await user.click(within(screen.getByRole('dialog', { name: 'Thông tin nhóm' })).getByRole('button', { name: /Rời nhóm/ }))
+    expect(transport.request).toHaveBeenCalledWith('room:leave', { roomId: eng.id })
   })
 
   it('kênh lưu trữ: không đổi tên / ảnh được', async () => {

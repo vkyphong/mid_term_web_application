@@ -22,7 +22,7 @@ import { enqueue, pump, resetOutbox, setOutboxSink, type OutboxItem } from './ou
 import { playMessageSound, unlockSound } from './sound'
 import { bumpUnread, markViewed, resetUnread, withViewed } from './unread'
 import { resetUserAvatars, setUserAvatar, setUserAvatars } from './avatars'
-import type { ChatMessage, ClientEvents, CreatePollInput, ProfileInput, CreateRoomInput, MemberRole, Message, Room, RoomMember, Upload } from './types'
+import type { MediaKind, ChatMessage, ClientEvents, CreatePollInput, ProfileInput, CreateRoomInput, MemberRole, Message, Room, RoomMember, Upload } from './types'
 
 export const chatKeys = {
   all: ['chat'] as const,
@@ -335,6 +335,17 @@ export function useVote() {
   return useMutation({
     mutationFn: ({ pollId, optionIds }: { pollId: string; optionIds: string[] }) => chatApi.vote(pollId, optionIds),
     onSuccess: (message) => applyMessage(queryClient, message),
+  })
+}
+
+/** Ảnh / file / link của phòng, 20 mục mỗi trang, mới nhất trước. */
+export function useRoomMedia(roomId: string, kind: MediaKind) {
+  return useInfiniteQuery({
+    queryKey: ['chat', 'media', roomId, kind] as const,
+    queryFn: ({ pageParam }) => chatApi.listRoomMedia(roomId, kind, pageParam),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.nextCursor ?? undefined,
+    staleTime: 0,
   })
 }
 

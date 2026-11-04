@@ -1,13 +1,11 @@
-import { useRef, useState, type ChangeEvent, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { ApiError } from '../../../lib/apiError'
 import { FormAlert } from '../../auth/components/FormAlert'
 import { TextField } from '../../auth/components/TextField'
 import { describeChatError } from '../errors'
-import { useRemoveRoomAvatar, useRenameRoom, useSetNickname, useUploadRoomAvatar } from '../hooks'
-import { formatBytes } from '../uploads'
+import { useRenameRoom, useSetNickname } from '../hooks'
 import type { Room } from '../types'
 import { Modal } from './Modal'
-import { RoomAvatar } from './RoomAvatar'
 
 /** Lỗi gắn với ô nhập (validation / tên trùng) hiện dưới ô, lỗi khác hiện ở đầu hộp thoại. */
 function fieldError(error: unknown, field: string) {
@@ -98,51 +96,6 @@ export function NicknameDialog({ room, onClose }: { room: Room; onClose: () => v
           </button>
         </div>
       </form>
-    </Modal>
-  )
-}
-
-const AVATAR_MAX_BYTES = 2 * 1024 * 1024
-
-export function GroupAvatarDialog({ room, onClose }: { room: Room; onClose: () => void }) {
-  const upload = useUploadRoomAvatar(room.id)
-  const remove = useRemoveRoomAvatar(room.id)
-  const input = useRef<HTMLInputElement>(null)
-  const [error, setError] = useState<string>()
-  const busy = upload.isPending || remove.isPending
-  const serverError = upload.error ?? remove.error
-
-  const onPick = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    e.target.value = ''
-    if (!file) return
-    setError(undefined)
-    if (!/\.(png|jpe?g)$/i.test(file.name)) return setError('Chỉ dùng được ảnh JPG hoặc PNG.')
-    if (file.size === 0) return setError('Tệp rỗng.')
-    if (file.size > AVATAR_MAX_BYTES) return setError(`Ảnh ${formatBytes(file.size)} vượt quá giới hạn 2 MB.`)
-    upload.mutate(file, { onSuccess: onClose })
-  }
-
-  return (
-    <Modal title="Ảnh nhóm" onClose={onClose}>
-      {(error || serverError) && <FormAlert>{error ?? describeChatError(serverError)}</FormAlert>}
-      <div className="group-avatar-preview">
-        <RoomAvatar room={room} size="lg" />
-        <p className="muted small">
-          {room.avatarUrl ? 'Mọi thành viên đều thấy ảnh này.' : 'Đang dùng ảnh ghép từ thành viên. Chọn ảnh JPG/PNG tối đa 2 MB để đặt ảnh nhóm.'}
-        </p>
-      </div>
-      <input ref={input} type="file" accept=".jpg,.jpeg,.png" hidden onChange={onPick} data-testid="group-avatar-input" />
-      <div className="dialog-actions">
-        {room.avatarUrl && (
-          <button type="button" className="btn-secondary" disabled={busy} onClick={() => remove.mutate(undefined, { onSuccess: onClose })}>
-            Dùng ảnh ghép thành viên
-          </button>
-        )}
-        <button type="button" className="btn-primary" disabled={busy} onClick={() => input.current?.click()}>
-          {upload.isPending ? 'Đang tải lên…' : 'Chọn ảnh'}
-        </button>
-      </div>
     </Modal>
   )
 }

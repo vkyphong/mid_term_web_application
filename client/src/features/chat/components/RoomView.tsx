@@ -27,7 +27,8 @@ import type { ChatMessage, Room, UserSummary } from '../types'
 import { chatKeys } from '../hooks'
 import { AddMembersDialog } from './AddMembersDialog'
 import { RoomAvatar } from './RoomAvatar'
-import { GroupAvatarDialog, NicknameDialog, RenameGroupDialog } from './RoomSettingsDialogs'
+import { NicknameDialog, RenameGroupDialog } from './RoomSettingsDialogs'
+import { GroupInfoDialog } from './GroupInfoDialog'
 import { MembersDialog } from './MembersDialog'
 import { MessageSearchBar } from './MessageSearchBar'
 import { CreatePollDialog } from './Polls'
@@ -110,7 +111,7 @@ function ConnectionBanner() {
 function Conversation({ room }: { room: Room }) {
   const [panel, setPanel] = useState<'chat' | 'whiteboard'>('chat')
   const [adding, setAdding] = useState(false)
-  const [editing, setEditing] = useState<'name' | 'nickname' | 'avatar' | 'members' | 'search' | 'poll' | null>(null)
+  const [editing, setEditing] = useState<'name' | 'nickname' | 'info' | 'members' | 'search' | 'poll' | null>(null)
   const [focusMessageId, setFocusMessageId] = useState<string | null>(null)
   const [jumpError, setJumpError] = useState<string>()
   const closeEditing = () => setEditing(null)
@@ -180,12 +181,13 @@ function Conversation({ room }: { room: Room }) {
             <RoomAvatar room={room} online={peerPresence?.online ?? false} />
           </button>
         ) : canAddMembers ? (
-          <button type="button" className="room-avatar-btn" aria-label="Đổi ảnh nhóm" title="Đổi ảnh nhóm" onClick={() => setEditing('avatar')}>
+          <button type="button" className="room-avatar-btn" aria-label="Thông tin nhóm" title="Thông tin nhóm" onClick={() => setEditing('info')}>
             <RoomAvatar room={room} />
-            <span className="room-avatar-camera" aria-hidden="true">📷</span>
           </button>
         ) : (
-          <RoomAvatar room={room} />
+          <button type="button" className="room-avatar-btn" aria-label="Thông tin nhóm" title="Thông tin nhóm" onClick={() => setEditing('info')}>
+            <RoomAvatar room={room} />
+          </button>
         )}
         <div className="room-title">
           <div className="room-title-row">
@@ -247,7 +249,18 @@ function Conversation({ room }: { room: Room }) {
       {adding && <AddMembersDialog room={room} onClose={() => setAdding(false)} />}
       {editing === 'name' && <RenameGroupDialog room={room} onClose={closeEditing} />}
       {editing === 'nickname' && <NicknameDialog room={room} onClose={closeEditing} />}
-      {editing === 'avatar' && <GroupAvatarDialog room={room} onClose={closeEditing} />}
+      {editing === 'info' && (
+        <GroupInfoDialog
+          room={room}
+          onClose={closeEditing}
+          onRename={() => setEditing('name')}
+          onManage={() => setEditing('members')}
+          onLeave={() => {
+            setEditing(null)
+            leave.mutate(room.id)
+          }}
+        />
+      )}
       {editing === 'members' && (
         <MembersDialog
           room={room}

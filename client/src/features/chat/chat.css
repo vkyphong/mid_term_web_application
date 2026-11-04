@@ -2140,3 +2140,162 @@ html.chat-page body {
   font-weight: 700;
   color: var(--danger);
 }
+
+/* ---------- Thông tin nhóm (như Zalo) ---------- */
+.group-info-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+
+.group-info-section {
+  padding: 12px 0;
+  border-top: 6px solid var(--bg);
+}
+
+.group-info-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.group-info-section-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.group-info-members {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.group-info-more {
+  width: 34px;
+  height: 34px;
+  font-weight: 700;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.media-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.media-thumb {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  overflow: hidden;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+
+.media-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.media-thumb--more {
+  font-size: 1.4rem;
+  color: #fff;
+  background: var(--primary);
+  border-color: var(--primary);
+  cursor: pointer;
+}
+
+.media-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.media-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  text-decoration: none;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.media-row:hover {
+  background: var(--bg);
+}
+
+.media-row-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-size: 1.2rem;
+  background: var(--bg);
+  border-radius: 8px;
+}
+
+.media-row-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.media-row-text strong,
+.media-link-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group-info-actions {
+  display: flex;
+  flex-direction: column;
+  padding-top: 8px;
+  border-top: 6px solid var(--bg);
+}
+
+.group-info-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 6px;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.group-info-action:hover {
+  background: var(--bg);
+}
+
+.group-info-action--danger {
+  color: var(--danger);
+}
+
+.group-info-back {
+  margin-bottom: 8px;
+  padding: 0;
+}

@@ -22,6 +22,10 @@ public final class ChatDtos {
                        String nickname, String avatarUrl, List<UserSummary> previewMembers, String myRole,
                        boolean requireApproval, int pendingRequests) {}
     public record RoomSettings(Boolean requireApproval) {}
+    /** Một mục trong "Ảnh/Video", "File" hoặc "Link" của phòng: attachment (ảnh / file) hoặc url (link). */
+    public record MediaItem(String messageId, Instant createdAt, Sender sender, Object attachment, String url) {}
+    @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.ALWAYS)
+    public record MediaPage(List<MediaItem> items, String nextCursor) {}
     /** Kết quả thêm người khi nhóm cần phê duyệt: yêu cầu đã được gửi, chưa vào nhóm. */
     public record PendingAdd(boolean pending, MemberRequest request, Room room) {}
     public record MemberRequest(String id, UserSummary user, UserSummary requestedBy, Instant createdAt) {}

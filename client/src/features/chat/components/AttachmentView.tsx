@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { chatApi } from '../chatApi'
+import { downloadAttachment } from '../downloads'
 import { describeChatError } from '../errors'
 import { fileKind, formatBytes, type FileKind } from '../uploads'
 import type { Attachment } from '../types'
@@ -37,15 +38,6 @@ const FILE_ICONS: Record<FileKind, string> = {
   text: '📄',
 }
 
-async function download(attachment: Attachment) {
-  const blob = await chatApi.downloadFile(attachment.url)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = attachment.filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1_000)
-}
 
 export function AttachmentView({ attachment, pending }: { attachment: Attachment; pending?: boolean }) {
   const isImage = attachment.mediaType.startsWith('image/')
@@ -54,7 +46,7 @@ export function AttachmentView({ attachment, pending }: { attachment: Attachment
 
   const onDownload = () => {
     setError(undefined)
-    download(attachment).catch((err) => setError(describeChatError(err)))
+    downloadAttachment(attachment).catch((err) => setError(describeChatError(err)))
   }
 
   return (
