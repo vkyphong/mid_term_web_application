@@ -168,6 +168,8 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
       Object.defineProperty(file, 'size', { value: 100 * 1024 * 1024 + 1 })
       Object.defineProperty(input, 'files', { value: [file], configurable: true })
       input.dispatchEvent(new Event('change', { bubbles: true }))
+      // Gỡ phần ghi đè để lần chọn file thật sau đó dùng lại `files` gốc của trình duyệt.
+      delete (input as { files?: unknown }).files
     })
     await expect(a.getByText(/vượt quá giới hạn 100 MB/)).toBeVisible()
     await a.getByRole('button', { name: 'Bỏ tệp đính kèm' }).click()
