@@ -1,4 +1,5 @@
 import { ApiError } from '../../lib/apiError'
+import { attempt } from '../../lib/attempt'
 import { chatTransport } from './chatApi'
 import { describeChatError } from './errors'
 import type { ClientEvents, Message } from './types'
@@ -72,8 +73,7 @@ export function pump() {
   const item = queue[0]
   busy = true
   sink?.state(item, 'sending')
-  chatTransport
-    .request('message:send', item)
+  attempt(() => chatTransport.request('message:send', item))
     .then((message) => {
       queue.shift()
       sink?.sent(message)

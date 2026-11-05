@@ -1,4 +1,5 @@
 import { ApiError } from '../../lib/apiError'
+import { attempt } from '../../lib/attempt'
 import { chatTransport } from './chatApi'
 import type { ChatMessage, RoomType } from './types'
 
@@ -30,8 +31,8 @@ function flush() {
   if (next.done) return
   const [messageId, kind] = next.value
   queue.delete(messageId)
-  chatTransport
-    .request(kind === 'seen' ? 'message:seen' : 'message:delivered', { messageId })
+  // attempt: lỗi văng ngay (vd hàm giả trong test trả undefined) vẫn đi vào .catch, không thành lỗi ngoài luồng khi hẹn giờ nổ.
+  attempt(() => chatTransport.request(kind === 'seen' ? 'message:seen' : 'message:delivered', { messageId }))
     .then(() => markAcked(messageId, kind))
     .catch((err: unknown) => {
       if (err instanceof ApiError && err.code === 'rate_limited') {

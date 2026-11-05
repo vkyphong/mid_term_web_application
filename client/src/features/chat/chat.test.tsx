@@ -1,9 +1,10 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { resetUserAvatars } from './avatars'
+import { resetReceipts } from './receipts'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError } from '../../lib/apiError'
 import { setSession } from '../auth/session'
 import { chatApi, chatTransport } from './chatApi'
@@ -65,10 +66,14 @@ function renderChat(path = '/') {
   )
 }
 
+afterEach(() => resetReceipts())
+
 beforeEach(() => {
   vi.resetAllMocks()
   // Store ảnh đại diện dùng chung cả module: xoá để test trước không để lại URL ảnh cho test sau.
   resetUserAvatars()
+  // Hàng đợi "đã nhận / đã xem" có hẹn giờ 250 ms: huỷ để nó không nổ sang test sau (khi mock đã bị reset).
+  resetReceipts()
   localStorage.clear()
   api.listRooms.mockResolvedValue([eng, hr, dm])
   api.listMessages.mockResolvedValue({ messages: [message('m1', 'Chào cả nhóm')], nextCursor: null })

@@ -94,3 +94,25 @@ describe('describeReceipt', () => {
     expect(describeReceipt(own({ recipients: 0, delivered: 0, seen: 0 }), 'channel').label).toBe('Đã gửi')
   })
 })
+
+describe('không văng lỗi ngoài luồng khi hẹn giờ nổ (lỗi CI chập chờn)', () => {
+  it('request trả về undefined hoặc văng lỗi ngay: hàng đợi vẫn chạy tiếp, không có lỗi ngoài luồng', async () => {
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      // Như mock đã bị vi.resetAllMocks(): trả undefined thay vì Promise.
+      request.mockReset().mockImplementationOnce(() => undefined as never).mockImplementationOnce(() => { throw new Error('socket closed') })
+      markSeen(msg('x1'), 'me')
+      markSeen(msg('x2'), 'me')
+      markSeen(msg('x3'), 'me')
+      await tick()
+      await tick()
+      request.mockImplementation(async (_type, payload) => msg((payload as { messageId: string }).messageId) as never)
+      await tick()
+      expect(sent()).toEqual(['message:seen:x1', 'message:seen:x2', 'message:seen:x3'])
+      expect(unhandled).not.toHaveBeenCalled()
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+})

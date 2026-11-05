@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react'
+import { attempt } from '../../lib/attempt'
 import { chatTransport } from './chatApi'
 import type { TypingPayload } from './types'
 
@@ -81,7 +82,7 @@ export function useTypingSender(roomId: string) {
     if (!active.current) return
     active.current = false
     lastStart.current = 0
-    chatTransport.request('typing:stop', { roomId }).catch(() => {})
+    attempt(() => chatTransport.request('typing:stop', { roomId })).catch(() => {})
   }, [roomId])
 
   const onInput = useCallback(
@@ -91,7 +92,7 @@ export function useTypingSender(roomId: string) {
       if (!active.current || now - lastStart.current >= TYPING_THROTTLE_MS) {
         active.current = true
         lastStart.current = now
-        chatTransport.request('typing:start', { roomId }).catch(() => {})
+        attempt(() => chatTransport.request('typing:start', { roomId })).catch(() => {})
       }
       clearTimeout(idle.current)
       idle.current = setTimeout(stop, TYPING_IDLE_MS)
