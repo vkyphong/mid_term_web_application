@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { resetUserAvatars } from './avatars'
 import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
@@ -66,6 +67,8 @@ function renderChat(path = '/') {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  // Store ảnh đại diện dùng chung cả module: xoá để test trước không để lại URL ảnh cho test sau.
+  resetUserAvatars()
   localStorage.clear()
   api.listRooms.mockResolvedValue([eng, hr, dm])
   api.listMessages.mockResolvedValue({ messages: [message('m1', 'Chào cả nhóm')], nextCursor: null })

@@ -45,7 +45,10 @@ export function useAuthImage(url: string | null | undefined): string | undefined
     if (!url) return
     let cached = images.get(url)
     if (!cached) {
-      cached = chatApi.downloadFile(url).then((blob) => URL.createObjectURL(blob))
+      // Bọc trong Promise: lỗi văng ngay (kể cả hàm giả trả undefined trong test) cũng thành ảnh lỗi → avatar chữ cái.
+      cached = Promise.resolve()
+        .then(() => chatApi.downloadFile(url))
+        .then((blob) => URL.createObjectURL(blob))
       cached.catch(() => images.delete(url))
       images.set(url, cached)
     }
