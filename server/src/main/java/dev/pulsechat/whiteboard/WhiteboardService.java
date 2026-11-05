@@ -19,6 +19,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class WhiteboardService {
     public static final int MAX_SEGMENTS = 1000;
+    /** Bút 1–12 px; tẩy tới 40 px (tẩy là nét màu nền). */
+    public static final int MAX_WIDTH = 40;
     public record Point(double x, double y) {}
     public record Segment(String roomId, String operationId, String authorId, long generation, long revision,
                           String color, int width, List<Point> points, String createdAt) {}
@@ -48,7 +50,7 @@ public class WhiteboardService {
         if (!color.matches("#[0-9a-f]{6}")) throw ChatService.field("color", "A six-digit hex color is required");
         if (!input.path("width").isIntegralNumber() || !input.path("width").canConvertToInt()) throw ChatService.field("width", "Integer required");
         int width = input.path("width").intValue();
-        if (width < 1 || width > 12) throw ChatService.field("width", "Width must be between 1 and 12");
+        if (width < 1 || width > MAX_WIDTH) throw ChatService.field("width", "Width must be between 1 and " + MAX_WIDTH);
         List<Point> points = points(input.path("points"));
         db.queryForList("SELECT id FROM users WHERE id=? FOR UPDATE", user);
         lockMember(room, user);

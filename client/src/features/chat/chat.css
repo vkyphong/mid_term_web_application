@@ -2745,3 +2745,15 @@ html.chat-page body {
   top: auto;
   bottom: calc(100% + 4px);
 }
+
+/* Link trong tin nhắn */
+.message-link {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  overflow-wrap: anywhere;
+}
+
+.message--own .message-bubble .message-link {
+  color: inherit;
+}

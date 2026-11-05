@@ -32,3 +32,9 @@
 .whiteboard-dialog > div { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .whiteboard-danger { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 12px; border: 1px solid #bc3030; border-radius: 8px; color: white; background: #bc3030; cursor: pointer; }
 @media (max-width: 600px) { .room-tabs { padding: 8px 12px; } .whiteboard { padding: 12px; } .whiteboard-toolbar { gap: 12px; padding: 12px; } .whiteboard-colors { gap: 8px; } .whiteboard-colors button { width: 25px; height: 25px; } .whiteboard-width { margin-left: auto; } .whiteboard-saved-count { margin-left: 0; } .whiteboard-toolbar > .btn-secondary { margin-left: auto; } .whiteboard-status { flex-wrap: wrap; } .whiteboard-version { font-size: 10px; } .whiteboard-error { align-items: start; } }
+.whiteboard-tools { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; }
+.whiteboard-tools button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; }
+.whiteboard-tools button:hover:not(:disabled) { color: var(--text); background: var(--bg); }
+.whiteboard-tools button[aria-pressed='true'] { color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, var(--surface)); }
+.whiteboard-surface--eraser canvas { cursor: cell; }
+@media (max-width: 600px) { .whiteboard-tools { flex-wrap: wrap; } }
