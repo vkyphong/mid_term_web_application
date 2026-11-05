@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
+import { personName, projectName } from './people'
 
 interface Account { id: string; email: string; displayName: string; token: string }
 interface Capture {
@@ -39,7 +40,7 @@ function capture(page: Page): Capture {
 async function employee(browser: Browser, label: string) {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
   const email = `e2e-${label}-${crypto.randomUUID()}@DQGM.dev`
-  const displayName = `E2E ${label} ${crypto.randomUUID().slice(0, 8)}`
+  const displayName = personName()
   const response = await context.request.post('/api/auth/register', {
     data: { email, displayName, password: 'Password123' },
   })
@@ -68,7 +69,7 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
   try {
     for (const label of ['Alice', 'Bob', 'Carol']) people.push(await employee(browser, label))
     const [alice, bob, carol] = people
-    const channelName = `E2E-${crypto.randomUUID().slice(0, 12)}`
+    const channelName = projectName()
     await alice.page.getByRole('button', { name: 'Tạo kênh', exact: true }).click()
     await alice.page.getByRole('textbox', { name: 'Tên kênh', exact: true }).fill(channelName)
     await alice.page.getByRole('dialog').getByRole('button', { name: 'Tạo kênh', exact: true }).click()
@@ -94,9 +95,7 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
     await expect(bob.page.getByText(greeting, { exact: true })).toBeVisible()
     await expect(bob.page.getByText('Đã kết nối', { exact: true })).toBeVisible()
 
-    // Workload: WARMUP tin khởi động không tính (JVM/JIT, connection pool vừa khởi động),
-    // rồi SAMPLES tin đo tuần tự. p95 của 40 mẫu là giá trị thứ 38, nên một vài gai lẻ
-    // trên máy CI dùng chung không quyết định kết quả; median và số mẫu > 200 ms được in ra.
+    // WARMUP tin đầu không tính (JVM vừa khởi động), sau đó đo SAMPLES tin.
     const WARMUP = 5
     const SAMPLES = 40
     const latencies: number[] = []

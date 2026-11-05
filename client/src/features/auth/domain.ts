@@ -12,10 +12,7 @@ export function getEmailDomain(email: string): string | null {
   return parts[1]
 }
 
-/**
- * So khớp CHÍNH XÁC domain (không dùng contains/endsWith) để
- * `a@evilpulsechat.dev` hay `a@pulsechat.dev.evil.com` bị từ chối.
- */
+/** So khớp đúng domain, không dùng endsWith (chặn a@evil-pulsechat.dev). */
 export function isAllowedEmailDomain(email: string, allowedDomains: readonly string[]): boolean {
   const domain = getEmailDomain(email)
   return domain !== null && allowedDomains.includes(domain)

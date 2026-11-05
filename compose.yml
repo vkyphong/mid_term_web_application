@@ -31,9 +31,13 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8080,http://localhost:5173}
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       ACCESS_TTL_SECONDS: ${ACCESS_TTL_SECONDS:-900}
+      # Tài khoản admin demo cho người chấm (xem README). Đặt DEMO_ADMIN_EMAIL= trong .env để tắt.
+      DEMO_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL-admin@dqgm.dev}
+      DEMO_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-Admin123456}
+      DEMO_ADMIN_NAME: ${DEMO_ADMIN_NAME:-Quản trị viên}
       APP_UPLOAD_DIRECTORY: /app/uploads
-      SPRING_SERVLET_MULTIPART_MAX_FILE_SIZE: 5MB
-      SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE: 6MB
+      UPLOAD_MAX_FILE_SIZE: ${UPLOAD_MAX_FILE_SIZE:-100MB}
+      UPLOAD_MAX_REQUEST_SIZE: ${UPLOAD_MAX_REQUEST_SIZE:-101MB}
     volumes:
       - uploads-data:/app/uploads
     ports:

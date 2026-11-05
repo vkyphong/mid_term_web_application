@@ -19,6 +19,9 @@ export type ErrorReason =
   | 'validation'
   | 'room_name_taken'
   | 'not_found'
+  | 'room_archived'
+  | 'file_too_large'
+  | 'deputy_limit'
 
 export interface FieldIssue {
   field: string

@@ -34,6 +34,8 @@ export default defineConfig(({ mode }) => {
       setupFiles: './src/test/setup.ts',
       css: false,
       include: ['src/**/*.test.{ts,tsx}'],
+      // Mỗi worker jsdom tốn vài trăm MB: trên máy nhiều nhân, mặc định (số nhân − 1) làm Docker/WSL hết RAM.
+      maxWorkers: 4,
     },
   }
 })

@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { groupName, personName } from './people'
 import { randomUUID } from 'node:crypto'
 import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -8,13 +9,15 @@ interface Segment { operationId: string; authorId: string; generation: number; r
 interface Snapshot { roomId: string; generation: number; revision: number; segments: Segment[] }
 async function account(browser: Browser, label: string): Promise<Account> {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080', hasTouch: true, viewport: { width: 1280, height: 900 } })
-  const response = await context.request.post('/api/auth/register', { data: { email: `wb-${label}-${randomUUID()}@dqgm.dev`, displayName: `Whiteboard ${label}`, password: 'BoardBrowser123' } })
+  const response = await context.request.post('/api/auth/register', { data: { email: `wb-${label}-${randomUUID()}@dqgm.dev`, displayName: personName(), password: 'BoardBrowser123' } })
   expect(response.status()).toBe(201)
   const auth = await response.json()
   return { context, token: auth.accessToken, id: auth.user.id }
 }
 async function channel(owner: Account) {
-  const response = await owner.context.request.post('/api/rooms', { headers: { Authorization: `Bearer ${owner.token}` }, data: { name: `WB-${randomUUID().slice(0, 8)}` } })
+  const create = () => owner.context.request.post('/api/rooms', { headers: { Authorization: `Bearer ${owner.token}` }, data: { name: groupName() } })
+  let response = await create()
+  for (let i = 0; i < 4 && response.status() === 409; i++) response = await create()
   expect(response.status()).toBe(201)
   return (await response.json()).id as string
 }

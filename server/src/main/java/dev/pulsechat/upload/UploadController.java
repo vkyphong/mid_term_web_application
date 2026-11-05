@@ -19,9 +19,10 @@ import dev.pulsechat.common.ApiException;
 @RestController
 @RequestMapping("/api/uploads")
 public class UploadController {
-    private final Path directory;private final JdbcTemplate db;private final ChatService chat;
-    public UploadController(@Value("${app.upload-directory:./uploads}") String directory,JdbcTemplate db,ChatService chat)throws IOException{
-        this.directory=Path.of(directory).toAbsolutePath().normalize();Files.createDirectories(this.directory);this.db=db;this.chat=chat;
+    private final Path directory;private final JdbcTemplate db;private final ChatService chat;private final long maxBytes;
+    public UploadController(@Value("${app.upload-directory:./uploads}") String directory,JdbcTemplate db,ChatService chat,
+                            @Value("${spring.servlet.multipart.max-file-size}") org.springframework.util.unit.DataSize maxFileSize)throws IOException{
+        this.directory=Path.of(directory).toAbsolutePath().normalize();Files.createDirectories(this.directory);this.db=db;this.chat=chat;this.maxBytes=maxFileSize.toBytes();
     }
     @PostMapping(consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     @org.springframework.transaction.annotation.Transactional(rollbackFor=IOException.class)
@@ -30,7 +31,7 @@ public class UploadController {
         db.queryForList("SELECT id FROM rooms WHERE id=? FOR UPDATE",roomId);
         chat.requireMember(roomId,user.userId());
         chat.requireWritable(roomId);
-        if(file.isEmpty()||file.getSize()>5*1024*1024)throw ChatService.field("file","File must contain 1–5242880 bytes");
+        if(file.isEmpty()||file.getSize()>maxBytes)throw ChatService.field("file","File must contain 1–"+maxBytes+" bytes");
         String name=Objects.requireNonNullElse(file.getOriginalFilename(),"file").replaceAll("[\\\\/\\p{Cntrl}]","_");
         if(name.isBlank()||name.length()>200)throw ChatService.field("file","Filename must contain 1–200 characters");
         byte[] bytes=file.getBytes();String media=UploadTypes.detect(name,bytes);

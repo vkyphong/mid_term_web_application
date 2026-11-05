@@ -26,6 +26,7 @@ public class MessageActions {
             db.update("UPDATE message_receipts SET delivered_at=COALESCE(delivered_at,?)"+(action.equals("seen")?",seen_at=COALESCE(seen_at,?)":"")+" WHERE message_id=? AND user_id=?",
                 action.equals("seen")?new Object[]{now,now,id,user}:new Object[]{now,id,user});
         } else {
+            if(message.activity()!=null)throw ChatService.field("messageId","Activity lines cannot be changed");
             if(!action.equals("react")&&!message.sender().id().equals(user))throw new ApiException(403,"forbidden",null,"Only the author may edit or delete");
             if(message.deletedAt()!=null && !action.equals("delete"))throw ChatService.field("messageId","Message was deleted");
             switch(action) {

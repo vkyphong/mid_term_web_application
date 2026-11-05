@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { personName } from './people'
 import { randomUUID } from 'node:crypto'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -7,7 +8,7 @@ test('F13: identical workload, all four real transports, JSON evidence, cancella
   page.setDefaultTimeout(15_000)
   const email = `lab-ui-${randomUUID()}@dqgm.dev`
   const password = 'LabBrowser123'
-  const registration = await request.post('/api/auth/register', { data: { email, displayName: 'Protocol Lab Test', password } })
+  const registration = await request.post('/api/auth/register', { data: { email, displayName: personName(), password } })
   expect(registration.status()).toBe(201)
   const account = await registration.json()
   const errors: string[] = []

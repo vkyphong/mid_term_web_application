@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { chatApi } from '../chatApi'
 import { chatKeys } from '../hooks'
+import { withViewed } from '../unread'
 import {
   describeNotification,
   dismissToast,
@@ -17,10 +18,7 @@ import type { Notification, Room } from '../types'
 const timeAgo = (iso: string) =>
   new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
 
-/**
- * Mở hội thoại của thông báo: chỉ đi tới khi mình vẫn còn trong phòng (contract F09);
- * thông báo hệ thống (F12) không có phòng.
- */
+/** Chỉ mở hội thoại khi mình còn trong phòng; thông báo hệ thống không có phòng. */
 function useOpenNotification() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -35,7 +33,7 @@ function useOpenNotification() {
       // Gọi thẳng REST thay vì refetch qua cache: refetch có thể bị huỷ khi message:new của chính
       // phòng mới đó làm danh sách phòng tải lại cùng lúc.
       const rooms = await chatApi.listRooms().catch(() => undefined)
-      if (rooms) queryClient.setQueryData<Room[]>(chatKeys.rooms, rooms)
+      if (rooms) queryClient.setQueryData<Room[]>(chatKeys.rooms, withViewed(rooms))
       room = find(rooms)
     }
     if (room && (room.joined || room.type === 'dm')) navigate(`/rooms/${n.roomId}`)
@@ -48,7 +46,9 @@ export function NotificationBell() {
   const open = useOpenNotification()
   const [expanded, setExpanded] = useState(false)
   const root = useRef<HTMLDivElement>(null)
-  const unread = notifications.data?.unreadCount ?? 0
+  // Chuông chỉ dành cho @nhắc tên và thông báo hệ thống; tin nhắn đến hiện bằng số đỏ cạnh tên phòng.
+  const items = notifications.data?.notifications.filter((n) => n.type !== 'dm')
+  const unread = items?.filter((n) => !n.readAt).length ?? 0
 
   useEffect(() => {
     if (!expanded) return
@@ -78,9 +78,9 @@ export function NotificationBell() {
         <div className="notification-panel" role="region" aria-label="Danh sách thông báo">
           <h2>Thông báo</h2>
           {notifications.isPending && <p className="muted small">Đang tải…</p>}
-          {notifications.data?.notifications.length === 0 && <p className="muted small">Chưa có thông báo.</p>}
+          {items?.length === 0 && <p className="muted small">Chưa có thông báo.</p>}
           <ul>
-            {notifications.data?.notifications.map((n) => (
+            {items?.map((n) => (
               <li key={n.id}>
                 <button
                   type="button"
@@ -103,9 +103,11 @@ export function NotificationBell() {
 export function ToastHost() {
   const toasts = useToasts()
   const open = useOpenNotification()
+  const navigate = useNavigate()
   const click = (t: Toast) => {
     dismissToast(t.id)
     if (t.notificationId) void open({ id: t.notificationId, roomId: t.roomId, readAt: null })
+    else if (t.roomId) navigate(`/rooms/${t.roomId}`)
   }
   return (
     <div className="toast-host" aria-live="polite">

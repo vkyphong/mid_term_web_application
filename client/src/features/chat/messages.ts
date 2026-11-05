@@ -10,12 +10,7 @@ export function compareTimestamps(a: string, b: string): number {
 const byTimeThenId = (a: ChatMessage, b: ChatMessage) =>
   compareTimestamps(a.createdAt, b.createdAt) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
 
-/**
- * Thêm hoặc thay một tin, không tạo trùng:
- * - cùng `id` → thay;
- * - cùng `clientMsgId` → thay bản tạm (đang gửi / lỗi) bằng tin từ server.
- * Tin đã xác nhận xếp theo createdAt rồi id; tin tạm luôn ở cuối theo thứ tự gửi.
- */
+/** Thêm / thay tin theo id hoặc clientMsgId, không trùng; tin tạm luôn ở cuối. */
 export function upsertMessage(list: readonly ChatMessage[], incoming: ChatMessage): ChatMessage[] {
   const next = list.filter(
     (m) => m.id !== incoming.id && !(incoming.clientMsgId && m.clientMsgId === incoming.clientMsgId && m.sender.id === incoming.sender.id),
@@ -35,12 +30,7 @@ export function mergeMessages(list: readonly ChatMessage[], incoming: readonly C
   return incoming.reduce<ChatMessage[]>((acc, m) => upsertMessage(acc, m), [...list])
 }
 
-/**
- * Gộp trang tin mới nhất (lần tải đầu hoặc tải lại sau reconnect) với cache hiện có.
- * - Trang nối liền với cache → giữ cả tin cũ đã tải thêm (cursor cũ vẫn đúng).
- * - Trang không nối liền (lỡ quá 1 trang khi offline) → bỏ tin cũ để không có khoảng trống,
- *   chỉ giữ tin tạm; `resetCursor` báo phải dùng cursor của trang mới.
- */
+/** Gộp trang mới nhất vào cache; không nối liền thì bỏ tin cũ để tránh khoảng trống. */
 export function reconcileLatestPage(
   current: readonly ChatMessage[],
   page: { messages: readonly ChatMessage[]; nextCursor: string | null },

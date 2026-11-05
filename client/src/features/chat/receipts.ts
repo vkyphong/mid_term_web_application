@@ -1,13 +1,9 @@
 import { ApiError } from '../../lib/apiError'
+import { attempt } from '../../lib/attempt'
 import { chatTransport } from './chatApi'
 import type { ChatMessage, RoomType } from './types'
 
-/**
- * F08: hàng đợi gửi message:delivered / message:seen.
- * Server cho tối đa 30 thao tác / 5 s / socket (chung với typing, sửa tin…), nên
- * receipt được gửi tuần tự, tối đa 1 lệnh / 250 ms (= 20 / 5 s), và không gửi lại
- * cho tin đã xác nhận. "seen" bao hàm "delivered".
- */
+/** F08: gửi delivered / seen tuần tự, tối đa 1 lệnh / 250 ms (server cho 30 thao tác / 5 s). */
 export const RECEIPT_INTERVAL_MS = 250
 const RATE_LIMIT_BACKOFF_MS = 5_000
 
@@ -30,8 +26,8 @@ function flush() {
   if (next.done) return
   const [messageId, kind] = next.value
   queue.delete(messageId)
-  chatTransport
-    .request(kind === 'seen' ? 'message:seen' : 'message:delivered', { messageId })
+  // attempt: lỗi văng ngay (vd hàm giả trong test trả undefined) vẫn đi vào .catch, không thành lỗi ngoài luồng khi hẹn giờ nổ.
+  attempt(() => chatTransport.request(kind === 'seen' ? 'message:seen' : 'message:delivered', { messageId }))
     .then(() => markAcked(messageId, kind))
     .catch((err: unknown) => {
       if (err instanceof ApiError && err.code === 'rate_limited') {
@@ -64,7 +60,7 @@ function enqueue(messageId: string, kind: Kind) {
 
 /** Có nên gửi receipt cho tin này không: tin của người khác, đã lưu, chưa bị xoá, và chưa đủ người xác nhận. */
 export function needsReceipt(message: ChatMessage, kind: Kind, selfId: string): boolean {
-  if (message.status || message.deletedAt || message.sender.id === selfId) return false
+  if (message.status || message.deletedAt || message.activity || message.sender.id === selfId) return false
   const r = message.receipts
   if (!r) return true
   if (r.recipients === 0) return false // mình không thuộc tập người nhận lúc gửi
@@ -88,11 +84,7 @@ export function resetReceipts() {
   queue.clear()
 }
 
-/**
- * Trạng thái hiển thị cho tin của mình.
- * DM: Đã gửi → Đã nhận → Đã xem. Kênh: đếm trên số người nhận lúc gửi,
- * không bao giờ coi là "mọi người đã xem" chỉ vì một người xem.
- */
+/** DM: Đã gửi → Đã nhận → Đã xem; kênh đếm theo số người nhận lúc gửi. */
 export function describeReceipt(message: ChatMessage, roomType: RoomType): { label: string; detail: string } {
   const r = message.receipts
   if (!r || r.recipients === 0) return { label: 'Đã gửi', detail: 'Đã lưu trên máy chủ' }

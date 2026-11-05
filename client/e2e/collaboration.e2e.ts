@@ -1,4 +1,5 @@
 import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test'
+import { groupName, personName } from './people'
 import { crc32, deflateSync } from 'node:zlib'
 
 /** F09 thông báo/@mention, F14 sửa/xoá/cảm xúc, F15 file, F10 hàng đợi offline, F11 giới hạn & XSS — backend thật. */
@@ -7,7 +8,7 @@ interface Account { context: BrowserContext; id: string; token: string; displayN
 
 async function account(browser: Browser, label: string): Promise<Account> {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080' })
-  const displayName = `E2E ${label} ${crypto.randomUUID().slice(0, 6)}`
+  const displayName = personName()
   const res = await context.request.post('/api/auth/register', {
     data: { email: `e2e-col-${label}-${crypto.randomUUID()}@DQGM.dev`, displayName, password: 'Password123' },
   })
@@ -24,9 +25,10 @@ async function open(acc: Account, path: string): Promise<Page> {
 }
 
 async function channelWith(owner: Account, ...members: Account[]) {
-  const res = await owner.context.request.post('/api/rooms', {
-    data: { name: `E2E-col-${crypto.randomUUID().slice(0, 8)}` }, headers: { Authorization: `Bearer ${owner.token}` },
-  })
+  let res = await owner.context.request.post('/api/rooms', { data: { name: groupName() }, headers: { Authorization: `Bearer ${owner.token}` } })
+  for (let i = 0; i < 4 && res.status() === 409; i++) {
+    res = await owner.context.request.post('/api/rooms', { data: { name: groupName() }, headers: { Authorization: `Bearer ${owner.token}` } })
+  }
   expect(res.status()).toBe(201)
   const roomId = (await res.json()).id as string
   for (const m of members) {
@@ -72,7 +74,7 @@ test('F09: @mention chọn từ thành viên, toast + badge không cần reload,
     const bell = (p: Page) => p.getByRole('button', { name: /^Thông báo/ })
 
     // Gõ "@" + vài chữ → chọn Bob từ danh sách thành viên.
-    await box(a).pressSequentially(`Nhờ @${bob.displayName.split(' ')[1]}`)
+    await box(a).pressSequentially(`Nhờ @${bob.displayName.split(' ').at(-1)}`)
     await a.getByRole('option', { name: bob.displayName }).click()
     await box(a).pressSequentially('xem giúp')
     await a.keyboard.press('Enter')
@@ -93,14 +95,16 @@ test('F09: @mention chọn từ thành viên, toast + badge không cần reload,
     await expect(bell(bobHome)).toHaveAccessibleName('Thông báo')
     await expect(bell(bobTab2)).toHaveAccessibleName('Thông báo')
 
-    // DM → thông báo "Tin nhắn riêng mới" trong danh sách chuông.
+    // DM → không vào chuông; hiện số đỏ cạnh tên người gửi trong danh sách tin nhắn riêng.
     const dm = await (await alice.context.request.post('/api/dms', { data: { userId: bob.id }, headers: { Authorization: `Bearer ${alice.token}` } })).json()
     await a.goto(`/rooms/${dm.id}`)
     await send(a, 'Tin riêng cho Bob')
-    await expect(bell(bobTab2)).toHaveAccessibleName('Thông báo, 1 chưa đọc')
-    await bell(bobTab2).click()
-    await bobTab2.getByRole('region', { name: 'Danh sách thông báo' }).getByRole('button', { name: /Tin nhắn riêng mới/ }).click()
+    const dmLink = bobTab2.getByRole('navigation', { name: 'Danh sách phòng' }).locator(`a[href="/rooms/${dm.id}"]`)
+    await expect(dmLink.locator('.unread-badge')).toHaveText('1')
+    await expect(bell(bobTab2)).toHaveAccessibleName('Thông báo')
+    await dmLink.click()
     await expect(bobTab2).toHaveURL(new RegExp(`/rooms/${dm.id}$`))
+    await expect(dmLink.locator('.unread-badge')).toHaveCount(0)
     await expect(bobTab2.locator('.message-list').getByText('Tin riêng cho Bob')).toBeVisible()
     await expect(bell(carolHome)).toHaveAccessibleName('Thông báo')
   } finally {
@@ -116,52 +120,69 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     const b = await open(bob, `/rooms/${roomId}`)
     const count = (p: Page) => p.locator('.message').count()
 
-    // ---- F14: sửa ----
+    // F14: sửa
     await send(a, 'Bản nháp đầu tiên')
     await expect(b.getByText('Bản nháp đầu tiên')).toBeVisible()
     const before = await count(b)
     await bubble(a, 'Bản nháp đầu tiên').hover()
-    await bubble(a, 'Bản nháp đầu tiên').getByRole('button', { name: 'Sửa tin nhắn' }).click()
+    await bubble(a, 'Bản nháp đầu tiên').getByRole('button', { name: 'Thêm' }).click()
+    await bubble(a, 'Bản nháp đầu tiên').getByRole('menuitem', { name: /Sửa tin nhắn/ }).click()
     await a.getByRole('textbox', { name: 'Sửa tin nhắn' }).fill('Bản đã sửa')
     await a.getByRole('button', { name: 'Lưu', exact: true }).click()
     await expect(bubble(b, 'Bản đã sửa')).toContainText('(đã sửa)')
     expect(await count(b)).toBe(before) // thay tại chỗ, không thêm tin
     // Bob không có nút sửa/xoá tin của Alice.
     await bubble(b, 'Bản đã sửa').hover()
-    await expect(bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Sửa tin nhắn' })).toHaveCount(0)
+    await bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Thêm' }).click()
+    await expect(bubble(b, 'Bản đã sửa').getByRole('menuitem', { name: /Sửa tin nhắn|Thu hồi/ })).toHaveCount(0)
+    await b.keyboard.press('Escape')
 
-    // ---- F14: cảm xúc (gửi lại cùng trạng thái không đảo) ----
+    // F14: cảm xúc (nút ở góc dưới bên phải của tin; gửi lại cùng trạng thái không đảo)
+    await bubble(b, 'Bản đã sửa').hover()
     await bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Thả cảm xúc' }).click()
     await b.getByRole('button', { name: 'Thả 👍' }).click()
-    await expect(bubble(a, 'Bản đã sửa').getByRole('button', { name: '👍 1' })).toBeVisible()
-    await bubble(b, 'Bản đã sửa').getByRole('button', { name: /👍 1, bạn đã thả/ }).click() // bỏ cảm xúc
+    await expect(bubble(a, 'Bản đã sửa').getByRole('button', { name: `👍 1: ${bob.displayName}` })).toBeVisible()
+    // Rê chuột vào cảm xúc: hiện tên người đã thả.
+    await bubble(a, 'Bản đã sửa').locator('.reaction-chip').hover()
+    await expect(bubble(a, 'Bản đã sửa').locator('.reaction-who')).toBeVisible()
+    await expect(bubble(a, 'Bản đã sửa').locator('.reaction-who')).toHaveText(bob.displayName)
+    await bubble(b, 'Bản đã sửa').getByRole('button', { name: '👍 1: Bạn' }).click() // bỏ cảm xúc
     await expect(bubble(a, 'Bản đã sửa').locator('.reaction-chip')).toHaveCount(0)
 
-    // ---- F14: xoá (mềm, còn đúng trong lịch sử) ----
+    // F14: thu hồi (xoá mềm, còn đúng trong lịch sử)
     await bubble(a, 'Bản đã sửa').hover()
-    await bubble(a, 'Bản đã sửa').getByRole('button', { name: 'Xoá tin nhắn' }).click()
-    await a.getByRole('button', { name: 'Xoá', exact: true }).click()
-    await expect(b.getByText('Tin nhắn đã bị xoá')).toBeVisible()
+    await bubble(a, 'Bản đã sửa').getByRole('button', { name: 'Thêm' }).click()
+    await bubble(a, 'Bản đã sửa').getByRole('menuitem', { name: /Thu hồi/ }).click()
+    await a.getByRole('button', { name: 'Thu hồi', exact: true }).click()
+    await expect(b.getByText('Tin nhắn đã được thu hồi')).toBeVisible()
     await b.reload()
-    await expect(b.getByText('Tin nhắn đã bị xoá')).toBeVisible()
+    await expect(b.getByText('Tin nhắn đã được thu hồi')).toBeVisible()
     await expect(b.getByText('Bản đã sửa')).toHaveCount(0)
 
-    // ---- F11: nội dung độc hại chỉ là text ----
+    // F11: nội dung độc hại chỉ là text
     const xss = '<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>'
     await send(a, xss)
     await expect(b.getByText(xss)).toBeVisible()
     expect(await b.locator('.message-list img').count()).toBe(0)
     expect(await b.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined()
 
-    // ---- F15: chặn file quá 5 MB ngay ở client (không gửi request upload) ----
+    // F15: chặn file quá 100 MB ngay ở client (không gửi request upload)
     let uploads = 0
     a.on('request', (r) => { if (r.url().endsWith('/api/uploads') && r.method() === 'POST') uploads++ })
-    await a.getByTestId('file-input').setInputFiles({ name: 'big.png', mimeType: 'image/png', buffer: Buffer.alloc(5 * 1024 * 1024 + 1) })
-    await expect(a.getByText(/vượt quá giới hạn 5 MB/)).toBeVisible()
+    // Chọn file "100 MB + 1 byte" ngay trong trình duyệt: File nhỏ báo kích thước giả, không tốn RAM/đĩa.
+    await a.getByTestId('file-input').evaluate((input: HTMLInputElement) => {
+      const file = new File(['x'], 'big.png', { type: 'image/png' })
+      Object.defineProperty(file, 'size', { value: 100 * 1024 * 1024 + 1 })
+      Object.defineProperty(input, 'files', { value: [file], configurable: true })
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      // Gỡ phần ghi đè để lần chọn file thật sau đó dùng lại `files` gốc của trình duyệt.
+      delete (input as { files?: unknown }).files
+    })
+    await expect(a.getByText(/vượt quá giới hạn 100 MB/)).toBeVisible()
     await a.getByRole('button', { name: 'Bỏ tệp đính kèm' }).click()
     expect(uploads).toBe(0)
 
-    // ---- F15: ảnh PNG → người nhận thấy ảnh ngay (realtime), tải qua Bearer ----
+    // F15: ảnh PNG → người nhận thấy ảnh ngay (realtime), tải qua Bearer
     await a.getByTestId('file-input').setInputFiles({ name: 'so-do.png', mimeType: 'image/png', buffer: png(32, 16) })
     await expect(a.getByText('Sẵn sàng gửi')).toBeVisible()
     await send(a, 'Ảnh sơ đồ')
@@ -170,7 +191,7 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     expect(await img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(32)
     expect(uploads).toBe(1)
 
-    // ---- F15: PDF, gửi chỉ file không kèm chữ ----
+    // F15: PDF, gửi chỉ file không kèm chữ
     await a.getByTestId('file-input').setInputFiles({ name: 'bao-cao.pdf', mimeType: 'application/pdf', buffer: pdf })
     await expect(a.getByText('Sẵn sàng gửi')).toBeVisible()
     await a.getByRole('button', { name: 'Gửi', exact: true }).click()
@@ -197,7 +218,7 @@ test('F10 + F11: tin gửi khi offline được gửi bù đúng thứ tự, kh�
     const shown = (p: Page, prefix: string) =>
       p.locator('.message-content').evaluateAll((els, pre) => els.map((e) => e.textContent ?? '').filter((t) => t.startsWith(pre)), prefix)
 
-    // ---- F10: offline (sau khi lịch sử đã tải: ô soạn tin cần có lịch sử để chèn bản tạm) ----
+    // F10: offline (sau khi lịch sử đã tải: ô soạn tin cần có lịch sử để chèn bản tạm)
     await expect(box(a)).toBeEnabled()
     await expect(box(b)).toBeEnabled()
     await b.context().setOffline(true)
@@ -213,7 +234,7 @@ test('F10 + F11: tin gửi khi offline được gửi bù đúng thứ tự, kh�
     await b.reload()
     await expect.poll(() => shown(b, 'offline-')).toEqual(['offline-1', 'offline-2', 'offline-3'])
 
-    // ---- F11: 12 tin liên tục > 10 tin / 5 s → tự chờ rồi gửi đủ, đúng thứ tự, không lỗi ----
+    // F11: 12 tin liên tục > 10 tin / 5 s → tự chờ rồi gửi đủ, đúng thứ tự, không lỗi
     await expect(b.getByText('Đã kết nối', { exact: true })).toBeVisible()
     for (let i = 1; i <= 12; i++) await send(b, `burst-${String(i).padStart(2, '0')}`)
     await expect(b.getByText(/Bạn gửi quá nhanh/).first()).toBeVisible()

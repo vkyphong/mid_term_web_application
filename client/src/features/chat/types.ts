@@ -6,6 +6,47 @@ export interface UserSummary {
   email: string
 }
 
+/** Thành viên phòng (GET /api/rooms/{id}/members); gồm cả tài khoản bị khoá. */
+export interface RoomMember extends UserSummary {
+  enabled?: boolean
+  /** Vai trò trong nhóm (kênh): trưởng nhóm / phó nhóm / thành viên. */
+  memberRole?: MemberRole
+}
+
+export type MemberRole = 'owner' | 'deputy' | 'member'
+
+export type Gender = 'male' | 'female' | 'other'
+
+/** Thông tin tài khoản của chính mình (GET/PUT /api/me/profile). */
+export interface Profile {
+  id: string
+  email: string
+  displayName: string
+  gender: Gender | null
+  /** yyyy-mm-dd */
+  birthDate: string | null
+  phone: string | null
+  avatarUrl: string | null
+  /** Công khai: người khác xem được giới tính / ngày sinh / điện thoại. */
+  profilePublic: boolean
+  /** Hồ sơ của chính mình. */
+  self?: boolean
+}
+
+export interface ProfileInput {
+  displayName: string
+  gender: Gender | ''
+  birthDate: string
+  phone: string
+  profilePublic?: boolean
+}
+
+/** Ảnh đại diện tài khoản; avatarUrl null = đã xoá ảnh. */
+export interface UserAvatar {
+  userId: string
+  avatarUrl: string | null
+}
+
 export type RoomType = 'channel' | 'dm'
 
 export interface Room {
@@ -17,6 +58,37 @@ export interface Room {
   joined: boolean
   peer: UserSummary | null
   lastMessageAt: string | null
+  /** Group đã lưu trữ: chỉ đọc lịch sử, không gửi tin / tham gia / thêm thành viên / upload. */
+  archived?: boolean
+  /** Số tin của người khác chưa xem (server tính theo receipts). */
+  unreadCount?: number
+  /** DM: biệt danh mình đặt cho người kia (khi có thì `name` là biệt danh, tên thật ở `peer`). */
+  nickname?: string | null
+  /** Kênh: ảnh nhóm (tải bằng Bearer); null = dùng avatar ghép từ thành viên. */
+  avatarUrl?: string | null
+  /** Kênh: tối đa 3 thành viên cho avatar mặc định, người khác trước mình. */
+  previewMembers?: UserSummary[]
+  /** Kênh đã tham gia: vai trò của mình. */
+  myRole?: MemberRole | null
+  /** Bật thì thành viên thường thêm người phải chờ trưởng / phó nhóm duyệt. */
+  requireApproval?: boolean
+  /** Số yêu cầu chờ duyệt (chỉ trưởng / phó nhóm thấy, người khác là 0). */
+  pendingRequests?: number
+}
+
+/** Yêu cầu thêm người đang chờ trưởng / phó nhóm duyệt. */
+export interface MemberRequest {
+  id: string
+  user: UserSummary
+  requestedBy: UserSummary
+  createdAt: string
+}
+
+/** POST /members khi nhóm cần phê duyệt: đã gửi yêu cầu, người đó chưa vào nhóm. */
+export interface PendingAdd {
+  pending: true
+  request: MemberRequest
+  room: Room
 }
 
 export interface Message {
@@ -33,6 +105,56 @@ export interface Message {
   reactions?: { userId: string; emoji: string }[]
   /** F15: tệp đính kèm (tải qua REST có Bearer). */
   attachment?: Attachment | null
+  /** Bình chọn gắn với tin này. */
+  poll?: Poll | null
+  /** Tin hệ thống "X đã bình chọn ..." (không phải tin người dùng gõ). */
+  activity?: MessageActivity | null
+  /** Trả lời tin nào (trích tin gốc). */
+  replyTo?: ReplyRef | null
+  /** Đang ghim (ai ghim, lúc nào). */
+  pinnedAt?: string | null
+  pinnedBy?: string | null
+}
+
+/** Trích tin được trả lời. */
+export interface ReplyRef {
+  id: string
+  sender: { id: string; displayName: string }
+  content: string
+  attachmentName: string | null
+  deleted: boolean
+}
+
+export interface PollOption {
+  id: string
+  label: string
+  /** userId đã chọn phương án này. */
+  voters: string[]
+}
+
+export interface Poll {
+  id: string
+  question: string
+  /** Cho chọn nhiều phương án. */
+  multiple: boolean
+  createdBy: string
+  options: PollOption[]
+  /** Đã khoá: không bình chọn thêm được. */
+  closedAt?: string | null
+  closedBy?: string | null
+}
+
+/** Dòng hoạt động bình chọn trong khung chat; `content` của tin là câu hỏi. */
+export interface MessageActivity {
+  type: 'vote' | 'change' | 'unvote' | 'close' | 'reopen'
+  pollId: string
+  pollMessageId: string | null
+}
+
+export interface CreatePollInput {
+  question: string
+  options: string[]
+  multiple: boolean
 }
 
 export interface Attachment {
@@ -96,6 +218,22 @@ export interface ChatMessage extends Message {
   error?: string
 }
 
+/** Một mục trong "Ảnh/Video", "File", "Link" của phòng. */
+export interface MediaItem {
+  messageId: string
+  createdAt: string
+  sender: { id: string; displayName: string }
+  attachment: Attachment | null
+  url: string | null
+}
+
+export type MediaKind = 'image' | 'file' | 'link'
+
+export interface MediaPage {
+  items: MediaItem[]
+  nextCursor: string | null
+}
+
 export interface MessagePage {
   messages: Message[]
   nextCursor: string | null
@@ -113,7 +251,7 @@ export interface ClientEvents {
   'room:join': { payload: { roomId: string }; ack: Room }
   'room:leave': { payload: { roomId: string }; ack: { roomId: string } }
   'message:send': {
-    payload: { roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string }
+    payload: { roomId: string; content: string; clientMsgId: string; mentions?: string[]; uploadId?: string; replyToId?: string }
     ack: Message
   }
   'message:edit': { payload: { messageId: string; content: string }; ack: Message }
@@ -131,17 +269,25 @@ export type ClientEventType = keyof ClientEvents
 export type ServerEvent =
   | import('../whiteboard/types').BoardEvent
   | {
-      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react'
+      type: 'message:new' | 'message:delivered' | 'message:seen' | 'message:edit' | 'message:delete' | 'message:react' | 'message:poll' | 'message:pin'
       payload: Message
       ts: string
     }
   | { type: 'notification:new'; payload: Notification; ts: string }
+  /** Mình vừa được thêm vào kênh (POST /api/rooms/{id}/members hoặc admin). */
+  | { type: 'room:added'; payload: Room; ts: string }
+  /** Tên / ảnh nhóm đổi, hoặc mình đổi biệt danh (Room nhìn từ phía mình). */
+  | { type: 'room:updated'; payload: Room; ts: string }
+  /** Mình "Xoá chỉ ở phía tôi" (đồng bộ các tab của mình). */
+  | { type: 'message:hidden'; payload: { id: string; roomId: string }; ts: string }
+  /** Ai đó đổi / xoá ảnh đại diện. */
+  | { type: 'user:avatar'; payload: UserAvatar; ts: string }
   | { type: 'notification:read'; payload: { id: string }; ts: string }
   | { type: 'presence:update'; payload: Presence; ts: string }
   | { type: 'typing:start' | 'typing:stop'; payload: TypingPayload; ts: string }
 
 export const SERVER_EVENT_TYPES: ReadonlySet<string> = new Set([
   'whiteboard:segment', 'whiteboard:cleared',
-  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react',
-  'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read',
+  'message:new', 'message:delivered', 'message:seen', 'message:edit', 'message:delete', 'message:react', 'message:poll', 'message:pin', 'message:hidden', 'user:avatar',
+  'presence:update', 'typing:start', 'typing:stop', 'notification:new', 'notification:read', 'room:added', 'room:updated',
 ])

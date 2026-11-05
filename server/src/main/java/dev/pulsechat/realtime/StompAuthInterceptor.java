@@ -20,7 +20,10 @@ public class StompAuthInterceptor implements ChannelInterceptor {
         if (command == StompCommand.DISCONNECT) return message;
         if (command == StompCommand.CONNECT) {
             var principal = auth.authenticate(headers.getFirstNativeHeader("Authorization"));
-            connections.authenticate(headers.getSessionId(), principal); headers.setUser(principal); return message;
+            connections.authenticate(headers.getSessionId(), principal);
+            long[] heartbeat = headers.getHeartbeat();
+            connections.expectHeartbeat(headers.getSessionId(), heartbeat.length > 0 ? heartbeat[0] : 0);
+            headers.setUser(principal); return message;
         }
         if (!(headers.getUser() instanceof SessionPrincipal principal))
             throw new ApiException(401, "unauthorized", "invalid_token", "CONNECT authentication required");

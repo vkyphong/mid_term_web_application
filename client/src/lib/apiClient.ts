@@ -49,10 +49,7 @@ export function refreshAccessToken(): Promise<string | null> {
   return inflightRefresh
 }
 
-/**
- * Request cần đăng nhập: gắn Bearer token; nếu 401 thì refresh đúng một lần
- * rồi thử lại, không lặp vô hạn.
- */
+/** Gắn Bearer token; 401 thì refresh một lần rồi thử lại. */
 export async function authRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const withToken = (token: string | null): RequestOptions => {
     const headers = new Headers(options.headers)
@@ -99,10 +96,7 @@ export function authBlob(path: string): Promise<Blob> {
   })
 }
 
-/**
- * Upload multipart có tiến trình (fetch không báo tiến trình upload nên dùng XMLHttpRequest).
- * `onProgress` nhận tỉ lệ 0–1.
- */
+/** Upload có tiến trình (0–1) bằng XMLHttpRequest. */
 export function authUpload<T>(path: string, form: FormData, onProgress?: (ratio: number) => void, signal?: AbortSignal): Promise<T> {
   return withAuthRetry(
     (token) =>
@@ -123,7 +117,10 @@ export function authUpload<T>(path: string, form: FormData, onProgress?: (ratio:
           }
           if (xhr.status >= 200 && xhr.status < 300) return resolve(body as T)
           const error = (body as { error?: ConstructorParameters<typeof ApiError>[1] } | undefined)?.error
-          reject(new ApiError(xhr.status, error ?? { code: xhr.status === 413 ? 'invalid_payload' : 'unknown', message: xhr.statusText }))
+          reject(new ApiError(xhr.status, error ??
+              (xhr.status === 413
+                ? { code: 'invalid_payload', reason: 'file_too_large', message: xhr.statusText }
+                : { code: 'unknown', message: xhr.statusText })))
         }
         xhr.onerror = () => reject(new ApiError(0, { code: 'network_error', message: 'Network error' }))
         xhr.onabort = () => reject(new ApiError(0, { code: 'network_error', message: 'Upload cancelled' }))

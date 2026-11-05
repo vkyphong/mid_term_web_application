@@ -14,5 +14,8 @@ public class AdminController {
     @GetMapping("/channels") public Object channels(@AuthenticationPrincipal SessionPrincipal user){return service.channels(user.userId());}
     @PostMapping("/users/{id}/ban") public void ban(@AuthenticationPrincipal SessionPrincipal user,@PathVariable String id){service.ban(user.userId(),id);}
     @PostMapping("/users/{id}/kick") public void kick(@AuthenticationPrincipal SessionPrincipal user,@PathVariable String id){service.kick(user.userId(),id);}
+    @PostMapping("/users/{id}/unban") public void unban(@AuthenticationPrincipal SessionPrincipal user,@PathVariable String id){service.unban(user.userId(),id);}
+    @PutMapping("/users/{id}/role") public void role(@AuthenticationPrincipal SessionPrincipal user,@PathVariable String id,@RequestBody Map<String,String> input){service.setRole(user.userId(),id,input==null?null:input.get("role"));}
+    @GetMapping("/audit") public Object audit(@AuthenticationPrincipal SessionPrincipal user,@RequestParam(defaultValue="0") int page){return service.auditLog(user.userId(),page);}
     @PostMapping("/broadcast") public Object broadcast(@AuthenticationPrincipal SessionPrincipal user,@RequestBody Map<String,String> input){return service.broadcast(user.userId(),input.get("content"));}
 }

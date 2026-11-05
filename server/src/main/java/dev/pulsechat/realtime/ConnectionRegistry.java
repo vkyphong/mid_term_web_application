@@ -17,6 +17,9 @@ public class ConnectionRegistry {
         final WebSocketSession socket;
         volatile SessionPrincipal principal;
         volatile ScheduledFuture<?> deadline;
+        /** F17: thời điểm nhận frame gần nhất (kể cả nhịp heartbeat "\n") và giới hạn im lặng; 0 = client không gửi heartbeat. */
+        volatile long lastReadAt = System.currentTimeMillis();
+        volatile long readLimitMs;
         Connection(WebSocketSession socket) { this.socket = socket; }
     }
     private final ConcurrentMap<String, Connection> connections = new ConcurrentHashMap<>();
@@ -24,7 +27,39 @@ public class ConnectionRegistry {
     private final org.springframework.context.ApplicationEventPublisher publisher;
     public record PresenceChanged(String userId,boolean online) {}
     public record UserKicked(String userId) {}
-    public ConnectionRegistry(ThreadPoolTaskScheduler realtimeScheduler,org.springframework.context.ApplicationEventPublisher publisher) { scheduler = realtimeScheduler; this.publisher=publisher; }
+    /** Số chu kỳ heartbeat được phép lỡ trước khi coi kết nối là chết (như quy ước của STOMP / Spring). */
+    static final int MISSED_HEARTBEATS = 3;
+    private final long heartbeatMs;
+    public record HeartbeatTimeout(String userId, String socketId, long silentMs) {}
+    public ConnectionRegistry(ThreadPoolTaskScheduler realtimeScheduler,org.springframework.context.ApplicationEventPublisher publisher,
+            @org.springframework.beans.factory.annotation.Value("${app.heartbeat-ms:5000}") long heartbeatMs) {
+        scheduler = realtimeScheduler; this.publisher=publisher; this.heartbeatMs = heartbeatMs;
+        // F17: quét mỗi giây (hoặc nửa chu kỳ nếu chu kỳ ngắn hơn) để phát hiện kết nối chết không gửi close (mất mạng, sleep, blackhole).
+        scheduler.scheduleWithFixedDelay(this::sweep, java.time.Duration.ofMillis(Math.max(100, Math.min(1000, heartbeatMs / 2))));
+    }
+    public long heartbeatMs() { return heartbeatMs; }
+    /** Mỗi WebSocket frame nhận được (tin, lệnh hay nhịp heartbeat) đều tính là còn sống. */
+    public void touch(String socketId) {
+        var connection = connections.get(socketId);
+        if (connection != null) connection.lastReadAt = System.currentTimeMillis();
+    }
+    /** Bật giới hạn im lặng theo heart-beat cx của CONNECT; cx = 0 thì không áp dụng. */
+    public void expectHeartbeat(String socketId, long clientOutgoingMs) {
+        var connection = connections.get(socketId);
+        if (connection == null || clientOutgoingMs <= 0) return;
+        connection.readLimitMs = Math.max(clientOutgoingMs, heartbeatMs) * MISSED_HEARTBEATS;
+        connection.lastReadAt = System.currentTimeMillis();
+    }
+    void sweep() {
+        long now = System.currentTimeMillis();
+        connections.forEach((id, c) -> {
+            long silent = now - c.lastReadAt;
+            if (c.readLimitMs > 0 && silent > c.readLimitMs) {
+                if (c.principal != null) publisher.publishEvent(new HeartbeatTimeout(c.principal.userId(), id, silent));
+                close(id, "Heartbeat timeout");
+            }
+        });
+    }
     public java.util.Set<String> onlineUsers(){return connections.values().stream().filter(c->c.principal!=null).map(c->c.principal.userId()).collect(java.util.stream.Collectors.toSet());}
     public long authenticatedCount(){return connections.values().stream().filter(c->c.principal!=null).count();}
     public void kick(String user){connections.forEach((id,c)->{if(c.principal!=null&&c.principal.userId().equals(user))close(id,"Disconnected by administrator");});publisher.publishEvent(new UserKicked(user));}
@@ -51,8 +86,9 @@ public class ConnectionRegistry {
     private void close(String id, String reason) {
         var connection = connections.get(id);
         if (connection == null) return;
+        // Dọn presence trước: với kết nối chết, gửi close frame có thể không bao giờ được trả lời.
+        removed(id);
         try { connection.socket.close(new CloseStatus(1008, reason)); } catch (IOException ignored) { }
-        finally { removed(id); }
     }
     @TransactionalEventListener
     public void revoked(SessionRevoked event) {

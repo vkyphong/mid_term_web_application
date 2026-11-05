@@ -3,6 +3,11 @@ spring:
     url: jdbc:h2:mem:pulsechat;MODE=MySQL;DB_CLOSE_DELAY=-1
     username: sa
     password: ""
+  # Test giữ giới hạn nhỏ để kiểm tra biên mà không tạo mảng 100 MB.
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
 app:
   jwt-secret: test-secret-only-at-least-thirty-two-characters-long
   access-ttl-seconds: 5

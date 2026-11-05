@@ -16,7 +16,9 @@ import dev.pulsechat.realtime.*;
 @EnableScheduling
 public class AdminService {
     private final JdbcTemplate db;private final ConnectionRegistry connections;private final RealtimeEvents events;private final NotificationService notifications;
-    public AdminService(JdbcTemplate db,ConnectionRegistry connections,RealtimeEvents events,NotificationService notifications){this.db=db;this.connections=connections;this.events=events;this.notifications=notifications;}
+    private final AuditLog audit;
+    public AdminService(JdbcTemplate db,ConnectionRegistry connections,RealtimeEvents events,NotificationService notifications,AuditLog audit){this.db=db;this.connections=connections;this.events=events;this.notifications=notifications;this.audit=audit;}
+    public AuditLog.Page auditLog(String admin,int page){requireAdmin(admin);return audit.page(page);}
     public void requireAdmin(String user){if(db.queryForObject("SELECT COUNT(*) FROM users WHERE id=? AND role='admin' AND enabled=true",Integer.class,user)!=1)throw new ApiException(403,"forbidden",null,"Administrator role required");}
     public Object stats(String user){requireAdmin(user);return snapshot();}
     public record AdminUser(String id,String email,String displayName,String role,boolean enabled,boolean online) {}
@@ -54,17 +56,33 @@ public class AdminService {
         var admins=db.query("SELECT id FROM users WHERE role='admin' AND enabled=true",(rs,n)->rs.getString(1));
         if(!admins.isEmpty())events.send(admins,"/queue/admin","admin:stats",snapshot());
     }
-    public void kick(String admin,String target){requireAdmin(admin);requireUser(target);connections.kick(target);}
+    public void kick(String admin,String target){requireAdmin(admin);requireUser(target);connections.kick(target);audit.user(admin,"user.kick",target,null);}
     @Transactional public void ban(String admin,String target){
         requireAdmin(admin);requireUser(target);if(admin.equals(target))throw ChatService.field("userId","Cannot ban yourself");
-        db.update("UPDATE users SET enabled=false WHERE id=?",target);
+        if(db.update("UPDATE users SET enabled=false WHERE id=? AND enabled=true",target)>0)audit.user(admin,"user.ban",target,null);
         db.update("UPDATE auth_sessions SET revoked=true WHERE user_id=?",target);
         org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){@Override public void afterCommit(){connections.kick(target);}});
+    }
+    /** Mở khoá tài khoản đã bị Ban; các phiên cũ vẫn bị thu hồi nên người dùng phải đăng nhập lại. */
+    @Transactional public void unban(String admin,String target){
+        requireAdmin(admin);requireUser(target);
+        if(db.update("UPDATE users SET enabled=true WHERE id=? AND enabled=false",target)>0)audit.user(admin,"user.unban",target,null);
+    }
+    /** Cấp / thu quyền admin. Không tự đổi quyền của mình (tránh mất admin cuối cùng). Bị thu quyền thì ngắt kết nối để giao diện tải lại quyền mới. */
+    @Transactional public void setRole(String admin,String target,String role){
+        requireAdmin(admin);requireUser(target);
+        if(!"admin".equals(role)&&!"user".equals(role))throw ChatService.field("role","Role must be admin or user");
+        if(admin.equals(target))throw ChatService.field("userId","Cannot change your own role");
+        int changed=db.update("UPDATE users SET role=? WHERE id=? AND role<>?",role,target,role);
+        if(changed>0)audit.user(admin,"admin".equals(role)?"user.grant_admin":"user.revoke_admin",target,null);
+        if(changed>0&&"user".equals(role))org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(new org.springframework.transaction.support.TransactionSynchronization(){@Override public void afterCommit(){connections.kick(target);}});
     }
     @Transactional public Object broadcast(String admin,String content){
         requireAdmin(admin);if(content==null||content.isBlank()||content.getBytes(java.nio.charset.StandardCharsets.UTF_8).length>2048)throw ChatService.field("content","Use 1–2048 UTF-8 bytes");
         var users=db.query("SELECT id FROM users WHERE enabled=true",(rs,n)->rs.getString(1));
-        users.forEach(user->notifications.create(user,"system",null,null,content));return Map.of("recipients",users.size());
+        users.forEach(user->notifications.create(user,"system",null,null,content));
+        audit.system(admin,"broadcast",users.size()+" | "+content.trim());
+        return Map.of("recipients",users.size());
     }
     private void requireUser(String id){if(db.queryForObject("SELECT COUNT(*) FROM users WHERE id=?",Integer.class,id)!=1)throw ChatService.field("userId","User not found");}
 }

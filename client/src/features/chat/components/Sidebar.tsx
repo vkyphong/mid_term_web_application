@@ -1,25 +1,44 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { describeChatError } from '../errors'
 import { useRooms } from '../hooks'
 import { compareTimestamps } from '../messages'
 import type { Room } from '../types'
-import { Avatar } from './Avatar'
+import { RoomAvatar } from './RoomAvatar'
 import { BrowseChannelsDialog } from './BrowseChannelsDialog'
 import { CreateChannelDialog } from './CreateChannelDialog'
 import { NewDirectMessageDialog } from './NewDirectMessageDialog'
 import { PeopleSection } from './PeopleSection'
 import { usePresence } from '../presence'
+import { formatUnread } from '../unread'
 
 type Dialog = 'create' | 'browse' | 'dm' | null
 
 const byRecent = (a: Room, b: Room) => compareTimestamps(b.lastMessageAt ?? '', a.lastMessageAt ?? '')
 
 function RoomLink({ room, online }: { room: Room; online?: boolean }) {
+  const unread = room.unreadCount ?? 0
+  const unreadId = useId()
   return (
-    <NavLink to={`/rooms/${room.id}`} className={({ isActive }) => `room-link${isActive ? ' room-link--active' : ''}`}>
-      {room.type === 'dm' ? <Avatar name={room.name} size="sm" online={online ?? false} /> : <span className="room-hash">#</span>}
+    <NavLink
+      to={`/rooms/${room.id}`}
+      // Số chưa đọc là mô tả, không phải tên link: tên phòng giữ nguyên khi có tin mới.
+      aria-describedby={unread > 0 ? unreadId : undefined}
+      className={({ isActive }) => `room-link${isActive ? ' room-link--active' : ''}${unread ? ' room-link--unread' : ''}`}
+    >
+      <RoomAvatar room={room} size="sm" online={room.type === 'dm' ? (online ?? false) : undefined} />
       <span className="room-link-name">{room.name}</span>
+      {room.archived && <span className="archived-badge archived-badge--sm">Lưu trữ</span>}
+      {unread > 0 && (
+        <>
+          <span className="unread-badge" aria-hidden="true">
+            {formatUnread(unread)}
+          </span>
+          <span id={unreadId} hidden>
+            {unread} tin chưa đọc
+          </span>
+        </>
+      )}
     </NavLink>
   )
 }

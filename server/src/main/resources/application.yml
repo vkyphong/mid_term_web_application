@@ -7,8 +7,9 @@ server:
 spring:
   servlet:
     multipart:
-      max-file-size: 5MB
-      max-request-size: 6MB
+      # File công ty thường lớn: mặc định 100 MB/file, đổi bằng UPLOAD_MAX_FILE_SIZE / UPLOAD_MAX_REQUEST_SIZE.
+      max-file-size: ${UPLOAD_MAX_FILE_SIZE:100MB}
+      max-request-size: ${UPLOAD_MAX_REQUEST_SIZE:101MB}
   application:
     name: pulsechat
   datasource:
@@ -44,3 +45,10 @@ app:
   allowed-email-domains: ${ALLOWED_EMAIL_DOMAINS:DQGM.dev}
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173}
   cookie-secure: ${COOKIE_SECURE:false}
+  # F17: chu kỳ heartbeat STOMP hai chiều; kết nối im lặng quá 3 chu kỳ bị đóng và dọn presence.
+  heartbeat-ms: ${HEARTBEAT_MS:5000}
+  # Tài khoản admin demo, tạo khi khởi động nếu chưa có (DEMO_ADMIN_EMAIL rỗng thì tắt).
+  demo-admin:
+    email: ${DEMO_ADMIN_EMAIL:}
+    password: ${DEMO_ADMIN_PASSWORD:}
+    name: ${DEMO_ADMIN_NAME:Quản trị viên}

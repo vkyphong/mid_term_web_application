@@ -1,0 +1,161 @@
+{
+  "target": {
+    "connections": 500,
+    "perUser": 4,
+    "roomSize": 10,
+    "rampSeconds": 30,
+    "steadySeconds": 60,
+    "heartbeatMs": 5000,
+    "baseUrl": "http://app:8080"
+  },
+  "client": {
+    "node": "v22.23.4",
+    "platform": "Linux 6.6.87.2-microsoft-standard-WSL2",
+    "cpus": 16,
+    "memoryGb": 7.4
+  },
+  "startedAt": "2026-11-05T04:13:59.288Z",
+  "rampUp": {
+    "seconds": 30,
+    "attempted": 500,
+    "connected": 500,
+    "successRate": 1,
+    "errors": {},
+    "connectMs": {
+      "samples": 500,
+      "p50": 10,
+      "p95": 16,
+      "p99": 27,
+      "max": 45
+    }
+  },
+  "serverAfterRamp": {
+    "msgPerSec": 0,
+    "onlineUsers": 126,
+    "connections": 501,
+    "activeRooms": 0
+  },
+  "steady": {
+    "rooms": 13,
+    "messagesSent": 781,
+    "sendErrors": 0,
+    "ackMs": {
+      "samples": 781,
+      "p50": 23,
+      "p95": 33,
+      "p99": 46,
+      "max": 105
+    },
+    "deliveries": 30040,
+    "expectedDeliveries": 30038,
+    "deliveryRate": 1.0001,
+    "deliveryLatencyMs": {
+      "samples": 26916,
+      "p50": 25,
+      "p95": 37,
+      "p99": 50,
+      "max": 108
+    },
+    "server": [
+      {
+        "at": "2026-11-05T04:14:38.474Z",
+        "msgPerSec": 0,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 0
+      },
+      {
+        "at": "2026-11-05T04:14:43.482Z",
+        "msgPerSec": 12,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:14:48.489Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:14:53.496Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:14:58.506Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:03.516Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:08.524Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:13.532Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:18.538Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:23.547Z",
+        "msgPerSec": 12,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:28.557Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      },
+      {
+        "at": "2026-11-05T04:15:33.569Z",
+        "msgPerSec": 13,
+        "onlineUsers": 126,
+        "connections": 501,
+        "activeRooms": 13
+      }
+    ]
+  },
+  "spam": {
+    "burst": 30,
+    "results": {
+      "ok": 9,
+      "rate_limited": 21
+    },
+    "otherRoomAckOk": true,
+    "otherRoomAckMs": 32
+  },
+  "recovery": {
+    "seconds": 1.6,
+    "connections": 1,
+    "baseline": 1
+  },
+  "finishedAt": "2026-11-05T04:15:44.340Z"
+}

@@ -32,7 +32,9 @@ Kết nối `127.0.0.1:3307`, dùng database/user từ `.env` và `MYSQL_PASSWOR
 
 ## Tài khoản admin
 
-Tài khoản đăng ký mặc định có role `user`. Để dùng dashboard `/admin`, đăng ký tài khoản qua web rồi cấp quyền cho đúng email trong MySQL Workbench:
+Backend tự tạo tài khoản admin demo khi khởi động nếu email chưa tồn tại: mặc định `admin@dqgm.dev` / `Admin123456`, cấu hình bằng `DEMO_ADMIN_EMAIL`, `DEMO_ADMIN_PASSWORD`, `DEMO_ADMIN_NAME` trong `.env`. Email đã tồn tại thì chỉ được đảm bảo `role='admin'` và đang kích hoạt, mật khẩu giữ nguyên. Khi triển khai thật, đặt `DEMO_ADMIN_EMAIL=` (rỗng) để tắt và đổi mật khẩu demo.
+
+Tài khoản đăng ký mặc định có role `user`. Để cấp quyền admin cho tài khoản khác, đăng ký tài khoản qua web rồi cấp quyền cho đúng email trong MySQL Workbench:
 
 ```sql
 UPDATE users SET role = 'admin' WHERE email = 'admin@dqgm.dev' AND enabled = TRUE;

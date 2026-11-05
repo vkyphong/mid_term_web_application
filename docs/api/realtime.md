@@ -9,14 +9,14 @@ CONNECT
 accept-version:1.2
 host:localhost
 Authorization:Bearer <accessToken>
-heart-beat:10000,10000
+heart-beat:5000,5000
 
 \0
 ```
 
 `\0` denotes the terminating NUL byte, not two literal characters. A valid, unexpired HS256 JWT with issuer `pulsechat`, an active auth session and an enabled account receives CONNECTED. Missing/malformed/expired/revoked tokens receive STOMP ERROR with `{ "error": { "code": "unauthorized", ... } }`, then disconnect. Banned users receive `forbidden`. Connection six for the same account receives `rate_limited` / `connection_limit`.
 
-An unauthenticated socket is closed after five seconds. Authenticated sockets close at token expiry with code 1008. Logout closes sockets for the revoked auth session, not other independent logins. Client refreshes before expiry and reconnects with the new token. On unauthorized, frontend attempts refresh once per failure sequence; network reconnects stop after five failures. There is no offline queue in F02.
+Heartbeats run every 5 s in both directions (`app.heartbeat-ms`). A socket that announced `cx > 0` and sends nothing, not even a heartbeat, for three intervals (15 s) is closed with 1008 `Heartbeat timeout`, and presence is updated at the same moment; see [heartbeats and load testing](../features/heartbeat-load.md). An unauthenticated socket is closed after five seconds. Authenticated sockets close at token expiry with code 1008. Logout closes sockets for the revoked auth session, not other independent logins. Client refreshes before expiry and reconnects with the new token. On unauthorized, frontend attempts refresh once per failure sequence; network reconnects stop after five failures. There is no offline queue in F02.
 
 ## Private connectivity probe
 

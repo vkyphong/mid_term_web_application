@@ -2,7 +2,7 @@ import { QueryClient } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { applyNotification, applyNotificationRead, notificationsKey } from './notifications'
 import type { Notification, NotificationPage } from './types'
-import { formatBytes, validateFile } from './uploads'
+import { fileKind, formatBytes, validateFile } from './uploads'
 
 const n = (id: string, extra: Partial<Notification> = {}): Notification => ({
   id, type: 'mention', roomId: 'r1', messageId: 'm1', content: 'hi', createdAt: '2026-10-27T08:00:00Z', readAt: null, ...extra,
@@ -34,13 +34,42 @@ describe('F09 notifications cache', () => {
 })
 
 describe('F15 kiểm tra file phía client', () => {
-  const file = (size: number, type: string) => new File([new Uint8Array(size)], 'f', { type })
+  const file = (size: number, name: string, type = '') => new File([new Uint8Array(size)], name, { type })
 
-  it('đúng biên 5 MB và định dạng', () => {
-    expect(validateFile(file(5 * 1024 * 1024, 'image/png'))).toBeNull()
-    expect(validateFile(file(5 * 1024 * 1024 + 1, 'image/png'))).toMatch(/vượt quá giới hạn 5 MB/)
-    expect(validateFile(file(10, 'image/gif'))).toMatch(/JPEG, PNG hoặc tệp PDF/)
-    expect(validateFile(file(0, 'application/pdf'))).toBe('Tệp rỗng.')
+  it('đúng biên 100 MB và định dạng', () => {
+    // File giả có kích thước tuỳ ý mà không cấp phát 100 MB thật.
+    const sized = (size: number, name: string) => Object.defineProperty(new File(['x'], name), 'size', { value: size })
+    expect(validateFile(file(5 * 1024 * 1024 + 1, 'a.png', 'image/png'))).toBeNull()
+    expect(validateFile(sized(100 * 1024 * 1024, 'a.zip'))).toBeNull()
+    expect(validateFile(sized(100 * 1024 * 1024 + 1, 'a.zip'))).toMatch(/vượt quá giới hạn 100 MB/)
+    expect(validateFile(file(10, 'a.gif', 'image/gif'))).toMatch(/Chỉ hỗ trợ ảnh JPG\/PNG, PDF/)
+    expect(validateFile(file(0, 'a.pdf', 'application/pdf'))).toBe('Tệp rỗng.')
+  })
+
+  it('nhận file văn bản, Office và ZIP theo đuôi file (MIME của trình duyệt có thể khác)', () => {
+    for (const name of ['bao-cao.docx', 'SO-LIEU.XLSX', 'slide.pptx', 'ghi-chu.txt', 'du-lieu.csv', 'tai-lieu.zip', 'a.jpeg']) {
+      expect(validateFile(file(10, name))).toBeNull()
+    }
+    expect(validateFile(file(10, 'du-lieu.csv', 'application/vnd.ms-excel'))).toBeNull()
+    expect(validateFile(file(10, 'macro.docm'))).toMatch(/Chỉ hỗ trợ/)
+    expect(validateFile(file(10, 'cu.doc'))).toMatch(/Chỉ hỗ trợ/)
+    expect(validateFile(file(10, 'khong-duoi'))).toMatch(/Chỉ hỗ trợ/)
+  })
+
+  it('nút gửi ảnh chỉ nhận JPG/PNG', () => {
+    expect(validateFile(file(10, 'a.jpg'), true)).toBeNull()
+    expect(validateFile(file(10, 'a.pdf'), true)).toBe('Chỉ gửi được ảnh JPG hoặc PNG.')
+  })
+
+  it('chọn biểu tượng theo loại file', () => {
+    expect(fileKind('a.docx', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')).toBe('word')
+    expect(fileKind('a.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')).toBe('excel')
+    expect(fileKind('a.csv', 'text/csv')).toBe('excel')
+    expect(fileKind('a.pptx', 'application/vnd.openxmlformats-officedocument.presentationml.presentation')).toBe('powerpoint')
+    expect(fileKind('a.zip', 'application/zip')).toBe('archive')
+    expect(fileKind('a.txt', 'text/plain')).toBe('text')
+    expect(fileKind('a.png', 'image/png')).toBe('image')
+    expect(fileKind('a.pdf', 'application/pdf')).toBe('pdf')
   })
 
   it('định dạng kích thước dễ đọc', () => {

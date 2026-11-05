@@ -27,6 +27,7 @@ Bắt đầu từ [API index](api/README.md) để xem quy ước chung và ch�
 - [Thiết kế collaboration](features/collaboration.md): persistence, quyền và key points.
 - [Protocol Lab](features/protocol-lab.md): F13/KP1, workload, phương pháp đo, giới hạn và JSON bằng chứng.
 - [Bảng trắng](features/whiteboard.md): F19/KP2, trạng thái lưu trữ, đồng thời và khôi phục kết nối.
+- [Heartbeat và kiểm thử tải](features/heartbeat-load.md): F17/F18, KP1/KP4, phát hiện kết nối chết ≤ 25 s, số liệu thực đo 500 và 1000 kết nối.
 - [Backlog và đồng bộ GitHub](backlog/README.md): F01–F21, checklist và quy trình cập nhật issue.
 
 API và tài liệu thiết kế dùng tiếng Anh; hướng dẫn chạy và backlog dùng tiếng Việt. Contract mô tả hành vi backend hiện tại; checklist còn bao gồm việc frontend, review và nghiệm thu.

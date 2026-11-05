@@ -1,14 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { chatApi } from '../chatApi'
+import { downloadAttachment } from '../downloads'
 import { describeChatError } from '../errors'
-import { formatBytes } from '../uploads'
+import { fileKind, formatBytes, type FileKind } from '../uploads'
 import type { Attachment } from '../types'
 
-/**
- * F15: ảnh đính kèm được tải bằng Bearer token rồi hiển thị qua blob URL
- * (thẻ <img src> thường không gửi được header xác thực). Blob URL được thu hồi khi không dùng nữa.
- */
+/** Ảnh tải bằng Bearer token rồi hiển thị qua blob URL (img src không gửi được header). */
 function useBlobUrl(attachment: Attachment, enabled: boolean) {
   const blob = useQuery({
     queryKey: ['chat', 'file', attachment.id],
@@ -27,15 +25,16 @@ function useBlobUrl(attachment: Attachment, enabled: boolean) {
   return { url, error: blob.error, isPending: enabled && blob.isPending }
 }
 
-async function download(attachment: Attachment) {
-  const blob = await chatApi.downloadFile(attachment.url)
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = attachment.filename
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(url), 1_000)
+const FILE_ICONS: Record<FileKind, string> = {
+  image: '🖼️',
+  pdf: '📕',
+  word: '📘',
+  excel: '📗',
+  powerpoint: '📙',
+  archive: '🗜️',
+  text: '📄',
 }
+
 
 export function AttachmentView({ attachment, pending }: { attachment: Attachment; pending?: boolean }) {
   const isImage = attachment.mediaType.startsWith('image/')
@@ -44,24 +43,41 @@ export function AttachmentView({ attachment, pending }: { attachment: Attachment
 
   const onDownload = () => {
     setError(undefined)
-    download(attachment).catch((err) => setError(describeChatError(err)))
+    downloadAttachment(attachment).catch((err) => setError(describeChatError(err)))
   }
 
-  return (
-    <div className="attachment">
-      {isImage && (
-        image.url ? (
-          <a href={image.url} target="_blank" rel="noopener noreferrer" title="Mở ảnh gốc">
+  // Ảnh hiện lớn như Zalo (không kèm dòng tên file); bấm để mở ảnh gốc, nút tải về hiện khi rê chuột.
+  if (isImage) {
+    return (
+      <div className="attachment attachment--image">
+        {image.url ? (
+          <a className="attachment-image-link" href={image.url} target="_blank" rel="noopener noreferrer" title="Mở ảnh gốc">
             <img className="attachment-image" src={image.url} alt={attachment.filename} />
           </a>
         ) : (
           <div className="attachment-placeholder">
             {image.error ? `Không tải được ảnh: ${describeChatError(image.error)}` : 'Đang tải ảnh…'}
           </div>
-        )
-      )}
+        )}
+        <button
+          type="button"
+          className="attachment-download"
+          aria-label={`Tải xuống ${attachment.filename} (${formatBytes(attachment.size)})`}
+          title="Tải xuống"
+          onClick={onDownload}
+          disabled={pending}
+        >
+          ⤓
+        </button>
+        {error && <span className="message-status message-status--failed">{error}</span>}
+      </div>
+    )
+  }
+
+  return (
+    <div className="attachment">
       <button type="button" className="attachment-file" onClick={onDownload} disabled={pending}>
-        <span aria-hidden="true">{isImage ? '🖼️' : '📄'}</span>
+        <span aria-hidden="true">{FILE_ICONS[fileKind(attachment.filename, attachment.mediaType)]}</span>
         <span className="attachment-name">{attachment.filename}</span>
         <span className="attachment-size">{formatBytes(attachment.size)}</span>
         <span className="sr-only">Tải xuống</span>
