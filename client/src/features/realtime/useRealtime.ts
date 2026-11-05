@@ -37,8 +37,9 @@ export function useRealtime() {
     const client = new Client({
       brokerURL: url.toString(),
       reconnectDelay: 3000,
-      heartbeatIncoming: 10000,
-      heartbeatOutgoing: 10000,
+      // F17: khớp app.heartbeat-ms của server (5 s); server đóng kết nối im lặng quá 3 chu kỳ (~15 s).
+      heartbeatIncoming: 5000,
+      heartbeatOutgoing: 5000,
       connectionTimeout: 5000,
       // Authentication data must never be logged.
       debug: () => {},
@@ -89,7 +90,7 @@ export function useRealtime() {
         }
       },
     })
-    // F10: trình duyệt báo mất mạng thì đóng socket ngay (không chờ heartbeat ~20 s),
+    // F10: trình duyệt báo mất mạng thì đóng socket ngay (không chờ heartbeat ~10 s),
     // để giao diện và hàng đợi chuyển sang chế độ chờ kết nối.
     const onOffline = () => { if (!disposed) client.forceDisconnect() }
     window.addEventListener('offline', onOffline)

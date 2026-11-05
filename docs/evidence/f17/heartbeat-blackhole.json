@@ -1,0 +1,76 @@
+#1 [internal] load local bake definitions
+#1 reading from stdin 646B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 1.35kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 DONE 1.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 137B done
+#4 DONE 0.0s
+
+#5 [smoke-test 1/3] FROM docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+#5 resolve docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914 0.0s done
+#5 DONE 0.1s
+
+#6 [internal] load build context
+#6 transferring context: 42.62kB 0.0s done
+#6 DONE 0.1s
+
+#5 [smoke-test 1/3] FROM docker.io/library/node:22-alpine@sha256:fe4f6d74e20370acb04ad889077d14d0f64a9c8ea6a42bc60cddf1e844699914
+#5 CACHED
+
+#7 [smoke-test 2/3] WORKDIR /checks
+#7 DONE 0.1s
+
+#8 [smoke-test 3/3] COPY scripts/smoke*.mjs ./
+#8 DONE 0.1s
+
+#9 exporting to image
+#9 exporting layers
+#9 exporting layers 0.3s done
+#9 exporting manifest sha256:f788228d4a349c890cd5267c878bdf4832167f68442f541d001724d085667e30 0.0s done
+#9 exporting config sha256:3d9b57931a19266f7ce5bc283ff5f708d43eb05e921b8aefe62e10d60b855ca1 0.0s done
+#9 exporting attestation manifest sha256:505618f37429152aafef18081d080791e1c535a1d7560ac646550d7977c53e4d
+#9 exporting attestation manifest sha256:505618f37429152aafef18081d080791e1c535a1d7560ac646550d7977c53e4d 0.0s done
+#9 exporting manifest list sha256:81112d0572347feff138e4903f39160a0640b8b46e0da446602ba5a9e08a4a1c 0.0s done
+#9 naming to docker.io/library/pulsechat-smoke:latest done
+#9 unpacking to docker.io/library/pulsechat-smoke:latest
+#9 unpacking to docker.io/library/pulsechat-smoke:latest 1.3s done
+#9 DONE 1.9s
+
+#10 resolving provenance for metadata file
+#10 DONE 0.0s
+{
+  "heartbeatMs": 5000,
+  "requirementMs": 25000,
+  "baseUrl": "http://app:8080",
+  "client": "Linux node v22.23.4",
+  "at": "2026-11-05T04:13:38.201Z",
+  "runs": [
+    {
+      "silentTabClosedAfterMs": 15880,
+      "aliceStayedOnlineWithOneLiveTab": true,
+      "lastTabOfflineAfterMs": 15900,
+      "presencePayloadHasLastSeen": true
+    },
+    {
+      "silentTabClosedAfterMs": 15941,
+      "aliceStayedOnlineWithOneLiveTab": true,
+      "lastTabOfflineAfterMs": 15962,
+      "presencePayloadHasLastSeen": true
+    },
+    {
+      "silentTabClosedAfterMs": 15903,
+      "aliceStayedOnlineWithOneLiveTab": true,
+      "lastTabOfflineAfterMs": 15913,
+      "presencePayloadHasLastSeen": true
+    }
+  ],
+  "worstDetectionMs": 15962,
+  "pass": true
+}

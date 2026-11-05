@@ -45,6 +45,8 @@ app:
   allowed-email-domains: ${ALLOWED_EMAIL_DOMAINS:DQGM.dev}
   allowed-origins: ${ALLOWED_ORIGINS:http://localhost:8080,http://localhost:5173}
   cookie-secure: ${COOKIE_SECURE:false}
+  # F17: chu kỳ heartbeat STOMP hai chiều; kết nối im lặng quá 3 chu kỳ bị đóng và dọn presence.
+  heartbeat-ms: ${HEARTBEAT_MS:5000}
   # Tài khoản admin demo, tạo khi khởi động nếu chưa có (DEMO_ADMIN_EMAIL rỗng thì tắt).
   demo-admin:
     email: ${DEMO_ADMIN_EMAIL:}

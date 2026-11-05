@@ -48,4 +48,4 @@ Unit and component tests cover the 2-second throttle, the 2.5-second stop, the 3
 
 ## Limitations
 
-Presence, connection counts and typing state live in the memory of a single server instance and reset when it restarts; `lastSeen` records the last observed disconnect, not a crash time. A connection that dies without closing is detected only by heartbeats (F17). The colleague list shows at most 20 names because it reuses the search endpoint. Receipts reflect what the browser reports; the server cannot verify that a person actually read a message.
+Presence, connection counts and typing state live in the memory of a single server instance and reset when it restarts; `lastSeen` records the last observed disconnect, not a crash time. A connection that dies without closing is detected by heartbeats within about 16 seconds (F17, [measurements](heartbeat-load.md)). The colleague list shows at most 20 names because it reuses the search endpoint. Receipts reflect what the browser reports; the server cannot verify that a person actually read a message.

@@ -20,6 +20,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public WebSocketConfig(StompAuthInterceptor auth, ConnectionRegistry connections, AppProperties properties, ObjectMapper mapper, ThreadPoolTaskScheduler realtimeScheduler) {
         this.auth = auth; this.connections = connections; this.properties = properties; this.mapper = mapper; this.scheduler = realtimeScheduler;
     }
+    // F17: hai chiều cùng chu kỳ app.heartbeat-ms (mặc định 5 s) → kết nối chết bị phát hiện sau khoảng 15–16 s (≤ 25 s).
     @Bean @Primary public static ThreadPoolTaskScheduler realtimeScheduler() {
         var scheduler = new ThreadPoolTaskScheduler(); scheduler.setPoolSize(2); scheduler.setThreadNamePrefix("realtime-");
         scheduler.setRemoveOnCancelPolicy(true); return scheduler;
@@ -35,7 +36,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     }
     @Override public void configureMessageBroker(MessageBrokerRegistry registry) {
         registry.setApplicationDestinationPrefixes("/app"); registry.setUserDestinationPrefix("/user");
-        registry.enableSimpleBroker("/queue").setTaskScheduler(scheduler).setHeartbeatValue(new long[]{10000, 10000});
+        registry.enableSimpleBroker("/queue").setTaskScheduler(scheduler).setHeartbeatValue(new long[]{connections.heartbeatMs(), connections.heartbeatMs()});
         registry.setPreservePublishOrder(true);
     }
     @Override public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
@@ -43,6 +44,9 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registration.addDecoratorFactory(handler -> new WebSocketHandlerDecorator(handler) {
             @Override public void afterConnectionEstablished(WebSocketSession session) throws Exception {
                 connections.opened(session); super.afterConnectionEstablished(session);
+            }
+            @Override public void handleMessage(WebSocketSession session, org.springframework.web.socket.WebSocketMessage<?> message) throws Exception {
+                connections.touch(session.getId()); super.handleMessage(session, message);
             }
             @Override public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws Exception {
                 connections.removed(session.getId()); super.afterConnectionClosed(session, status);

@@ -18,7 +18,7 @@ The queue reacts to each outcome as follows:
 | `rate_limited` | Show *Bạn gửi quá nhanh … Sẽ tự gửi lại*, wait 5 s, resend with the same `clientMsgId`, keep the order |
 | `forbidden`, `invalid_payload` | Remove from the queue, show the reason under the message with *Thử lại*, continue with the next message |
 
-Detecting a dropped network through STOMP heartbeats takes about 20 seconds. The client therefore also listens to the browser's `offline` event, closes the socket immediately and switches the queue and the banner to the waiting state. Because the realtime client stops reconnecting after five consecutive failures, an `online` event creates a new connection. A banner in the open room states that the connection is lost and how many messages are waiting. The composer stays usable while offline as long as the room's history was loaded once, since the pending copy is inserted into that list. The queue lives in the tab's memory; messages not yet sent are lost if the page is reloaded.
+Detecting a dropped network through STOMP heartbeats takes about 15 seconds (three missed 5-second beats, see [F17](heartbeat-load.md)). The client therefore also listens to the browser's `offline` event, closes the socket immediately and switches the queue and the banner to the waiting state. Because the realtime client stops reconnecting after five consecutive failures, an `online` event creates a new connection. A banner in the open room states that the connection is lost and how many messages are waiting. The composer stays usable while offline as long as the room's history was loaded once, since the pending copy is inserted into that list. The queue lives in the tab's memory; messages not yet sent are lost if the page is reloaded.
 
 ## Limits and errors
 
