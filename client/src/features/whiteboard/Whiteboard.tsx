@@ -165,7 +165,7 @@ export function Whiteboard({ roomId }: { roomId: string }) {
       <span className="whiteboard-saved-count">{state.snapshot?.segments.length ?? 0}/{MAX_SEGMENTS} đoạn</span>
       <button type="button" className="btn-secondary" disabled={!state.canClear || stroke.current !== null} onClick={() => setConfirmClear(true)}>Xóa bảng</button>
     </div>
-    <div className="whiteboard-status" role="status"><span className={state.canDraw ? 'whiteboard-ready-dot' : 'whiteboard-wait-dot'} />{status}<span className="whiteboard-version">Phiên {state.snapshot?.generation ?? '—'} · v{state.snapshot?.revision ?? '—'}</span></div>
+    <div className="whiteboard-status" role="status" data-version={state.snapshot ? `${state.snapshot.generation}.${state.snapshot.revision}` : ''}><span className={state.canDraw ? 'whiteboard-ready-dot' : 'whiteboard-wait-dot'} />{status}</div>
     {(state.error || localError) && <div className="whiteboard-error" role="alert"><span>{state.error ?? localError}</span><button type="button" className="btn-secondary" onClick={() => { setLocalError(null); void session.current?.retry() }} disabled={state.syncing || state.clearing}>Thử lại</button></div>}
     {state.notice && <p className="whiteboard-notice" role="status">{state.notice}</p>}
     <div className={`whiteboard-surface${state.canDraw ? '' : ' whiteboard-surface--disabled'}${tool === 'eraser' ? ' whiteboard-surface--eraser' : ''}`}>

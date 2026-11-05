@@ -70,7 +70,7 @@ async function pixels(page: Page) {
 async function samePixels(a: Page, b: Page) {
   let diagnostic: unknown
   try { await expect.poll(async () => {
-    const [left, right, aVersion, bVersion] = await Promise.all([pixels(a), pixels(b), a.locator('.whiteboard-version').innerText(), b.locator('.whiteboard-version').innerText()])
+    const [left, right, aVersion, bVersion] = await Promise.all([pixels(a), pixels(b), a.locator('.whiteboard-status').getAttribute('data-version'), b.locator('.whiteboard-status').getAttribute('data-version')])
     // GPU/CPU Canvas anti-aliasing can differ by a handful of edge pixels after readback.
     // Compare spatial RGBA sums and server version, rather than requiring bit-identical rasterization.
     const difference = left.tiles.reduce((sum, value, i) => sum + Math.abs(value - right.tiles[i]), 0)

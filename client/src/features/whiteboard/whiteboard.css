@@ -15,7 +15,6 @@
 .whiteboard-status { display: flex; align-items: center; gap: 7px; color: var(--muted); font-size: 11px; flex-shrink: 0; }
 .whiteboard-ready-dot, .whiteboard-wait-dot { width: 6px; height: 6px; border-radius: 50%; background: #259b85; flex-shrink: 0; }
 .whiteboard-wait-dot { background: var(--muted); }
-.whiteboard-version { margin-left: auto; font-variant-numeric: tabular-nums; }
 .whiteboard-surface { position: relative; border: 1px solid var(--border); border-radius: 10px; background: #fff; overflow: hidden; flex-shrink: 0; }
 .whiteboard-surface canvas { display: block; width: 100%; height: auto; aspect-ratio: 5 / 3; touch-action: none; cursor: crosshair; }
 .whiteboard-surface--disabled canvas { cursor: not-allowed; }
@@ -31,10 +30,10 @@
 .whiteboard-dialog p { color: var(--muted); font-size: 13px; line-height: 1.8; }
 .whiteboard-dialog > div { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
 .whiteboard-danger { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 12px; border: 1px solid #bc3030; border-radius: 8px; color: white; background: #bc3030; cursor: pointer; }
-@media (max-width: 600px) { .room-tabs { padding: 8px 12px; } .whiteboard { padding: 12px; } .whiteboard-toolbar { gap: 12px; padding: 12px; } .whiteboard-colors { gap: 8px; } .whiteboard-colors button { width: 25px; height: 25px; } .whiteboard-width { margin-left: auto; } .whiteboard-saved-count { margin-left: 0; } .whiteboard-toolbar > .btn-secondary { margin-left: auto; } .whiteboard-status { flex-wrap: wrap; } .whiteboard-version { font-size: 10px; } .whiteboard-error { align-items: start; } }
+@media (max-width: 600px) { .room-tabs { padding: 8px 12px; } .whiteboard { padding: 12px; } .whiteboard-toolbar { gap: 12px; padding: 12px; } .whiteboard-colors { gap: 8px; } .whiteboard-colors button { width: 25px; height: 25px; } .whiteboard-width { margin-left: auto; } .whiteboard-saved-count { margin-left: 0; } .whiteboard-toolbar > .btn-secondary { margin-left: auto; } .whiteboard-status { flex-wrap: wrap; } .whiteboard-error { align-items: start; } }
 .whiteboard-tools { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--border); border-radius: 9px; }
 .whiteboard-tools button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; color: var(--muted); background: transparent; cursor: pointer; }
 .whiteboard-tools button:hover:not(:disabled) { color: var(--text); background: var(--bg); }
 .whiteboard-tools button[aria-pressed='true'] { color: var(--primary); background: color-mix(in srgb, var(--primary) 14%, var(--surface)); }
-.whiteboard-surface--eraser canvas { cursor: cell; }
+.whiteboard-surface--eraser canvas { cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'><g transform='rotate(-45 14 14)' stroke='%23374151' stroke-width='1.6' stroke-linejoin='round'><rect x='3' y='9' width='22' height='10' rx='2' fill='%23ffffff'/><path d='M3 11a2 2 0 0 1 2-2h7v10H5a2 2 0 0 1-2-2z' fill='%23f472b6'/></g></svg>") 6 22, cell; }
 @media (max-width: 600px) { .whiteboard-tools { flex-wrap: wrap; } }
