@@ -577,6 +577,48 @@ class GroupManagementIntegrationTest {
         for (JsonNode m : members) if (m.get("id").asText().equals(userId)) return m.path("memberRole").asText(null);
         return null;
     }
+    @Test void adminActionsAreWrittenToTheAuditLogOnlyWhenSomethingChanges() throws Exception {
+        String name = "Audit-" + UUID.randomUUID().toString().substring(0, 8);
+        String room = post("/api/admin/groups", admin, Map.of("name", name), 201).get("id").asText();
+        call(HttpMethod.PATCH, "/api/admin/groups/" + room, admin, Map.of("name", name + "-moi"), 200);
+        post("/api/admin/groups/" + room + "/members", admin, Map.of("userId", peer.id()), 200);
+        post("/api/admin/groups/" + room + "/members", admin, Map.of("userId", peer.id()), 200); // đã là thành viên: không ghi
+        call(HttpMethod.PUT, "/api/admin/groups/" + room + "/members/" + peer.id() + "/role", admin, Map.of("role", "deputy"), 200);
+        call(HttpMethod.PATCH, "/api/admin/groups/" + room + "/settings", admin, Map.of("requireApproval", true), 200);
+        post("/api/admin/groups/" + room + "/archive", admin, Map.of("archived", true), 200);
+        post("/api/admin/groups/" + room + "/archive", admin, Map.of("archived", true), 200); // không đổi: không ghi
+        post("/api/admin/groups/" + room + "/archive", admin, Map.of("archived", false), 200);
+        call(HttpMethod.DELETE, "/api/admin/groups/" + room + "/members/" + peer.id(), admin, null, 200);
+
+        var actions = db.queryForList("SELECT action FROM admin_audit WHERE target_id=? ORDER BY created_at, id", String.class, room);
+        assertThat(actions).containsExactly("group.create", "group.rename", "group.member_add", "group.member_role",
+            "group.approval_on", "group.archive", "group.restore", "group.member_remove");
+        assertThat(db.queryForObject("SELECT detail FROM admin_audit WHERE target_id=? AND action='group.rename'", String.class, room))
+            .isEqualTo(name + " → " + name + "-moi");
+        assertThat(db.queryForObject("SELECT detail FROM admin_audit WHERE target_id=? AND action='group.member_role'", String.class, room))
+            .endsWith(": member → deputy");
+
+        var target = account();
+        post("/api/admin/users/" + target.id() + "/ban", admin, Map.of(), 200);
+        post("/api/admin/users/" + target.id() + "/unban", admin, Map.of(), 200);
+        call(HttpMethod.PUT, "/api/admin/users/" + target.id() + "/role", admin, Map.of("role", "admin"), 200);
+        call(HttpMethod.PUT, "/api/admin/users/" + target.id() + "/role", admin, Map.of("role", "admin"), 200); // không đổi: không ghi
+        call(HttpMethod.PUT, "/api/admin/users/" + target.id() + "/role", admin, Map.of("role", "user"), 200);
+        assertThat(db.queryForList("SELECT action FROM admin_audit WHERE target_id=? ORDER BY created_at, id", String.class, target.id()))
+            .containsExactly("user.ban", "user.unban", "user.grant_admin", "user.revoke_admin");
+
+        // API: mới nhất trước, có người thực hiện và nhãn đối tượng; người thường không xem được.
+        var page = get("/api/admin/audit?page=0", admin, 200);
+        assertThat(page.get("pageSize").asInt()).isEqualTo(20);
+        assertThat(page.get("total").asInt()).isGreaterThanOrEqualTo(12);
+        var latest = page.get("entries").get(0);
+        assertThat(latest.get("action").asText()).isEqualTo("user.revoke_admin");
+        assertThat(latest.at("/actor/id").asText()).isEqualTo(admin.id());
+        assertThat(latest.get("targetType").asText()).isEqualTo("user");
+        assertThat(latest.get("targetLabel").asText()).endsWith("@dqgm.dev");
+        get("/api/admin/audit?page=0", owner, 403);
+        get("/api/admin/audit?page=-1", admin, 400);
+    }
     @Test void adminRoleIsRequiredForEveryManagementEndpoint() throws Exception {
         String room = room();
         for (String suffix : List.of("", "/" + room, "/" + room + "/members")) get("/api/admin/groups" + suffix, owner, 403);

@@ -4,6 +4,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { config } from '../../config'
 import { ApiError } from '../../lib/apiError'
 import { describeError } from './adminErrors'
+import { AdminAudit } from './AdminAudit'
 import { AdminGroups } from './AdminGroups'
 import { Confirmation, Icon } from './adminUi'
 import { useLogout, useSession } from '../auth/hooks'
@@ -48,12 +49,13 @@ const ACCOUNT_ACTIONS: Record<AccountAction, { title: string; body: string; conf
 }
 
 // Thứ tự theo vị trí trên trang (Nhóm nằm dưới cùng, sau cột Tài khoản / Broadcast).
-const SECTIONS = ['overview', 'accounts', 'broadcast', 'groups'] as const
+const SECTIONS = ['overview', 'accounts', 'broadcast', 'groups', 'audit'] as const
 const NAV_ITEMS = [
   ['overview', 'pulse', 'Live Dashboard'],
   ['accounts', 'users', 'Tài khoản'],
   ['groups', 'channel', 'Nhóm'],
   ['broadcast', 'broadcast', 'Broadcast'],
+  ['audit', 'shield', 'Nhật ký'],
 ] as const
 
 function runAccountAction(id: string, action: AccountAction) {
@@ -217,6 +219,7 @@ export function AdminDashboard() {
               </div>
             </div>
             <AdminGroups enabled={enabled} onNotice={setNotice} />
+            <AdminAudit enabled={enabled} />
             <footer className="admin-footer"><span><Icon name="shield" />Chỉ dành cho IT Admin</span><span>{config.appName} · Live Operations</span></footer>
           </>}
         </div>

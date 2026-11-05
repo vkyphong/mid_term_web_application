@@ -41,7 +41,7 @@ docker compose up --build -d --wait
 
 Mở **http://localhost:8080**. Lần build đầu mất khoảng 5–10 phút vì chạy luôn lint, unit test frontend và test backend; lệnh trả về khi app đã healthy. Dừng bằng `docker compose down` (dữ liệu vẫn giữ); xoá toàn bộ dữ liệu bằng `docker compose down -v`.
 
-Script tạo `.env` chứa secret ngẫu nhiên nếu file chưa tồn tại. Flyway tự áp dụng migration (V1–V15) khi backend khởi động. MySQL và file upload được giữ trong hai Docker volume riêng.
+Script tạo `.env` chứa secret ngẫu nhiên nếu file chưa tồn tại. Flyway tự áp dụng migration (V1–V16) khi backend khởi động. MySQL và file upload được giữ trong hai Docker volume riêng.
 
 ## Tài khoản demo
 
@@ -77,6 +77,7 @@ Mở **http://localhost:8080/admin** và đăng nhập bằng tài khoản có r
 - Kênh hoạt động: tối đa 50 kênh có tin trong 60 giây, số thành viên và số tin/phút; cập nhật mỗi 5 giây. Chỉ số **phòng hoạt động** bao gồm cả kênh và DM, danh sách kênh không hiển thị DM.
 - **Broadcast** lưu thông báo hệ thống cho tất cả tài khoản đang được kích hoạt, kể cả offline; người đang kết nối nhận thông báo realtime. Nội dung tối đa 2048 byte UTF-8. Kick, Ban, Mở khóa, đổi quyền và Broadcast đều có bước xác nhận.
 
+- **Nhật ký quản trị:** ghi lại mọi thao tác của admin (kick, khóa / mở khóa, cấp / thu quyền, broadcast, tạo / sửa / lưu trữ nhóm, thành viên, vai trò, phê duyệt): ai làm, làm gì, với ai, lúc nào. Chỉ ghi khi thật sự có thay đổi; không sửa hay xoá được từ dashboard.
 - **Quản lý nhóm:** tìm và lọc nhóm (tất cả / đang hoạt động / đã lưu trữ), tạo nhóm, đổi tên và mô tả, thêm / xoá thành viên (kể cả khi admin không ở trong nhóm), chỉ định trưởng nhóm / phó nhóm (tối đa 5), bật / tắt phê duyệt thành viên mới, lưu trữ và khôi phục nhóm có xác nhận. Admin không đọc được nội dung chat.
 
 Đăng nhập bằng [tài khoản admin demo](#tài-khoản-demo), hoặc xem [cấp quyền admin](docs/operations.md#tài-khoản-admin) để cấp quyền cho tài khoản khác. Dashboard dùng backend thật, không hỗ trợ chế độ mock.

@@ -9,14 +9,14 @@ import { AdminRoute } from '../auth/components/RouteGuards'
 import { sessionQueryKey } from '../auth/session'
 import { setActiveClient } from '../realtime/realtimeBus'
 import { AdminDashboard } from './AdminDashboard'
-import { adminApi } from './adminApi'
+import { adminApi, type AuditEntry } from './adminApi'
 import { useAdminStats } from './useAdminStats'
 
 vi.mock('./adminApi', () => ({
   adminApi: {
     stats: vi.fn(), users: vi.fn(), channels: vi.fn(), moderate: vi.fn(), broadcast: vi.fn(),
     groups: vi.fn(), createGroup: vi.fn(), updateGroup: vi.fn(), archiveGroup: vi.fn(), groupMembers: vi.fn(), addGroupMember: vi.fn(), removeGroupMember: vi.fn(),
-    unban: vi.fn(), setRole: vi.fn(), setGroupMemberRole: vi.fn(), setGroupApproval: vi.fn(),
+    unban: vi.fn(), setRole: vi.fn(), setGroupMemberRole: vi.fn(), setGroupApproval: vi.fn(), audit: vi.fn(),
   },
 }))
 vi.mock('../chat/chatApi', () => ({
@@ -46,6 +46,7 @@ beforeEach(() => {
   api.moderate.mockResolvedValue(undefined)
   api.broadcast.mockResolvedValue({ recipients: 2 })
   api.groups.mockResolvedValue({ groups: [project], total: 1, page: 0, pageSize: 20 })
+  api.audit.mockResolvedValue({ entries: [], total: 0, page: 0, pageSize: 20 })
   api.groupMembers.mockResolvedValue([{ id: 'admin', displayName: 'IT Admin', email: 'admin@dqgm.dev', enabled: true, memberRole: 'owner' }])
   Object.defineProperties(HTMLDialogElement.prototype, {
     showModal: { configurable: true, value: function (this: HTMLDialogElement) { this.setAttribute('open', '') } },
@@ -272,5 +273,35 @@ describe('menu trái và avatar', () => {
     expect(avatar).toHaveTextContent('IA')
     await user.click(avatar)
     expect(await screen.findByRole('dialog', { name: /Thông tin tài khoản/ })).toBeInTheDocument()
+  })
+})
+
+describe('nhật ký quản trị', () => {
+  it('hiện thao tác bằng tiếng Việt, người thực hiện, đối tượng, chi tiết; phân trang', async () => {
+    const user = userEvent.setup()
+    const actor = { id: 'admin', displayName: 'IT Admin', email: 'admin@dqgm.dev' }
+    const entry = (i: number, extra: Partial<AuditEntry>): AuditEntry => ({
+      id: `a${i}`, at: '2026-11-05T08:00:00Z', actor, action: '', targetType: 'user', targetId: 'x', targetLabel: null, detail: null, ...extra,
+    })
+    api.audit.mockImplementation(async (page: number) => page === 0
+      ? { entries: [
+          entry(1, { action: 'user.ban', targetType: 'user', targetLabel: 'employee@dqgm.dev' }),
+          entry(2, { action: 'group.member_role', targetType: 'group', targetLabel: 'Dự án A', detail: 'Employee (employee@dqgm.dev): member → deputy' }),
+          entry(3, { action: 'broadcast', targetType: 'system', targetId: null, detail: '12 | Bảo trì lúc 22:00' }),
+        ], total: 23, page: 0, pageSize: 20 }
+      : { entries: [entry(9, { action: 'group.create', targetType: 'group', targetLabel: 'Dự án B' })], total: 23, page: 1, pageSize: 20 })
+    mount()
+    const section = await screen.findByRole('region', { name: /Nhật ký quản trị/ })
+    expect(await within(section).findByText('Khóa tài khoản')).toBeInTheDocument()
+    expect(within(section).getByText('employee@dqgm.dev')).toBeInTheDocument()
+    expect(within(section).getByText('Employee (employee@dqgm.dev): thành viên → phó nhóm')).toBeInTheDocument()
+    expect(within(section).getByText('12 tài khoản: “Bảo trì lúc 22:00”')).toBeInTheDocument()
+    expect(within(section).getByText('Toàn hệ thống')).toBeInTheDocument()
+    expect(within(section).getByText('23 thao tác · Trang 1/2')).toBeInTheDocument()
+    await user.click(within(section).getByRole('button', { name: 'Sau' }))
+    expect(await within(section).findByText('Tạo nhóm')).toBeInTheDocument()
+    expect(api.audit).toHaveBeenLastCalledWith(1)
+    // Có mục "Nhật ký" trên menu trái.
+    expect(within(screen.getByRole('navigation', { name: 'Quản trị' })).getByRole('link', { name: 'Nhật ký' })).toBeInTheDocument()
   })
 })

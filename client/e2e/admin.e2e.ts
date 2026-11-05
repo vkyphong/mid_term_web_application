@@ -140,6 +140,13 @@ test('admin khoá rồi mở khoá tài khoản, cấp rồi thu quyền admin',
     await page.getByRole('button', { name: 'Xác nhận thu hồi' }).click()
     await expect(page.getByRole('button', { name: `Cấp quyền admin ${staffEmail}` })).toBeVisible()
     expect((await (await login()).json()).user.role).toBe('user')
+
+    // Nhật ký quản trị ghi đủ 4 thao tác, mới nhất ở trên.
+    const audit = page.getByRole('region', { name: /Nhật ký quản trị/ })
+    await page.getByRole('navigation', { name: 'Quản trị' }).getByRole('link', { name: 'Nhật ký' }).click()
+    const rows = audit.locator('tbody tr', { hasText: staffEmail })
+    await expect(rows).toHaveCount(4)
+    await expect(rows.locator('.admin-audit-action')).toHaveText(['Thu quyền admin', 'Cấp quyền admin', 'Mở khóa tài khoản', 'Khóa tài khoản'])
   } finally {
     await staff.close()
   }

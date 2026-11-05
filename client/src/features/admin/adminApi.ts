@@ -65,6 +65,24 @@ export interface GroupInput {
   description: string | null
 }
 
+export interface AuditEntry {
+  id: string
+  at: string
+  actor: { id: string; displayName: string; email: string }
+  action: string
+  targetType: 'user' | 'group' | 'system'
+  targetId: string | null
+  targetLabel: string | null
+  detail: string | null
+}
+
+export interface AuditPage {
+  entries: AuditEntry[]
+  total: number
+  page: number
+  pageSize: number
+}
+
 const group = (id: string) => `/api/admin/groups/${encodeURIComponent(id)}`
 
 export const adminApi = {
@@ -75,6 +93,7 @@ export const adminApi = {
   unban: (id: string) => authRequest<void>(`/api/admin/users/${encodeURIComponent(id)}/unban`, { method: 'POST' }),
   setRole: (id: string, role: 'admin' | 'user') =>
     authRequest<void>(`/api/admin/users/${encodeURIComponent(id)}/role`, { method: 'PUT', body: { role } }),
+  audit: (page: number) => authRequest<AuditPage>(`/api/admin/audit?page=${page}`),
   broadcast: (content: string) => authRequest<{ recipients: number }>('/api/admin/broadcast', { method: 'POST', body: { content } }),
   groups: (search: string, archived: boolean | undefined, page: number) => {
     const params = new URLSearchParams({ search, page: String(page) })
