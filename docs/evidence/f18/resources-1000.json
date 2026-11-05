@@ -1,0 +1,18 @@
+{
+  "pulsechat-app-1": {
+    "samples": 25,
+    "cpuAvgPct": 89.3,
+    "cpuPeakPct": 750.51,
+    "memPeakMiB": 1053,
+    "memStartMiB": 764,
+    "memLimit": "7.363GiB"
+  },
+  "pulsechat-mysql-1": {
+    "samples": 25,
+    "cpuAvgPct": 15.6,
+    "cpuPeakPct": 88.09,
+    "memPeakMiB": 498,
+    "memStartMiB": 491,
+    "memLimit": "7.363GiB"
+  }
+}

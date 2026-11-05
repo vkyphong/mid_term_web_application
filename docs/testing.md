@@ -30,6 +30,18 @@ docker compose --profile tools run --build --rm --no-deps --entrypoint node smok
 
 Các thao tác admin có quyền, như ban và broadcast, được kiểm tra trong backend integration tests. Chi tiết workload và cách ước lượng overhead của Lab ở [API Lab](api/lab.md#reproducible-comparison).
 
+## Heartbeat (F17) và kiểm thử tải (F18)
+
+Chạy trên app đang chạy, client ở trong mạng Docker:
+
+```powershell
+docker compose --profile tools run --build --rm --no-deps -e BASE_URL=http://app:8080 --entrypoint node smoke smoke-heartbeat.mjs
+docker compose --profile tools run --rm --no-deps -e BASE_URL=http://app:8080 -e CONNECTIONS=500 --entrypoint node smoke smoke-load.mjs
+docker compose --profile tools run --rm --no-deps -e BASE_URL=http://app:8080 -e CONNECTIONS=1000 -e RAMP_SECONDS=60 --entrypoint node smoke smoke-load.mjs
+```
+
+`smoke-heartbeat.mjs` mô phỏng mất mạng không gửi close (3 lần) và báo thời gian phát hiện; `pass` khi ≤ 25 s và người còn tab sống không bị offline. `HeartbeatIntegrationTest` kiểm tra cùng cơ chế trong mỗi lần build với chu kỳ 1 s. `smoke-load.mjs` chạy ramp-up → steady 60 s → spam → recovery và in JSON (kết nối, p50/p95 độ trễ, rate limit, số liệu Admin API). Tài khoản `load-NNN@dqgm.dev` và phòng "Kiểm thử tải NN" được dùng lại giữa các lần chạy. Số liệu thực đo và CPU/RAM: [heartbeat-load.md](features/heartbeat-load.md).
+
 ## Browser E2E
 
 Yêu cầu Node trên máy, app thật tại `http://localhost:8080` và domain mặc định `DQGM.dev`:

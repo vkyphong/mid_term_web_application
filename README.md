@@ -115,6 +115,8 @@ Lần chạy `docker compose up --build -d --wait` tiếp theo tự áp dụng m
 - **F12:** Admin Live Dashboard, thống kê realtime, tài khoản có tìm kiếm/phân trang, kênh hoạt động, kick/ban và broadcast với xác nhận.
 - **F13:** Protocol Lab có giao diện chạy cùng workload qua bốn giao thức, biểu đồ, p50/p95, request/header/frame accounting và JSON export.
 - **F19:** Bảng trắng theo phòng, vẽ đồng thời, lưu/khôi phục nét, quyền thành viên và xóa bảng có xác nhận; xem phạm vi và giới hạn ở trên.
+- **F17:** heartbeat STOMP 5 giây hai chiều; kết nối chết im lặng (mất mạng, máy ngủ) bị đóng sau 3 nhịp và dọn presence ngay. Thực đo **≈ 15,9 giây** (yêu cầu ≤ 25 giây); còn tab sống thì vẫn online.
+- **F18:** kiểm thử tải STOMP trên một instance: **500/500** và **1000/1000** kết nối thành công, độ trễ nhận tin p95 **37 ms / 26 ms**, rate limit chặn spam mà không ảnh hưởng phòng khác, phục hồi < 2 giây. Phương pháp, số liệu và CPU/RAM: [heartbeat và kiểm thử tải](docs/features/heartbeat-load.md).
 - **Các phần còn lại:** theo backlog. F16 nhiều backend ngoài phạm vi; không có Nginx/Redis. Presence và rate limit dùng memory một instance, mất state tạm khi restart.
 | Phần | Trạng thái triển khai |
 | --- | --- |
@@ -122,8 +124,10 @@ Lần chạy `docker compose up --build -d --wait` tiếp theo tự áp dụng m
 | F12 | Đã tích hợp Admin Live Dashboard và quản lý nhóm với backend thật; xem cách chạy ở trên |
 | F13 | Đã tích hợp Protocol Lab với backend; xem cách chạy và phạm vi đo ở trên |
 | F16 | Ngoài phạm vi đồ án; dùng một backend, không Redis/Nginx |
+| F17 | Heartbeat 5 s + phát hiện kết nối chết ≈ 15,9 s; test backend và script đo `scripts/smoke-heartbeat.mjs`, bằng chứng trong `docs/evidence/f17` |
+| F18 | Kiểm thử tải 500 và 1000 kết nối bằng `scripts/smoke-load.mjs`, bằng chứng trong `docs/evidence/f18` |
 | F19 | Đã tích hợp bảng trắng; peer review/báo cáo và nghiệm thu tùy chọn theo backlog |
-| F17, F18, F20, F21 | Theo dõi riêng trong backlog |
+| F20, F21 | Theo dõi riêng trong backlog |
 
 Trạng thái triển khai không thay thế review và nghiệm thu của nhóm. Xem [backlog](docs/backlog/README.md) để theo dõi từng chức năng.
 
