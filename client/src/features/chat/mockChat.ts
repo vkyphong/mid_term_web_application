@@ -1,10 +1,5 @@
 import { uuid } from '../../lib/uuid'
-/**
- * Mock chat chạy trong trình duyệt khi BE chưa sẵn sàng (VITE_USE_MOCK_API=true).
- * Mô phỏng docs/api/chat.md: dữ liệu chung trong localStorage, event phát giữa các tab
- * bằng BroadcastChannel. Mỗi tab có thể đăng nhập một user khác (xem mockAuthApi).
- * CHỈ dùng cho dev/demo.
- */
+/** Mock chat cho dev (VITE_USE_MOCK_API=true): localStorage + BroadcastChannel giữa các tab. */
 import { ApiError } from '../../lib/apiError'
 import { getMockCurrentUser, listMockUsers } from '../auth/mockAuthApi'
 import type { ChatApi } from './chatApi'

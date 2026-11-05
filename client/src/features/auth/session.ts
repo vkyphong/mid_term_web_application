@@ -23,10 +23,7 @@ export function setSession(queryClient: QueryClient, session: Session | null) {
   queryClient.setQueryData<Session | null>(sessionQueryKey, session)
 }
 
-/**
- * Khôi phục phiên khi tải trang bằng refresh-token cookie.
- * 401/403 nghĩa là chưa đăng nhập (không phải lỗi).
- */
+/** Khôi phục phiên bằng refresh cookie; 401/403 = chưa đăng nhập. */
 export async function restoreSession(): Promise<Session | null> {
   try {
     const session = toSession(await authApi.refresh())

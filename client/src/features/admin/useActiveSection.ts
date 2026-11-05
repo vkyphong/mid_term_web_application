@@ -3,10 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 /** Vị trí (px từ đỉnh màn hình) mà một mục được coi là "đang xem". */
 const ACTIVE_OFFSET = 140
 
-/**
- * Mục đang xem trên menu trái của dashboard: bấm thì sáng ngay, cuộn trang thì tự đổi theo mục ở đầu màn hình.
- * `ids` theo thứ tự xuất hiện; mục đầu tiên là mặc định khi đang ở đầu trang.
- */
+/** Mục đang xem trên menu trái: theo mục vừa bấm hoặc theo vị trí cuộn. */
 export function useActiveSection(ids: readonly string[]) {
   const [active, setActive] = useState(ids[0])
   const lockUntil = useRef(0)

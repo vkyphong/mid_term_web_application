@@ -18,11 +18,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.test.context.ActiveProfiles;
 
-/**
- * F17: kết nối "chết im lặng" (mất mạng, máy ngủ — không gửi close frame) bị phát hiện trong 3 chu kỳ heartbeat
- * và presence được dọn; người còn một tab sống không bị chuyển offline.
- * Chu kỳ rút xuống 1 s để test nhanh; cấu hình chạy thật là 5 s (phát hiện ~15–16 s, yêu cầu ≤ 25 s).
- */
+/** F17: kết nối im lặng bị đóng sau 3 chu kỳ heartbeat (test dùng 1 s, chạy thật 5 s). */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, properties = {
     "spring.datasource.url=jdbc:h2:mem:heartbeat;MODE=MySQL;DB_CLOSE_DELAY=-1",
     "app.heartbeat-ms=1000",

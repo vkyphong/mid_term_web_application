@@ -21,10 +21,7 @@ const FILE_ICONS = { image: '🖼️', pdf: '📕', word: '📘', excel: '📗',
 type Target = { kind: 'room'; room: Room } | { kind: 'user'; id: string; name: string }
 const keyOf = (t: Target) => (t.kind === 'room' ? t.room.id : `user:${t.id}`)
 
-/**
- * "Chia sẻ" như Zalo: chọn nhiều nhóm / người (tìm kiếm, Gần đây / Nhóm trò chuyện / Đồng nghiệp),
- * xem trước tin / file sẽ chuyển tiếp, kèm lời nhắn tuỳ ý.
- */
+/** Hộp "Chia sẻ": chọn nhiều nhóm / người, xem trước nội dung, kèm lời nhắn. */
 export function ForwardDialog({ message, onClose }: { message: ChatMessage; onClose: () => void }) {
   const rooms = useRooms()
   const forward = useForwardMessage()

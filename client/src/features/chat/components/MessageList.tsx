@@ -37,10 +37,7 @@ const NO_MEMBERS: readonly UserSummary[] = []
 /** Tỉ lệ diện tích tin phải nằm trong khung nhìn mới coi là "đã xem". */
 const SEEN_VISIBLE_RATIO = 0.6
 
-/**
- * F08: gửi "seen" chỉ khi tab đang hiển thị và tin nằm trong vùng nhìn thấy của khung chat.
- * Phòng chưa mở thì tin không được render nên không bao giờ bị đánh dấu.
- */
+/** F08: chỉ gửi "seen" khi tab đang hiển thị và tin nằm trong khung nhìn. */
 function useSeenTracker(root: RefObject<HTMLDivElement | null>, messages: ChatMessage[] | undefined, selfId: string) {
   const visible = useRef(new Set<string>())
   const byId = useRef(new Map<string, ChatMessage>())

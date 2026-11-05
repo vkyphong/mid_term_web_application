@@ -68,7 +68,7 @@ test('F06/F07/F08: presence nhiều tab, typing không lộ sang phòng khác, r
     expect(dmRes.status()).toBe(200)
     const dmId = (await dmRes.json()).id as string
 
-    // ---------- F06: presence với nhiều tab ----------
+    // F06: presence với nhiều tab
     const bobDm = await open(bob.context, `/rooms/${dmId}`)
     const status = bobDm.page.locator('.room-title p')
     await expect(status).toContainText('Chưa hoạt động')
@@ -89,7 +89,7 @@ test('F06/F07/F08: presence nhiều tab, typing không lộ sang phòng khác, r
     const aliceRows = snapshot.users.filter((u: { userId: string }) => u.userId === alice.id)
     expect(aliceRows).toEqual([expect.objectContaining({ userId: alice.id, online: true })])
 
-    // ---------- F07: typing ----------
+    // F07: typing
     const carolPage = await open(carol.context, '/')
     const box = alicePage.page.getByRole('textbox', { name: 'Nội dung tin nhắn' })
     const typingStarts = () => alicePage.sends.filter((t) => t === 'typing:start').length
@@ -106,7 +106,7 @@ test('F06/F07/F08: presence nhiều tab, typing không lộ sang phòng khác, r
     expect(carolPage.frames.filter((f) => f.type.startsWith('typing:'))).toEqual([])
     await box.fill('')
 
-    // ---------- F08: receipts trong DM ----------
+    // F08: receipts trong DM
     // Bob offline → chỉ "Đã gửi".
     await bobDm.page.close()
     await box.fill('Tin 0: Bob đang offline')

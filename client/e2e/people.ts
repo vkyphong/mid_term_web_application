@@ -1,7 +1,4 @@
-/**
- * Tên người Việt ngẫu nhiên cho tài khoản test, để danh sách "Đồng nghiệp" trông như người thật thay vì
- * "E2E alice 1a2b3c". Họ + hai tên đệm + tên ≈ 180 nghìn tổ hợp, nên các lần chạy gần như không trùng tên.
- */
+/** Tên người Việt ngẫu nhiên cho tài khoản test (≈ 180 nghìn tổ hợp). */
 const HO = ['Nguyễn', 'Trần', 'Lê', 'Phạm', 'Hoàng', 'Huỳnh', 'Phan', 'Vũ', 'Võ', 'Đặng', 'Bùi', 'Đỗ', 'Hồ', 'Ngô', 'Dương', 'Lý', 'Trương', 'Đinh', 'Lâm', 'Mai']
 const DEM = ['Văn', 'Thị', 'Minh', 'Thanh', 'Ngọc', 'Quốc', 'Gia', 'Hoài', 'Thu', 'Đức', 'Hải', 'Anh', 'Bảo', 'Khánh', 'Hữu', 'Tuấn', 'Thùy', 'Phương']
 const DEM2 = ['An', 'Bảo', 'Diệu', 'Hoàng', 'Kim', 'Mỹ', 'Nhật', 'Phương', 'Quang', 'Thiên', 'Thúy', 'Trúc', 'Tường', 'Xuân', 'Yến']
@@ -14,10 +11,7 @@ export function personName(): string {
   return `${pick(HO)} ${pick(DEM)} ${pick(DEM2)} ${pick(TEN)}`
 }
 
-/**
- * Tên nhóm như trong một công ty ("Dự án ERP DA-4821", "Backend - Tổ 17") thay cho "E2E-grp-1a2b3c4d".
- * Mã dự án 4 chữ số cho hàng trăm nghìn tổ hợp; nơi tạo nhóm qua API vẫn thử lại khi trùng tên (409).
- */
+/** Tên nhóm kiểu công ty cho test; nơi tạo qua API thử lại khi trùng tên (409). */
 const PHONG_BAN = ['Phát triển phần mềm', 'Sản phẩm', 'Thiết kế UI/UX', 'Kiểm thử (QA)', 'DevOps', 'An ninh mạng', 'Dữ liệu & AI',
   'Kinh doanh', 'Marketing', 'Nhân sự', 'Chăm sóc khách hàng', 'Kế toán', 'Frontend', 'Backend', 'Mobile']
 const DU_AN = ['ERP', 'CRM', 'HRM', 'Ví điện tử', 'App Mobile', 'Website bán hàng', 'Chatbot CSKH', 'Data Warehouse', 'Cổng thanh toán',

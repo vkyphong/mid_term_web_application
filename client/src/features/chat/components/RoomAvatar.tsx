@@ -30,10 +30,7 @@ interface RoomAvatarProps {
   online?: boolean
 }
 
-/**
- * DM: avatar của người kia. Kênh: ảnh nhóm nếu đã đặt, nếu không thì ghép 2–3 avatar thành viên
- * (giống Zalo) thay cho dấu #.
- */
+/** DM: avatar người kia. Kênh: ảnh nhóm, không có thì ghép 2–3 avatar thành viên. */
 export function RoomAvatar({ room, size = 'md', online }: RoomAvatarProps) {
   const image = useAvatarImage(room.type === 'channel' ? room.avatarUrl : null)
 

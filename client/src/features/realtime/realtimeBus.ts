@@ -1,9 +1,6 @@
 import type { Client } from '@stomp/stompjs'
 
-/**
- * STOMP client đã CONNECTED hiện tại (hoặc null), để các tính năng khác (chat…)
- * dùng chung đúng một socket do useRealtime quản lý.
- */
+/** STOMP client đang kết nối (hoặc null), dùng chung một socket. */
 type Listener = (client: Client | null) => void
 
 let active: Client | null = null

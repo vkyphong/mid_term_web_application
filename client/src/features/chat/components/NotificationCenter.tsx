@@ -18,10 +18,7 @@ import type { Notification, Room } from '../types'
 const timeAgo = (iso: string) =>
   new Date(iso).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' })
 
-/**
- * Mở hội thoại của thông báo: chỉ đi tới khi mình vẫn còn trong phòng (contract F09);
- * thông báo hệ thống (F12) không có phòng.
- */
+/** Chỉ mở hội thoại khi mình còn trong phòng; thông báo hệ thống không có phòng. */
 function useOpenNotification() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()

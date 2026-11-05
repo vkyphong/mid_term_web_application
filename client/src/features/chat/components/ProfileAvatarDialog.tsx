@@ -144,10 +144,7 @@ function EditProfileForm({ profile, onDone }: { profile: Profile; onDone: () => 
   )
 }
 
-/**
- * "Thông tin tài khoản" như Zalo: ảnh bìa, avatar (bấm vào để chọn ảnh mới từ máy), tên,
- * thông tin cá nhân và nút Cập nhật. Chỉ chủ tài khoản xem / sửa được.
- */
+/** Thông tin tài khoản của chính mình: ảnh, tên, thông tin cá nhân. */
 export function ProfileAvatarDialog({ user, onClose }: { user: { id: string; displayName: string }; onClose: () => void }) {
   const profile = useMyProfile()
   const upload = useUploadMyAvatar()

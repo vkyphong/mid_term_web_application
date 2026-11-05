@@ -17,10 +17,7 @@ export interface ChatApi {
   getPresence(): Promise<Presence[]>
   /** F09: thành viên hiện tại của phòng (để chọn @mention), gồm cả tài khoản bị khoá. */
   listMembers(roomId: string): Promise<RoomMember[]>
-  /**
-   * Thêm một nhân viên đang hoạt động vào kênh; thêm lại người đã có vẫn thành công. Nhóm bật phê duyệt
-   * mà mình không phải trưởng / phó nhóm thì trả về PendingAdd (chờ duyệt).
-   */
+  /** Nhóm bật phê duyệt và mình không phải trưởng / phó nhóm thì trả PendingAdd. */
   addMember(roomId: string, userId: string): Promise<Room | PendingAdd>
   /** Trưởng nhóm bật / tắt phê duyệt thành viên mới. */
   updateRoomSettings(roomId: string, settings: { requireApproval: boolean }): Promise<Room>

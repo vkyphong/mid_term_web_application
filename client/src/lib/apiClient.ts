@@ -49,10 +49,7 @@ export function refreshAccessToken(): Promise<string | null> {
   return inflightRefresh
 }
 
-/**
- * Request cần đăng nhập: gắn Bearer token; nếu 401 thì refresh đúng một lần
- * rồi thử lại, không lặp vô hạn.
- */
+/** Gắn Bearer token; 401 thì refresh một lần rồi thử lại. */
 export async function authRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const withToken = (token: string | null): RequestOptions => {
     const headers = new Headers(options.headers)
@@ -99,10 +96,7 @@ export function authBlob(path: string): Promise<Blob> {
   })
 }
 
-/**
- * Upload multipart có tiến trình (fetch không báo tiến trình upload nên dùng XMLHttpRequest).
- * `onProgress` nhận tỉ lệ 0–1.
- */
+/** Upload có tiến trình (0–1) bằng XMLHttpRequest. */
 export function authUpload<T>(path: string, form: FormData, onProgress?: (ratio: number) => void, signal?: AbortSignal): Promise<T> {
   return withAuthRetry(
     (token) =>

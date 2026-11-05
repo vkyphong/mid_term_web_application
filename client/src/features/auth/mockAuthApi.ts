@@ -1,11 +1,5 @@
 import { uuid } from '../../lib/uuid'
-/**
- * Mock API chạy trong trình duyệt khi BE chưa sẵn sàng (VITE_USE_MOCK_API=true).
- * Mô phỏng contract ở docs/api/auth.md. CHỈ dùng cho dev/demo.
- *
- * "Cookie" refresh và user hiện tại nằm trong sessionStorage nên mỗi tab có thể đăng nhập
- * một tài khoản khác (để demo chat nhiều người); F5 trong cùng tab vẫn giữ phiên.
- */
+/** Mock auth cho dev (VITE_USE_MOCK_API=true); phiên lưu theo tab trong sessionStorage. */
 import { config } from '../../config'
 import { ApiError } from '../../lib/apiError'
 import type { AuthApi } from './authApi'

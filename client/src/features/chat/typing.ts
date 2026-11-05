@@ -8,8 +8,7 @@ export const TYPING_THROTTLE_MS = 2_000
 /** Ngừng gõ quá 2,5 s thì gửi typing:stop. */
 export const TYPING_IDLE_MS = 2_500
 
-// ---- Phía nhận: ai đang gõ trong phòng nào, tự hết hạn theo ttlMs ----
-
+// Phía nhận: ai đang gõ trong phòng nào, tự hết hạn theo ttlMs
 const typingByRoom = new Map<string, Map<string, number>>() // roomId → userId → expiresAt
 const timers = new Map<string, ReturnType<typeof setTimeout>>()
 const listeners = new Set<() => void>()
@@ -69,8 +68,7 @@ export function useTypingUsers(roomId: string, selfId: string | undefined): stri
   return selfId ? users.filter((id) => id !== selfId) : users
 }
 
-// ---- Phía gửi ----
-
+// Phía gửi
 /** Gắn vào ô soạn tin: throttle typing:start, typing:stop khi dừng / gửi / rời phòng. */
 export function useTypingSender(roomId: string) {
   const lastStart = useRef(0)

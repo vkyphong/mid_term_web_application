@@ -120,7 +120,7 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     const b = await open(bob, `/rooms/${roomId}`)
     const count = (p: Page) => p.locator('.message').count()
 
-    // ---- F14: sửa ----
+    // F14: sửa
     await send(a, 'Bản nháp đầu tiên')
     await expect(b.getByText('Bản nháp đầu tiên')).toBeVisible()
     const before = await count(b)
@@ -137,7 +137,7 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     await expect(bubble(b, 'Bản đã sửa').getByRole('menuitem', { name: /Sửa tin nhắn|Thu hồi/ })).toHaveCount(0)
     await b.keyboard.press('Escape')
 
-    // ---- F14: cảm xúc (nút ở góc dưới bên phải của tin; gửi lại cùng trạng thái không đảo) ----
+    // F14: cảm xúc (nút ở góc dưới bên phải của tin; gửi lại cùng trạng thái không đảo)
     await bubble(b, 'Bản đã sửa').hover()
     await bubble(b, 'Bản đã sửa').getByRole('button', { name: 'Thả cảm xúc' }).click()
     await b.getByRole('button', { name: 'Thả 👍' }).click()
@@ -149,7 +149,7 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     await bubble(b, 'Bản đã sửa').getByRole('button', { name: '👍 1: Bạn' }).click() // bỏ cảm xúc
     await expect(bubble(a, 'Bản đã sửa').locator('.reaction-chip')).toHaveCount(0)
 
-    // ---- F14: thu hồi (xoá mềm, còn đúng trong lịch sử) ----
+    // F14: thu hồi (xoá mềm, còn đúng trong lịch sử)
     await bubble(a, 'Bản đã sửa').hover()
     await bubble(a, 'Bản đã sửa').getByRole('button', { name: 'Thêm' }).click()
     await bubble(a, 'Bản đã sửa').getByRole('menuitem', { name: /Thu hồi/ }).click()
@@ -159,14 +159,14 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     await expect(b.getByText('Tin nhắn đã được thu hồi')).toBeVisible()
     await expect(b.getByText('Bản đã sửa')).toHaveCount(0)
 
-    // ---- F11: nội dung độc hại chỉ là text ----
+    // F11: nội dung độc hại chỉ là text
     const xss = '<img src=x onerror="window.__xss=1"><script>window.__xss=2</script>'
     await send(a, xss)
     await expect(b.getByText(xss)).toBeVisible()
     expect(await b.locator('.message-list img').count()).toBe(0)
     expect(await b.evaluate(() => (window as unknown as { __xss?: number }).__xss)).toBeUndefined()
 
-    // ---- F15: chặn file quá 100 MB ngay ở client (không gửi request upload) ----
+    // F15: chặn file quá 100 MB ngay ở client (không gửi request upload)
     let uploads = 0
     a.on('request', (r) => { if (r.url().endsWith('/api/uploads') && r.method() === 'POST') uploads++ })
     // Chọn file "100 MB + 1 byte" ngay trong trình duyệt: File nhỏ báo kích thước giả, không tốn RAM/đĩa.
@@ -182,7 +182,7 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     await a.getByRole('button', { name: 'Bỏ tệp đính kèm' }).click()
     expect(uploads).toBe(0)
 
-    // ---- F15: ảnh PNG → người nhận thấy ảnh ngay (realtime), tải qua Bearer ----
+    // F15: ảnh PNG → người nhận thấy ảnh ngay (realtime), tải qua Bearer
     await a.getByTestId('file-input').setInputFiles({ name: 'so-do.png', mimeType: 'image/png', buffer: png(32, 16) })
     await expect(a.getByText('Sẵn sàng gửi')).toBeVisible()
     await send(a, 'Ảnh sơ đồ')
@@ -191,7 +191,7 @@ test('F14 + F11 + F15: sửa/xoá/cảm xúc đồng bộ, nội dung độc h�
     expect(await img.evaluate((el: HTMLImageElement) => el.naturalWidth)).toBe(32)
     expect(uploads).toBe(1)
 
-    // ---- F15: PDF, gửi chỉ file không kèm chữ ----
+    // F15: PDF, gửi chỉ file không kèm chữ
     await a.getByTestId('file-input').setInputFiles({ name: 'bao-cao.pdf', mimeType: 'application/pdf', buffer: pdf })
     await expect(a.getByText('Sẵn sàng gửi')).toBeVisible()
     await a.getByRole('button', { name: 'Gửi', exact: true }).click()
@@ -218,7 +218,7 @@ test('F10 + F11: tin gửi khi offline được gửi bù đúng thứ tự, kh�
     const shown = (p: Page, prefix: string) =>
       p.locator('.message-content').evaluateAll((els, pre) => els.map((e) => e.textContent ?? '').filter((t) => t.startsWith(pre)), prefix)
 
-    // ---- F10: offline (sau khi lịch sử đã tải: ô soạn tin cần có lịch sử để chèn bản tạm) ----
+    // F10: offline (sau khi lịch sử đã tải: ô soạn tin cần có lịch sử để chèn bản tạm)
     await expect(box(a)).toBeEnabled()
     await expect(box(b)).toBeEnabled()
     await b.context().setOffline(true)
@@ -234,7 +234,7 @@ test('F10 + F11: tin gửi khi offline được gửi bù đúng thứ tự, kh�
     await b.reload()
     await expect.poll(() => shown(b, 'offline-')).toEqual(['offline-1', 'offline-2', 'offline-3'])
 
-    // ---- F11: 12 tin liên tục > 10 tin / 5 s → tự chờ rồi gửi đủ, đúng thứ tự, không lỗi ----
+    // F11: 12 tin liên tục > 10 tin / 5 s → tự chờ rồi gửi đủ, đúng thứ tự, không lỗi
     await expect(b.getByText('Đã kết nối', { exact: true })).toBeVisible()
     for (let i = 1; i <= 12; i++) await send(b, `burst-${String(i).padStart(2, '0')}`)
     await expect(b.getByText(/Bạn gửi quá nhanh/).first()).toBeVisible()

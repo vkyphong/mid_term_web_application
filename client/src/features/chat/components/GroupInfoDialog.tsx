@@ -147,10 +147,7 @@ interface GroupInfoDialogProps {
   onLeave: () => void
 }
 
-/**
- * "Thông tin nhóm" như Zalo: avatar (bấm 📷 để đổi ảnh), tên (✏️), thành viên, lịch sử Ảnh/Video,
- * File, Link đã gửi trong nhóm, Quản lý nhóm, Rời nhóm.
- */
+/** Thông tin nhóm: ảnh, tên, thành viên, lịch sử Ảnh/Video, File, Link. */
 export function GroupInfoDialog({ room, onClose, onRename, onManage, onLeave }: GroupInfoDialogProps) {
   const canEdit = room.type === 'channel' && !room.archived
   const members = useRoomMembers(room.id)

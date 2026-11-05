@@ -1,7 +1,4 @@
-/**
- * Access token chỉ nằm trong bộ nhớ (không localStorage) để giảm rủi ro XSS.
- * Refresh token do BE đặt trong cookie httpOnly, JS không đọc được.
- */
+/** Access token chỉ giữ trong bộ nhớ; refresh token nằm trong cookie httpOnly. */
 let accessToken: string | null = null
 
 export const tokenStore = {

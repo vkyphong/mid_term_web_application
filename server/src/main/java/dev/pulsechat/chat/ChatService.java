@@ -140,10 +140,7 @@ public class ChatService {
         broadcastRoom(room);
         return memberList(room);
     }
-    /**
-     * Admin đổi vai trò thành viên (owner / deputy / member) mà không cần là thành viên nhóm.
-     * Chọn trưởng nhóm mới thì trưởng nhóm cũ thành thành viên thường; không hạ trực tiếp trưởng nhóm.
-     */
+    /** Admin đổi vai trò; chọn trưởng nhóm mới thì trưởng nhóm cũ thành member. */
     public List<RoomMember> adminSetRole(String room, String target, SetRole input) {
         String role = input == null ? null : input.role();
         if (!"owner".equals(role) && !"deputy".equals(role) && !"member".equals(role))
@@ -237,10 +234,7 @@ public class ChatService {
         Collections.reverse(messages); return new MessagePage(messages, cursor);
     }
 
-    /**
-     * Tìm tin trong phòng theo từ khoá (chuỗi con, không phân biệt hoa thường; collation MySQL bỏ qua dấu).
-     * Kết quả mới nhất trước; `before` là ID tin cuối của trang trước.
-     */
+    /** Tìm tin theo chuỗi con, mới nhất trước; before = ID tin cuối trang trước. */
     @Transactional(readOnly = true)
     public MessagePage search(String room, String user, String query, int limit, String before) {
         if (limit < 1 || limit > 50) throw field("limit", "Limit must be between 1 and 50");
@@ -264,10 +258,7 @@ public class ChatService {
     }
 
     private static final java.util.regex.Pattern LINK = java.util.regex.Pattern.compile("https?://[^\\s<>\"']+", java.util.regex.Pattern.CASE_INSENSITIVE);
-    /**
-     * Lịch sử trong phòng cho "Thông tin nhóm": kind = image (ảnh), file (tệp khác), link (đường link
-     * trong nội dung tin). Mới nhất trước, bỏ tin đã xoá; `before` là ID tin cuối của trang trước.
-     */
+    /** Ảnh / file / link đã gửi trong phòng, mới nhất trước. */
     @Transactional(readOnly = true)
     public MediaPage media(String room, String user, String kind, int limit, String before) {
         if (limit < 1 || limit > 50) throw field("limit", "Limit must be between 1 and 50");
@@ -396,10 +387,7 @@ public class ChatService {
             activity(room, user, before.isEmpty() ? "vote" : chosen.isEmpty() ? "unvote" : "change", pollId, (String) poll[3]);
         return message;
     }
-    /**
-     * Khoá (closed=true) hoặc mở lại (closed=false) bình chọn, bao nhiêu lần cũng được: chỉ người tạo,
-     * trưởng nhóm hoặc phó nhóm. Gửi lại đúng trạng thái hiện có thì không đổi gì, không thêm dòng hoạt động.
-     */
+    /** Khoá / mở lại bình chọn: người tạo, trưởng hoặc phó nhóm. */
     public Message setPollClosed(String pollId, String user, boolean closed) {
         var poll = lockPoll(pollId, user);
         String room = (String) poll[0], messageId = (String) poll[1];
@@ -461,10 +449,7 @@ public class ChatService {
                 + "ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'deputy' THEN 1 ELSE 2 END, u.display_name,u.id",
             (rs, n) -> new RoomMember(rs.getString(1), rs.getString(2), rs.getString(3), rs.getBoolean(4), rs.getString(5)), room);
     }
-    /**
-     * Thêm người vào kênh. Nhóm bật phê duyệt mà người thêm không phải trưởng / phó nhóm thì chỉ tạo
-     * yêu cầu chờ duyệt (trả về PendingAdd); ngược lại thêm thẳng (trả về Room).
-     */
+    /** Nhóm bật phê duyệt và người thêm không phải trưởng / phó nhóm thì chỉ tạo yêu cầu. */
     public Object addMember(String room, String actor, AddMember input) {
         String target = input == null ? null : input.userId();
         lockEnabledUser(target);
@@ -630,10 +615,7 @@ public class ChatService {
         }, id);
         if (rooms.isEmpty()) throw notFound(); return rooms.getFirst();
     }
-    /**
-     * Tin chưa đọc: tin của người khác (chưa xoá, mình chưa xem) mới hơn tin cuối cùng mình đã xem
-     * hoặc đã gửi trong phòng. Dựa trên message_receipts nên đúng trên mọi thiết bị.
-     */
+    /** Tin chưa đọc: tin của người khác mới hơn tin cuối mình đã xem hoặc đã gửi. */
     private int unreadCount(String room, String user) {
         return db.queryForObject("""
             SELECT COUNT(*) FROM messages m JOIN message_receipts r ON r.message_id=m.id AND r.user_id=?

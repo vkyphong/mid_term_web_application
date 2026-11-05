@@ -1,7 +1,4 @@
-/**
- * Âm báo tin nhắn mới (luôn bật), tạo bằng Web Audio (không cần file âm thanh). Trình duyệt chỉ cho
- * phát âm thanh sau khi người dùng đã tương tác với trang, nên AudioContext được mở ở lần bấm/gõ đầu tiên.
- */
+/** Âm báo bằng Web Audio; AudioContext chỉ mở được sau lần tương tác đầu tiên. */
 
 const LAST_KEY = 'pulsechat:sound-last'
 const MIN_GAP_MS = 1_200
@@ -33,10 +30,7 @@ export function unlockSound() {
   if (context.state === 'suspended') void context.resume()
 }
 
-/**
- * Tiếng "bóp" hai nhịp kiểu Messenger, tự tổng hợp (không dùng file âm thanh có bản quyền):
- * mỗi nhịp là sóng sine trượt cao độ lên nhanh, bật tức thì rồi tắt dần như bong bóng vỡ.
- */
+/** Âm "bóp" hai nhịp tự tổng hợp bằng sóng sine. */
 function chime(ctx: AudioContext) {
   const start = ctx.currentTime
   const blips: [delay: number, from: number, to: number][] = [
@@ -59,10 +53,7 @@ function chime(ctx: AudioContext) {
   }
 }
 
-/**
- * Phát âm báo cho một tin. Nhiều tab cùng nhận một tin thì chỉ một tab kêu: tab đang hiển thị
- * giành trước, tab ẩn chờ một chút rồi kiểm tra ID tin đã phát (lưu ở localStorage).
- */
+/** Nhiều tab cùng nhận một tin thì chỉ một tab phát âm báo. */
 export function playMessageSound(messageId: string) {
   const run = () => {
     if (storageGet(LAST_KEY) === messageId) return

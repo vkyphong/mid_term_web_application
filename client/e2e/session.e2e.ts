@@ -1,11 +1,7 @@
 import { test, expect, type Browser, type Page } from '@playwright/test'
 import { personName } from './people'
 
-/**
- * F02: token hết hạn → socket bị ngắt → client chỉ kết nối lại bằng token hợp lệ.
- * Cần BE chạy với access token ngắn: ACCESS_TTL_SECONDS=20 docker compose up -d app
- * rồi E2E_ACCESS_TTL_SECONDS=20 npm run test:e2e -- session.
- */
+/** F02: cần BE chạy với ACCESS_TTL_SECONDS=20 và E2E_ACCESS_TTL_SECONDS=20. */
 const TTL = Number(process.env.E2E_ACCESS_TTL_SECONDS)
 test.skip(!TTL || TTL > 30, 'Requires the backend started with a short ACCESS_TTL_SECONDS (≤ 30) and E2E_ACCESS_TTL_SECONDS set to it')
 

@@ -2,11 +2,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { compareTimestamps } from './messages'
 import type { Message, Room } from './types'
 
-/**
- * Số tin chưa đọc theo phòng. Server tính `Room.unreadCount` từ receipts "đã xem" (đúng trên mọi
- * thiết bị, kể cả tin đến khi offline); client chỉ cộng thêm khi có tin realtime và đặt về 0 khi
- * đang xem phòng, cho tới lần tải danh sách phòng kế tiếp.
- */
+/** Số chưa đọc lấy từ server; client chỉ cộng khi có tin mới và về 0 khi đang xem phòng. */
 
 /** Hiển thị tối đa "5+" như Zalo. */
 export const UNREAD_CAP = 5
@@ -33,10 +29,7 @@ export function bumpUnread(queryClient: QueryClient, message: Message): boolean 
   return true
 }
 
-/**
- * Đang xem phòng tới tin `lastMessageAt` → về 0. Server cập nhật theo receipts "đã xem", nhưng
- * receipts gửi lần lượt 250 ms/tin, nên nhớ mốc này để lần tải lại kế tiếp không hiện lại số cũ.
- */
+/** Nhớ mốc đã xem để lần tải lại kế tiếp không hiện lại số cũ. */
 export function markViewed(queryClient: QueryClient, roomId: string, lastMessageAt: string | null) {
   if (lastMessageAt) {
     const prev = viewedUpTo.get(roomId)

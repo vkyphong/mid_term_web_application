@@ -1,10 +1,6 @@
 import type { RoomMember, UserSummary } from './types'
 
-/**
- * F09. Server không phân tích "@tên" trong nội dung: client gửi danh sách userId được nhắc
- * (`mentions`). Ở đây: tìm "@đang gõ" trước con trỏ, chọn ứng viên, và chỉ giữ những người
- * vẫn còn "@Tên" trong nội dung lúc gửi.
- */
+/** F09: client gửi danh sách userId được nhắc; server không phân tích "@tên". */
 
 /** "@All" nhắc cả nhóm. Server chỉ nhận userId, nên lúc gửi được thay bằng ID của mọi thành viên. */
 export const MENTION_ALL: UserSummary = { id: '@all', displayName: 'All', email: '' }
@@ -23,10 +19,7 @@ export function mentionQueryAt(text: string, caret: number): { start: number; qu
 
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
 
-/**
- * Ứng viên cho "@query": bỏ chính mình và tài khoản bị khoá. `includeAll` (kênh) thêm "@All"
- * lên đầu khi query khớp "all" hoặc "tất cả", giống Zalo.
- */
+/** Ứng viên cho "@query", bỏ mình và tài khoản bị khoá; kênh có thêm "@All". */
 export function filterMentionCandidates(
   members: readonly RoomMember[],
   query: string,
@@ -48,11 +41,7 @@ export function insertMention(text: string, start: number, caret: number, member
   return { text: text.slice(0, start) + inserted + text.slice(caret), caret: start + inserted.length }
 }
 
-/**
- * userId của những người đã chọn mà "@Tên" vẫn còn trong nội dung (tối đa 20, không trùng).
- * "@All" mở rộng thành mọi thành viên đang hoạt động trừ người gửi; người được chọn riêng xếp trước
- * nên vẫn được giữ khi nhóm vượt giới hạn 20.
- */
+/** Người được chọn còn "@Tên" trong nội dung (tối đa 20); "@All" = mọi thành viên trừ người gửi. */
 export function resolveMentions(
   content: string,
   picked: readonly UserSummary[],

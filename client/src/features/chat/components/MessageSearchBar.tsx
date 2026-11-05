@@ -35,10 +35,7 @@ interface MessageSearchBarProps {
   onPick: (message: Message) => void
 }
 
-/**
- * Tìm tin cũ trong phòng (nhóm hoặc 1:1): bấm 🔍 thì ô tìm mở ra ngay cạnh icon ở đầu phòng,
- * kết quả xổ xuống bên dưới; chọn kết quả để nhảy tới tin đó.
- */
+/** Tìm tin cũ trong phòng; chọn kết quả để nhảy tới tin. */
 export function MessageSearchBar({ roomId, open, onOpen, onClose, onPick }: MessageSearchBarProps) {
   const [value, setValue] = useState('')
   const query = useDebounced(value.trim(), 300)

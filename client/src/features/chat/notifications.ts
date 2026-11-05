@@ -57,8 +57,7 @@ export function describeNotification(n: Notification): string {
   }
 }
 
-// ---- Phòng đang mở (để không bật toast cho hội thoại người dùng đang xem) ----
-
+// Phòng đang mở (để không bật toast cho hội thoại người dùng đang xem)
 let activeRoomId: string | null = null
 export function setActiveRoom(roomId: string | null) {
   activeRoomId = roomId
@@ -67,8 +66,7 @@ export function isViewingRoom(roomId: string | null | undefined): boolean {
   return Boolean(roomId) && roomId === activeRoomId && document.visibilityState === 'visible'
 }
 
-// ---- Toast ----
-
+// Toast
 export interface Toast {
   id: string
   title: string

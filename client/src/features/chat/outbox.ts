@@ -4,16 +4,7 @@ import { chatTransport } from './chatApi'
 import { describeChatError } from './errors'
 import type { ClientEvents, Message } from './types'
 
-/**
- * F10/F11: hàng đợi gửi tin.
- * - Gửi tuần tự, đúng thứ tự người dùng bấm gửi (kể cả giữa nhiều phòng).
- * - Mất kết nối: giữ trong hàng đợi, gửi bù khi STOMP kết nối lại (sau khi xác thực xong).
- * - Mất ack (ack timeout) khi vẫn còn kết nối: gửi lại với **cùng clientMsgId và payload**;
- *   server trả tin đã lưu, không tạo bản trùng.
- * - rate_limited: chờ 5 s rồi gửi lại (vẫn cùng clientMsgId).
- * - Lỗi nghiệp vụ (forbidden, invalid_payload…): bỏ khỏi hàng đợi, báo lỗi để người dùng thử lại.
- * Hàng đợi nằm trong bộ nhớ của tab; tải lại trang thì các tin chưa gửi bị bỏ.
- */
+/** F10/F11: hàng đợi gửi tuần tự; gửi lại cùng clientMsgId khi mất ack, chờ 5 s khi rate_limited. */
 export type OutboxItem = ClientEvents['message:send']['payload']
 
 export type OutboxState = 'sending' | 'queued' | 'failed'

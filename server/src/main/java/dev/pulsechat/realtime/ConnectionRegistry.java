@@ -43,10 +43,7 @@ public class ConnectionRegistry {
         var connection = connections.get(socketId);
         if (connection != null) connection.lastReadAt = System.currentTimeMillis();
     }
-    /**
-     * Ghi nhận heartbeat client đăng ký trong CONNECT (heart-beat: cx,cy). Client gửi mỗi max(cx, chu kỳ server);
-     * im lặng quá MISSED_HEARTBEATS chu kỳ thì đóng. cx = 0 (client không gửi heartbeat) thì không áp dụng.
-     */
+    /** Bật giới hạn im lặng theo heart-beat cx của CONNECT; cx = 0 thì không áp dụng. */
     public void expectHeartbeat(String socketId, long clientOutgoingMs) {
         var connection = connections.get(socketId);
         if (connection == null || clientOutgoingMs <= 0) return;

@@ -3,10 +3,7 @@ import { attempt } from '../../lib/attempt'
 import { chatApi } from './chatApi'
 import type { UserAvatar } from './types'
 
-/**
- * Ảnh đại diện tài khoản: userId → avatarUrl. Nạp một lần khi vào chat (GET /api/users/avatars),
- * cập nhật qua event user:avatar. Store thường (không phải React Query) để Avatar dùng được ở mọi nơi.
- */
+/** userId → avatarUrl, nạp một lần rồi cập nhật qua event user:avatar. */
 let urls = new Map<string, string>()
 const listeners = new Set<() => void>()
 const emit = () => listeners.forEach((l) => l())

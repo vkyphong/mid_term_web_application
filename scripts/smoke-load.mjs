@@ -1,10 +1,5 @@
-// F18 — load test for STOMP over WebSocket on a single Spring Boot instance.
-// Phases: ramp-up → steady (valid traffic, latency) → spam (rate limit) → recovery.
-// Accounts (load-NNN@dqgm.dev) and rooms ("Kiểm thử tải NN") are reused between runs so the
-// database does not grow. Prints one JSON report to stdout; progress goes to stderr.
-//
-// Env: BASE_URL (default http://localhost:8080), CONNECTIONS (500), RAMP_SECONDS (30), STEADY_SECONDS (60),
-//      PER_USER (4, server limit is 5), ROOM_SIZE (10 users), ADMIN_EMAIL / ADMIN_PASSWORD (demo admin).
+// F18 load test: ramp-up → steady → spam → recovery; prints a JSON report.
+// Env: BASE_URL, CONNECTIONS, RAMP_SECONDS, STEADY_SECONDS, PER_USER, ROOM_SIZE, ADMIN_EMAIL, ADMIN_PASSWORD.
 import { randomUUID } from 'node:crypto'
 import os from 'node:os'
 
@@ -148,7 +143,7 @@ async function main() {
   if (!adminToken) log('Admin login failed — server-side stats will be missing')
   const baseline = adminToken ? (await adminStats(adminToken))?.connections ?? 0 : 0
 
-  // ---- Seed ----
+  // Seed
   const users = Math.ceil(N / PER_USER)
   log(`Seeding ${users} accounts and ${Math.ceil(users / ROOM_SIZE)} rooms…`)
   const accounts = await inBatches([...Array(users).keys()].map((i) => i + 1), 8, account)
@@ -156,7 +151,7 @@ async function main() {
   for (let i = 0; i < accounts.length; i += ROOM_SIZE) groups.push(accounts.slice(i, i + ROOM_SIZE))
   const rooms = await inBatches(groups.map((g, i) => [i, g]), 4, ([i, g]) => room(i, g))
 
-  // ---- Ramp-up ----
+  // Ramp-up
   const stats = { connectMs: [], connectErrors: {} }
   const conns = []
   const plan = []
@@ -174,7 +169,7 @@ async function main() {
   await sleep(2000)
   report.serverAfterRamp = adminToken ? await adminStats(adminToken) : null
 
-  // ---- Steady: one sender per room, 1 message / second, latency to every other member connection ----
+  // Steady: one sender per room, 1 message / second, latency to every other member connection
   const byUser = new Map()
   for (const c of conns) (byUser.get(c.user.id) ?? byUser.set(c.user.id, []).get(c.user.id)).push(c)
   const latency = []
@@ -225,7 +220,7 @@ async function main() {
   }
   log(`Steady done: sent ${sent}, delivered ${delivered}, p95 ${report.steady.deliveryLatencyMs.p95} ms`)
 
-  // ---- Spam: one socket bursts 30 messages; server allows 10 / 5 s per socket ----
+  // Spam: one socket bursts 30 messages; server allows 10 / 5 s per socket
   const spammer = senders[0]
   if (spammer) {
     const acks = await Promise.all(Array.from({ length: 30 }, (_, i) => sendMessage(spammer.conn, spammer.room.id, `spam ${run} ${i}`)))
@@ -239,7 +234,7 @@ async function main() {
     log('Spam:', JSON.stringify(codes))
   }
 
-  // ---- Recovery ----
+  // Recovery
   const closeAt = performance.now()
   for (const c of conns) { clearInterval(c.beat); c.ws.close() }
   let recovered = null

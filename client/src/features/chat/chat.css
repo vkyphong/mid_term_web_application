@@ -642,7 +642,7 @@ html.chat-page body {
   }
 }
 
-/* ---------- F14: thao tác tin nhắn, cảm xúc ---------- */
+/* F14: thao tác tin nhắn, cảm xúc */
 .message-row {
   position: relative;
   display: flex;
@@ -816,7 +816,7 @@ html.chat-page body {
   opacity: 0.75;
 }
 
-/* ---------- F09: mention ---------- */
+/* F09: mention */
 .mention {
   font-weight: 600;
   color: var(--primary);
@@ -872,7 +872,7 @@ html.chat-page body {
   background: var(--bg);
 }
 
-/* ---------- F15: tệp đính kèm ---------- */
+/* F15: tệp đính kèm */
 .composer-attach {
   align-self: center;
 }
@@ -1003,7 +1003,7 @@ html.chat-page body {
   white-space: nowrap;
 }
 
-/* ---------- F09: chuông thông báo, toast ---------- */
+/* F09: chuông thông báo, toast */
 .notification-center {
   position: relative;
 }
@@ -1139,7 +1139,7 @@ html.chat-page body {
   white-space: nowrap;
 }
 
-/* ---------- F10: mất kết nối ---------- */
+/* F10: mất kết nối */
 .connection-banner {
   margin: 0;
   padding: 6px 16px;
@@ -1157,7 +1157,7 @@ html.chat-page body {
   }
 }
 
-/* ---------- Thanh công cụ soạn tin (kiểu Zalo), thành viên nhóm, nhóm lưu trữ ---------- */
+/* Thanh công cụ soạn tin (kiểu Zalo), thành viên nhóm, nhóm lưu trữ */
 .composer-toolbar {
   position: relative;
   flex-basis: 100%;
@@ -1363,7 +1363,7 @@ html.chat-page body {
   }
 }
 
-/* ---------- Số tin chưa đọc (vòng tròn đỏ, tối đa 5+) ---------- */
+/* Số tin chưa đọc (vòng tròn đỏ, tối đa 5+) */
 .unread-badge {
   flex: none;
   margin-left: auto;
@@ -1390,7 +1390,7 @@ html.chat-page body {
 }
 
 
-/* ---------- Avatar nhóm: ảnh đã đặt hoặc ghép 2–3 thành viên (thay dấu #) ---------- */
+/* Avatar nhóm: ảnh đã đặt hoặc ghép 2–3 thành viên (thay dấu #) */
 .group-avatar {
   position: relative;
   flex: none;
@@ -1558,7 +1558,7 @@ html.chat-page body {
   visibility: visible;
 }
 
-/* ---------- Ảnh đại diện tài khoản, chìa khoá trưởng / phó nhóm ---------- */
+/* Ảnh đại diện tài khoản, chìa khoá trưởng / phó nhóm */
 .avatar--lg {
   width: 72px;
   height: 72px;
@@ -1631,7 +1631,7 @@ html.chat-page body {
   box-shadow: 0 0 0 3px var(--focus);
 }
 
-/* ---------- Danh sách thành viên / phân quyền ---------- */
+/* Danh sách thành viên / phân quyền */
 .member-roles {
   max-height: 360px;
   margin: 8px 0 12px;
@@ -1679,7 +1679,7 @@ html.chat-page body {
   color: var(--primary);
 }
 
-/* ---------- Tìm tin nhắn ---------- */
+/* Tìm tin nhắn */
 .search-results {
   max-height: 380px;
   margin-bottom: 12px;
@@ -1722,7 +1722,7 @@ html.chat-page body {
   animation: message-flash 4s ease-out;
 }
 
-/* ---------- Bình chọn ---------- */
+/* Bình chọn */
 .poll-card {
   min-width: 260px;
   max-width: 380px;
@@ -1946,7 +1946,7 @@ html.chat-page body {
   }
 }
 
-/* ---------- Thông tin tài khoản (như Zalo) ---------- */
+/* Thông tin tài khoản (như Zalo) */
 .profile-card {
   margin: -4px -4px 0;
 }
@@ -2192,7 +2192,7 @@ html.chat-page body {
   color: var(--danger);
 }
 
-/* ---------- Thông tin nhóm (như Zalo) ---------- */
+/* Thông tin nhóm (như Zalo) */
 .group-info-head {
   display: flex;
   align-items: center;
@@ -2449,7 +2449,7 @@ html.chat-page body {
   border-color: var(--primary);
 }
 
-/* ---------- Trả lời / chuyển tiếp / "…" kiểu Zalo ---------- */
+/* Trả lời / chuyển tiếp / "…" kiểu Zalo */
 .message-tools {
   gap: 4px;
 }

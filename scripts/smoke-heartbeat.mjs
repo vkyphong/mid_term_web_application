@@ -1,6 +1,4 @@
-// F17 — measure dead-connection detection on the running app (heartbeat 5 s, limit 3 missed beats).
-// Alice opens two tabs; tab B goes silent without sending a close frame (network blackhole). Then tab A goes
-// silent too. Bob observes /user/queue/presence. Prints a JSON report; accounts are reused between runs.
+// F17: one of two tabs goes silent without a close frame, then the other; measures detection time.
 import os from 'node:os'
 
 const base = process.env.BASE_URL ?? 'http://localhost:8080'

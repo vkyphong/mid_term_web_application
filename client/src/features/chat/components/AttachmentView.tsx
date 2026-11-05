@@ -6,10 +6,7 @@ import { describeChatError } from '../errors'
 import { fileKind, formatBytes, type FileKind } from '../uploads'
 import type { Attachment } from '../types'
 
-/**
- * F15: ảnh đính kèm được tải bằng Bearer token rồi hiển thị qua blob URL
- * (thẻ <img src> thường không gửi được header xác thực). Blob URL được thu hồi khi không dùng nữa.
- */
+/** Ảnh tải bằng Bearer token rồi hiển thị qua blob URL (img src không gửi được header). */
 function useBlobUrl(attachment: Attachment, enabled: boolean) {
   const blob = useQuery({
     queryKey: ['chat', 'file', attachment.id],

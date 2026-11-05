@@ -390,7 +390,7 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     const a = await open(alice, `/rooms/${roomId}`)
     const b = await open(bob, `/rooms/${roomId}`)
 
-    // ---- Tìm tin: tin cần tìm bị đẩy ra ngoài trang 30 tin đầu ----
+    // Tìm tin: tin cần tìm bị đẩy ra ngoài trang 30 tin đầu
     await box(a).fill('Báo cáo quý 1 đã nộp')
     await a.keyboard.press('Enter')
     for (let i = 0; i < 31; i++) {
@@ -414,7 +414,7 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(bubble(b, 'Báo cáo quý 1 đã nộp')).toBeInViewport()
     await expect(b.locator('.message--highlight')).toContainText('Báo cáo quý 1 đã nộp')
 
-    // ---- Trưởng / phó nhóm ----
+    // Trưởng / phó nhóm
     await expect(b.locator('.message-list .message-gutter .role-key--owner').first()).toBeVisible()
     await a.getByRole('button', { name: '2 thành viên' }).click()
     const members = a.getByRole('dialog', { name: 'Thành viên (2)' })
@@ -428,7 +428,7 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(b.getByRole('dialog').getByRole('button', { name: /phó nhóm/ })).toHaveCount(0) // phó nhóm không phân quyền được
     await b.keyboard.press('Escape')
 
-    // ---- Bình chọn ----
+    // Bình chọn
     await a.getByRole('button', { name: 'Tạo bình chọn' }).click()
     const create = a.getByRole('dialog', { name: 'Tạo bình chọn' })
     await create.getByLabel('Câu hỏi').fill('Ăn trưa ở đâu?')
@@ -470,7 +470,7 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await alicePoll.getByRole('button', { name: 'Khoá bình chọn' }).click()
     await expect(bobPoll).toContainText('Đã khoá bình chọn')
 
-    // ---- Hồ sơ riêng tư / công khai: Alice bấm avatar Bob trong danh sách thành viên ----
+    // Hồ sơ riêng tư / công khai: Alice bấm avatar Bob trong danh sách thành viên
     await bob.context.request.put('/api/me/profile', { headers: auth(bob), data: { displayName: bob.displayName, gender: 'male', birthDate: '2000-02-03', phone: '0901 234 567' } })
     await a.getByRole('button', { name: '2 thành viên' }).click()
     await a.getByRole('button', { name: `Xem thông tin ${bob.displayName}` }).click()
@@ -485,7 +485,7 @@ test('bình chọn realtime, tìm tin cũ và nhảy tới, trưởng nhóm bổ
     await expect(a.getByRole('dialog', { name: 'Thông tin tài khoản' })).toContainText('03 tháng 02, 2000')
     await a.keyboard.press('Escape')
 
-    // ---- Ảnh đại diện tài khoản: Bob đổi ảnh, Alice thấy ngay ----
+    // Ảnh đại diện tài khoản: Bob đổi ảnh, Alice thấy ngay
     await b.getByRole('button', { name: 'Thông tin tài khoản' }).click()
     await expect(b.getByRole('dialog', { name: 'Thông tin tài khoản' }).getByText('Thông tin cá nhân')).toBeVisible()
     await b.getByTestId('profile-avatar-input').setInputFiles({ name: 'bob.png', mimeType: 'image/png', buffer: png(8, 8) })
@@ -590,7 +590,7 @@ test('trả lời, chuyển tiếp file sang nhóm khác, ghim tin, xoá chỉ �
     const b = await open(bob, `/rooms/${roomId}`)
     await expect(box(a)).toBeEnabled()
 
-    // ---- Trả lời: khung "Trả lời <tên>" trên ô nhập, tin gửi đi có trích tin gốc ở cả hai phía ----
+    // Trả lời: khung "Trả lời <tên>" trên ô nhập, tin gửi đi có trích tin gốc ở cả hai phía
     await box(b).fill('Mai họp lúc mấy giờ?')
     await b.keyboard.press('Enter')
     await expect(bubble(a, 'Mai họp lúc mấy giờ?')).toBeVisible()
@@ -605,7 +605,7 @@ test('trả lời, chuyển tiếp file sang nhóm khác, ghim tin, xoá chỉ �
     await b.reload()
     await expect(bubble(b, '9h sáng nhé').locator('.reply-quote')).toContainText('Mai họp lúc mấy giờ?')
 
-    // ---- Ghim: thanh "Tin nhắn đã ghim" hiện realtime ở người kia ----
+    // Ghim: thanh "Tin nhắn đã ghim" hiện realtime ở người kia
     await bubble(a, 'Mai họp lúc mấy giờ?').first().hover()
     await bubble(a, 'Mai họp lúc mấy giờ?').first().getByRole('button', { name: 'Thêm' }).click()
     const menu = a.getByRole('menu', { name: 'Thao tác khác' })
@@ -613,7 +613,7 @@ test('trả lời, chuyển tiếp file sang nhóm khác, ghim tin, xoá chỉ �
     await menu.getByRole('menuitem', { name: /Ghim tin nhắn/ }).click()
     await expect(b.getByRole('region', { name: 'Tin nhắn đã ghim' })).toContainText('Mai họp lúc mấy giờ?')
 
-    // ---- Chuyển tiếp file: hộp "Chia sẻ", chọn nhóm khác, kèm lời nhắn ----
+    // Chuyển tiếp file: hộp "Chia sẻ", chọn nhóm khác, kèm lời nhắn
     await a.getByTestId('file-input').setInputFiles({ name: 'bao-cao.pdf', mimeType: 'application/pdf', buffer: pdf })
     await a.getByRole('button', { name: 'Gửi', exact: true }).click()
     const file = bubble(a, 'bao-cao.pdf')
@@ -641,7 +641,7 @@ test('trả lời, chuyển tiếp file sang nhóm khác, ghim tin, xoá chỉ �
     await bubble(c, 'bao-cao.pdf').locator('.attachment').getByRole('button').first().click()
     expect((await download).suggestedFilename()).toBe('bao-cao.pdf')
 
-    // ---- Xoá chỉ ở phía tôi: Bob không còn thấy, Alice vẫn thấy, kể cả sau khi tải lại ----
+    // Xoá chỉ ở phía tôi: Bob không còn thấy, Alice vẫn thấy, kể cả sau khi tải lại
     await bubble(b, '9h sáng nhé').hover()
     await bubble(b, '9h sáng nhé').getByRole('button', { name: 'Thêm' }).click()
     await b.getByRole('menu', { name: 'Thao tác khác' }).getByRole('menuitem', { name: /Xoá chỉ ở phía tôi/ }).click()

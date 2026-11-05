@@ -6,10 +6,7 @@ import java.util.List;
 public final class ChatDtos {
     private ChatDtos() {}
     public record UserSummary(String id, String displayName, String email) {}
-    /**
-     * memberRole: vai trò trong nhóm, owner (trưởng nhóm) / deputy (phó nhóm) / member; DM luôn là member.
-     * Không đặt tên "role" để không lẫn với vai trò tài khoản (admin/user), vốn không được lộ ra.
-     */
+    /** memberRole: owner / deputy / member; tách khỏi role tài khoản (admin/user). */
     public record RoomMember(String id, String displayName, String email, boolean enabled, String memberRole) {}
     public record AddMember(String userId) {}
     public record RenameRoom(String name) {}

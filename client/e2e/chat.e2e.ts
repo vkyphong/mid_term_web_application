@@ -95,9 +95,7 @@ test('F03/F04: real channel membership, DM privacy, persistence and localhost la
     await expect(bob.page.getByText(greeting, { exact: true })).toBeVisible()
     await expect(bob.page.getByText('Đã kết nối', { exact: true })).toBeVisible()
 
-    // Workload: WARMUP tin khởi động không tính (JVM/JIT, connection pool vừa khởi động),
-    // rồi SAMPLES tin đo tuần tự. p95 của 40 mẫu là giá trị thứ 38, nên một vài gai lẻ
-    // trên máy CI dùng chung không quyết định kết quả; median và số mẫu > 200 ms được in ra.
+    // WARMUP tin đầu không tính (JVM vừa khởi động), sau đó đo SAMPLES tin.
     const WARMUP = 5
     const SAMPLES = 40
     const latencies: number[] = []

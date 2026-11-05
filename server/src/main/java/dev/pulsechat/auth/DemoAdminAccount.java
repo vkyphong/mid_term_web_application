@@ -12,11 +12,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-/**
- * Tài khoản admin để demo / chấm bài: tạo khi backend khởi động nếu email chưa tồn tại.
- * Cấu hình bằng DEMO_ADMIN_EMAIL / DEMO_ADMIN_PASSWORD / DEMO_ADMIN_NAME; để DEMO_ADMIN_EMAIL rỗng thì tắt.
- * Email đã có sẵn thì chỉ đảm bảo role admin và đang kích hoạt, không đổi mật khẩu người dùng đã đặt.
- */
+/** Tạo tài khoản admin demo khi khởi động (DEMO_ADMIN_*); email đã có thì chỉ cấp quyền. */
 @Component
 public class DemoAdminAccount implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DemoAdminAccount.class);

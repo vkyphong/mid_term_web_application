@@ -10,10 +10,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Thông tin tài khoản: tên hiển thị, giới tính, ngày sinh, điện thoại. Chủ tài khoản luôn xem / sửa được;
- * người khác chỉ thấy giới tính / ngày sinh / điện thoại khi chủ tài khoản để công khai.
- */
+/** Người khác chỉ thấy giới tính / ngày sinh / điện thoại khi hồ sơ công khai. */
 @RestController
 @RequestMapping("/api")
 public class ProfileController {

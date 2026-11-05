@@ -8,10 +8,7 @@ import type { Upload } from './types'
 export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 export const MAX_UPLOAD_LABEL = '100 MB'
 export const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png'] as const
-/**
- * Kiểm tra theo đuôi file chứ không theo `file.type`: trình duyệt trên Windows báo CSV là
- * application/vnd.ms-excel và ZIP là application/x-zip-compressed; BE tự xác định MIME.
- */
+/** Kiểm tra theo đuôi file vì MIME trình duyệt báo không ổn định; BE tự xác định MIME. */
 export const ACCEPTED_EXTENSIONS = [...IMAGE_EXTENSIONS, '.pdf', '.txt', '.csv', '.docx', '.xlsx', '.pptx', '.zip'] as const
 export const ACCEPT_ATTR = ACCEPTED_EXTENSIONS.join(',')
 export const IMAGE_ACCEPT_ATTR = IMAGE_EXTENSIONS.join(',')
@@ -111,10 +108,7 @@ export interface TrayImage {
 
 let traySeq = 0
 
-/**
- * Ảnh dán (Ctrl+V) hoặc chọn từ máy chờ gửi, như Zalo: mỗi ảnh tải lên ngay, xem trước dạng ô vuông,
- * bỏ từng ảnh hoặc xoá tất cả. Khi gửi, mỗi ảnh là một tin (server gắn một file vào một tin).
- */
+/** Khay ảnh chờ gửi: tải lên ngay, mỗi ảnh gửi thành một tin. */
 export function useImageTray(roomId: string) {
   const [items, setItems] = useState<TrayImage[]>([])
   const controllers = useRef(new Map<string, AbortController>())
@@ -171,10 +165,7 @@ export function useImageTray(roomId: string) {
   return { items, add, remove, clear }
 }
 
-/**
- * Ảnh trong clipboard có thể là WebP / GIF / BMP (tuỳ nơi copy); server chỉ nhận JPG / PNG nên đổi sang
- * PNG bằng canvas. Ảnh dán thường không có tên, đặt tên "anh-dan-<giờ>.png".
- */
+/** Ảnh dán đổi sang PNG (server chỉ nhận JPG / PNG), tên "anh-dan-<giờ>.png". */
 export async function normalizePastedImage(file: File, index = 0): Promise<File> {
   const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
   const name = `anh-dan-${stamp}${index ? `-${index + 1}` : ''}`

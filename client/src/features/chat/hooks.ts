@@ -435,10 +435,7 @@ export function useMessageSearch(roomId: string, query: string) {
   })
 }
 
-/**
- * Nhảy tới một tin cũ (kết quả tìm kiếm): tải dần các trang lịch sử cho tới khi tin có trong cache.
- * Trả về false nếu không tìm thấy (đã xoá hoặc quá xa).
- */
+/** Tải dần lịch sử tới khi tin có trong cache; false nếu không tìm thấy. */
 export function useJumpToMessage(roomId: string) {
   const queryClient = useQueryClient()
   return useCallback(
@@ -633,9 +630,7 @@ export function useChatEvents() {
       // Phòng chưa biết (vd ai đó vừa mở DM với mình) -> tải lại danh sách.
       if (!known) void queryClient.invalidateQueries({ queryKey: chatKeys.rooms })
     })
-    // Có thể đã lỡ event khi mất kết nối -> tải lại; rồi gửi bù hàng đợi (F10).
-    // Ảnh đại diện: nạp danh sách, rồi cập nhật qua event user:avatar; nạp lại sau reconnect.
-    // Lỗi (kể cả API chưa có) chỉ làm avatar hiện chữ cái, không làm hỏng màn hình chat.
+    // Kết nối lại: tải lại dữ liệu và avatar, rồi gửi bù hàng đợi (F10). Lỗi avatar thì hiện chữ cái.
     const loadAvatars = () =>
       Promise.resolve()
         .then(() => chatApi.listUserAvatars())

@@ -15,10 +15,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
-/**
- * Chuyển tiếp một tin (chữ, ảnh hoặc file) sang tối đa 20 phòng mình là thành viên, kèm lời nhắn tuỳ ý.
- * File được sao chép thành upload mới cho từng phòng (một upload chỉ gắn với một tin).
- */
+/** Chuyển tiếp tới tối đa 20 phòng; file được sao chép thành upload mới cho từng phòng. */
 @RestController
 @RequestMapping("/api/messages/{id}/forward")
 public class ForwardController {
