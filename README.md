@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 52400260 | Võ Thành Đạt | Frontend chat: nhóm, thành viên, file, thông báo, thao tác tin nhắn |
 | 52400225 | Vòng Kỷ Phong | Backend: auth, realtime, chat, nhóm, file |
-| 52400064 | Nguyễn Thế An | Admin Live Dashboard, Protocol Lab, bảng trắng |
+| 52400064 | Nguyễn Thái An | Admin Live Dashboard, Protocol Lab, bảng trắng |
 
 ## Yêu cầu hệ thống
 
