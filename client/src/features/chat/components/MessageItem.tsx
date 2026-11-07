@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { MENTION_ALL, splitMentions } from '../mentions'
 import { MAX_CONTENT_BYTES, contentBytes } from '../messages'
 import { REACTION_EMOJIS, type ChatMessage, type UserSummary } from '../types'
@@ -6,6 +6,7 @@ import { roleOf } from '../roles'
 import { openProfile } from '../profileViewer'
 import { AttachmentView } from './AttachmentView'
 import { PollCard } from './Polls'
+import { splitLinks } from '../links'
 import { downloadAttachment } from '../downloads'
 import { LikeOutlineIcon, MoreIcon, QuoteIcon, ShareIcon } from './icons'
 import { Avatar } from './Avatar'
@@ -58,7 +59,15 @@ function MessageText(props: { content: string; members: readonly UserSummary[]; 
             {part.text}
           </span>
         ) : (
-          part.text
+          splitLinks(part.text).map((piece, k) =>
+            piece.href ? (
+              <a key={`${i}-${k}`} className="message-link" href={piece.href} target="_blank" rel="noopener noreferrer">
+                {piece.text}
+              </a>
+            ) : (
+              <Fragment key={`${i}-${k}`}>{piece.text}</Fragment>
+            ),
+          )
         ),
       )}
     </>
@@ -157,7 +166,6 @@ export function MessageItem(props: MessageItemProps) {
     return (
       <li className="message message--activity" id={`message-${m.id}`}>
         <p className="activity-line">
-          <span className="activity-icon" aria-hidden="true">📊</span>
           <strong>{own ? 'Bạn' : m.sender.displayName}</strong> {verb}: <strong>{m.content}</strong>
           {target && onOpenMessage && (
             <button type="button" className="link-btn activity-open" onClick={() => onOpenMessage(target)}>

@@ -5,7 +5,7 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 
 interface Account { context: BrowserContext; token: string; id: string }
-interface Segment { operationId: string; authorId: string; generation: number; revision: number; color: string; points: { x: number; y: number }[] }
+interface Segment { operationId: string; authorId: string; generation: number; revision: number; color: string; width: number; points: { x: number; y: number }[] }
 interface Snapshot { roomId: string; generation: number; revision: number; segments: Segment[] }
 async function account(browser: Browser, label: string): Promise<Account> {
   const context = await browser.newContext({ baseURL: 'http://localhost:8080', hasTouch: true, viewport: { width: 1280, height: 900 } })
@@ -70,7 +70,7 @@ async function pixels(page: Page) {
 async function samePixels(a: Page, b: Page) {
   let diagnostic: unknown
   try { await expect.poll(async () => {
-    const [left, right, aVersion, bVersion] = await Promise.all([pixels(a), pixels(b), a.locator('.whiteboard-version').innerText(), b.locator('.whiteboard-version').innerText()])
+    const [left, right, aVersion, bVersion] = await Promise.all([pixels(a), pixels(b), a.locator('.whiteboard-status').getAttribute('data-version'), b.locator('.whiteboard-status').getAttribute('data-version')])
     // GPU/CPU Canvas anti-aliasing can differ by a handful of edge pixels after readback.
     // Compare spatial RGBA sums and server version, rather than requiring bit-identical rasterization.
     const difference = left.tiles.reduce((sum, value, i) => sum + Math.abs(value - right.tiles[i]), 0)
@@ -192,4 +192,51 @@ test('F19: concurrent room drawing, isolation, chat, reload/reconnect, touch, cl
       await writeFile(join(evidence, 'verification.json'), JSON.stringify({ verifiedAt: new Date().toISOString(), environment: 'Chrome / real Docker app + MySQL', checks: ['simultaneous authors', 'same revision and spatial RGBA comparison with Canvas anti-aliasing tolerance', 'outsider read/send/event denial', 'room isolation', 'chat during drawing', 'reload persistence', 'offline recovery', 'leave/rejoin', 'mobile touch', 'confirmed clear and fresh generation'], populated, afterClear, canvas: { hash: image.hash, ink: image.ink }, authorEventCount: aEvents.length, outsiderEventCount: cEvents.length, pageErrors: errors }, null, 2))
     }
   } finally { await Promise.all([alice.context.close(), bob.context.close(), carol.context.close()]) }
+})
+
+test('bảng trắng: hình chữ nhật, elip, mũi tên và tẩy — mỗi hình một nét, người khác thấy giống hệt', async ({ browser }) => {
+  const [alice, bob] = await Promise.all([account(browser, 'Alice'), account(browser, 'Bob')])
+  try {
+    const room = await channel(alice)
+    const a = await alice.context.newPage(), b = await bob.context.newPage()
+    await Promise.all([a.goto(`/rooms/${room}`), b.goto(`/rooms/${room}`)])
+    await Promise.all([a, b].map((page) => expect(page.getByText('Đã kết nối', { exact: true })).toBeVisible()))
+    await b.getByRole('button', { name: 'Tham gia kênh', exact: true }).click()
+    await expect(b.getByRole('textbox', { name: 'Nội dung tin nhắn' })).toBeEnabled()
+    await Promise.all([openBoard(a), openBoard(b)])
+    const box = (await a.locator('canvas').boundingBox())!
+    const at = (x: number, y: number) => [box.x + box.width * x, box.y + box.height * y] as const
+    const drag = async (from: readonly [number, number], to: readonly [number, number]) => {
+      await a.mouse.move(...from); await a.mouse.down(); await a.mouse.move(...to, { steps: 8 }); await a.mouse.up()
+      await expect(a.locator('.whiteboard-status')).toContainText('Đã đồng bộ')
+    }
+    await a.getByRole('button', { name: 'Bút màu đỏ', exact: true }).click()
+    await a.getByRole('button', { name: 'Hình chữ nhật', exact: true }).click()
+    await drag(at(.1, .2), at(.4, .6))
+    await a.getByRole('button', { name: 'Hình elip', exact: true }).click()
+    await drag(at(.5, .2), at(.8, .6))
+    await a.getByRole('button', { name: 'Mũi tên', exact: true }).click()
+    await drag(at(.15, .8), at(.75, .85))
+    // Bấm rồi thả tại chỗ: không tạo hình.
+    await a.mouse.click(...at(.9, .9))
+    await a.getByRole('button', { name: 'Tẩy', exact: true }).click()
+    await a.getByRole('combobox', { name: 'Cỡ tẩy' }).selectOption('24')
+    await drag(at(.1, .4), at(.45, .4))
+
+    const board = await snapshot(alice, room)
+    expect(board.segments).toHaveLength(4)
+    const [rect, ellipse, arrow, eraser] = board.segments
+    expect(rect.points).toHaveLength(5)
+    expect(rect.points[0]).toEqual(rect.points[4])
+    expect(rect.color).toBe('#dc2626')
+    expect(ellipse.points.length).toBeGreaterThan(30)
+    expect(arrow.points).toHaveLength(5)
+    expect(eraser.color).toBe('#ffffff')
+    expect(eraser.width).toBe(24)
+    await expect.poll(async () => (await snapshot(bob, room)).revision).toBe(board.revision)
+    await samePixels(a, b)
+    if (process.env.WB_SCREENSHOT_PATH) await a.screenshot({ path: process.env.WB_SCREENSHOT_PATH })
+  } finally {
+    await Promise.all([alice.context.close(), bob.context.close()])
+  }
 })

@@ -1,5 +1,5 @@
-import { expect, it, vi } from 'vitest'
-import { applyBoardEvent, mergeBoardSnapshot, normalizedPoint, paintSegment } from './model'
+import { describe, expect, it, vi } from 'vitest'
+import { applyBoardEvent, mergeBoardSnapshot, normalizedPoint, paintSegment, shapePoints } from './model'
 import type { BoardEvent, BoardSnapshot, Segment } from './types'
 
 const empty: BoardSnapshot = { roomId: 'r', generation: 0, revision: 0, segments: [] }
@@ -41,4 +41,33 @@ it('begins a fresh path for every batch and draws a one-point stroke as a dot', 
   expect(ctx.lineTo).toHaveBeenCalledWith(500, 240)
   expect(ctx.arc).toHaveBeenCalledWith(500, 300, 2, 0, Math.PI * 2)
   expect(ctx.fill).toHaveBeenCalledOnce()
+})
+
+describe('shapePoints', () => {
+  const a = { x: 0.1, y: 0.2 }, b = { x: 0.5, y: 0.6 }
+  it('mỗi hình là một nét khép kín hợp lệ (≤ 48 điểm, toạ độ trong [0,1])', () => {
+    for (const shape of ['line', 'arrow', 'rect', 'ellipse', 'triangle'] as const) {
+      const pts = shapePoints(shape, a, b)
+      expect(pts.length).toBeGreaterThanOrEqual(2)
+      expect(pts.length).toBeLessThanOrEqual(48)
+      for (const p of pts) { expect(p.x).toBeGreaterThanOrEqual(0); expect(p.x).toBeLessThanOrEqual(1); expect(p.y).toBeGreaterThanOrEqual(0); expect(p.y).toBeLessThanOrEqual(1) }
+    }
+    expect(shapePoints('rect', a, b)).toEqual([a, { x: 0.5, y: 0.2 }, b, { x: 0.1, y: 0.6 }, a])
+    expect(shapePoints('line', a, b)).toEqual([a, b])
+    const ellipse = shapePoints('ellipse', a, b)
+    expect(ellipse[0]).toEqual(ellipse[ellipse.length - 1])
+  })
+
+  it('giữ Shift: hình vuông theo pixel và đường thẳng bắt góc 45°', () => {
+    // Từ (100,120) kéo tới (500,360) pixel → cạnh 400 px.
+    const square = shapePoints('rect', a, b, true)
+    expect(square[2]).toEqual({ x: 0.5, y: 0.8667 })
+    const line = shapePoints('line', { x: 0.1, y: 0.5 }, { x: 0.5, y: 0.52 }, true)
+    expect(line[1].y).toBe(0.5)
+  })
+
+  it('hình chạm mép bảng được kẹp trong [0,1]', () => {
+    const arrow = shapePoints('arrow', { x: 0.99, y: 0.01 }, { x: 0, y: 0 })
+    expect(arrow.every((p) => p.x >= 0 && p.y >= 0 && p.x <= 1 && p.y <= 1)).toBe(true)
+  })
 })

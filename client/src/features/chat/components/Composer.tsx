@@ -39,14 +39,14 @@ const QUICK_EMOJIS = [
 
 const QUICK_REACTION = '👍'
 
-function ToolButton(props: { label: string; onClick: () => void; disabled?: boolean; pressed?: boolean; children: ReactNode }) {
-  const { label, onClick, disabled, pressed, children } = props
+function ToolButton(props: { label: string; hint?: string; onClick: () => void; disabled?: boolean; pressed?: boolean; children: ReactNode }) {
+  const { label, hint, onClick, disabled, pressed, children } = props
   return (
     <button
       type="button"
       className="composer-tool"
       aria-label={label}
-      title={label}
+      title={hint ?? label}
       aria-pressed={pressed}
       disabled={disabled}
       // Giữ focus trong ô soạn tin để chèn emoji / "@" đúng vị trí con trỏ.
@@ -298,7 +298,7 @@ export function Composer(props: ComposerProps) {
         <ToolButton label="Gửi hình ảnh" disabled={disabled || tray.items.length >= MAX_TRAY_IMAGES} onClick={() => imageInput.current?.click()}>
           <ImageIcon />
         </ToolButton>
-        <ToolButton label="Đính kèm tệp" disabled={disabled || upload.state.status === 'uploading'} onClick={() => fileInput.current?.click()}>
+        <ToolButton label="Đính kèm tệp" hint={`Đính kèm tệp: ${ACCEPTED_LABEL}, tối đa ${MAX_UPLOAD_LABEL}`} disabled={disabled || upload.state.status === 'uploading'} onClick={() => fileInput.current?.click()}>
           <PaperclipIcon />
         </ToolButton>
         <ToolButton label="Nhắc tên thành viên" disabled={disabled} onClick={startMention}>
@@ -314,7 +314,6 @@ export function Composer(props: ComposerProps) {
             <UserPlusIcon />
           </ToolButton>
         )}
-        <span className="composer-hint muted small">Tệp: {ACCEPTED_LABEL}, tối đa {MAX_UPLOAD_LABEL}</span>
 
         {emojiOpen && (
           <div className="emoji-panel" role="group" aria-label="Chọn biểu tượng cảm xúc">

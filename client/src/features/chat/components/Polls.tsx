@@ -104,7 +104,7 @@ export function PollCard(props: { poll: Poll; selfId: string; members: readonly 
 
   return (
     <div className="poll-card" role="group" aria-label={`Bình chọn: ${poll.question}`}>
-      <p className="poll-question">📊 {poll.question}</p>
+      <p className="poll-question">{poll.question}</p>
       <p className="muted small">
         {closed ? 'Đã khoá bình chọn' : poll.multiple ? 'Chọn được nhiều phương án' : 'Chọn một phương án'} · {voters.size} người đã bình chọn
       </p>

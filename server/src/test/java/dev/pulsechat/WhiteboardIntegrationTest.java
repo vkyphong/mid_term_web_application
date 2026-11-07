@@ -97,7 +97,7 @@ class WhiteboardIntegrationTest {
     @Test void pointsStyleAndStorageBoundsAreEnforced() {
         var bad = (com.fasterxml.jackson.databind.node.ObjectNode) segment(0);
         bad.put("color", "url(javascript:bad)"); assertThatThrownBy(() -> boards.segment(a.id(), bad)).isInstanceOf(ApiException.class);
-        bad.put("color", "#1f2937"); bad.put("width", 13); assertThatThrownBy(() -> boards.segment(a.id(), bad)).isInstanceOf(ApiException.class);
+        bad.put("color", "#1f2937"); bad.put("width", 41); assertThatThrownBy(() -> boards.segment(a.id(), bad)).isInstanceOf(ApiException.class);
         bad.put("width", 4); bad.set("points", mapper.valueToTree(Collections.nCopies(49, Map.of("x", .1, "y", .2))));
         assertThatThrownBy(() -> boards.segment(a.id(), bad)).isInstanceOf(ApiException.class);
         bad.set("points", mapper.valueToTree(List.of(Map.of("x", -1, "y", .2)))); assertThatThrownBy(() -> boards.segment(a.id(), bad)).isInstanceOf(ApiException.class);

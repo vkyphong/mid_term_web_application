@@ -154,6 +154,17 @@ describe('F14 thao tác tin nhắn', () => {
   })
 })
 
+describe('link trong tin nhắn', () => {
+  it('link bấm được, mở tab mới an toàn; @nhắc tên vẫn hoạt động', () => {
+    renderItem(msg({ content: '@Phong xem https://youtu.be/abc?si=1 nhé' }), false)
+    const link = screen.getByRole('link', { name: 'https://youtu.be/abc?si=1' })
+    expect(link).toHaveAttribute('href', 'https://youtu.be/abc?si=1')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+    expect(screen.getByText('@Phong')).toHaveClass('mention')
+  })
+})
+
 describe('F11 hiển thị an toàn và lỗi', () => {
   it('nội dung HTML/script được hiển thị nguyên văn, không tạo phần tử', () => {
     const xss = '<img src=x onerror="alert(1)"><script>alert(2)</script>'
